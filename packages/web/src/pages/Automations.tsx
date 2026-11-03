@@ -18,7 +18,6 @@ function useAutomations() {
   const [list, setList] = useState<Automation[] | null>(null);
   const stream = useStream();
   const status = useApp((s) => s.status);
-  const isAdmin = useIsAdmin();
 
   const load = useCallback(async () => {
     try {
@@ -60,6 +59,7 @@ function useAutomations() {
 // Page
 
 export function Automations({ editId }: { editId?: string }) {
+  const isAdmin = useIsAdmin();
   const { list, upsert, remove } = useAutomations();
   const editing = editId && editId !== "new" ? list?.find((a) => a.id === editId) : undefined;
   const close = () => navigate("/automations");
