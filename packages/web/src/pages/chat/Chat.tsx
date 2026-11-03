@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, ListFilter, LoaderCircle, MessagesSquare, Search, SquarePen, X } from "lucide-react";
+import { ArrowLeft, Check, ListFilter, LoaderCircle, MessagesSquare, Search, ShieldAlert, SquarePen, X } from "lucide-react";
 import type { Source, Thread } from "@soloagent/client";
 import { client } from "../../api/client.ts";
 import { local, useAgentMap, useApp } from "../../api/store.ts";
@@ -210,7 +210,9 @@ function ThreadRow({ thread, active }: { thread: Thread; active: boolean }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className={cn("min-w-0 flex-1 truncate text-[13.5px]", active ? "font-semibold text-fg" : "font-medium text-fg")}>{thread.title || "Untitled"}</span>
-            {thread.busy ? (
+            {thread.waitingApproval ? (
+              <ShieldAlert className="size-3.5 shrink-0 text-warning" aria-label="Waiting for approval" />
+            ) : thread.busy ? (
               <LoaderCircle className="size-3.5 shrink-0 animate-spin text-accent-text" aria-label="Working" />
             ) : (
               <span className="shrink-0 text-[11.5px] tabular-nums text-faint">{shortTime(thread.updatedAt)}</span>
@@ -218,7 +220,13 @@ function ThreadRow({ thread, active }: { thread: Thread; active: boolean }) {
           </div>
           <p className="mt-0.5 truncate text-[12.5px] text-subtle">
             {thread.location && thread.location !== thread.title && <span className="text-muted">{thread.location} · </span>}
-            {thread.busy && !thread.preview ? <span className="text-accent-text">Thinking…</span> : plainPreview(thread.preview) || <span className="text-faint">No messages yet</span>}
+            {thread.waitingApproval ? (
+              <span className="text-warning">Waiting for approval</span>
+            ) : thread.busy && !thread.preview ? (
+              <span className="text-accent-text">Thinking…</span>
+            ) : (
+              plainPreview(thread.preview) || <span className="text-faint">No messages yet</span>
+            )}
           </p>
         </div>
       </a>

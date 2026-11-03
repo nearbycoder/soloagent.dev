@@ -1,6 +1,7 @@
 import type { Agent, AgentInput, AgentSkill } from "@soloagent/client";
 import { AGENT_SKILLS } from "@soloagent/client";
 import { type Db, newId } from "./db.ts";
+import { defaultApprovalPolicy, isApprovalPolicy } from "./approvals.ts";
 
 const PALETTE = ["#8b5cf6", "#06b6d4", "#f59e0b", "#10b981", "#ef4444", "#ec4899", "#3b82f6", "#84cc16"];
 const AVATARS = ["✦", "◆", "●", "▲", "✸", "◉", "⬢", "✺"];
@@ -52,6 +53,7 @@ export class AgentStore {
     const now = Date.now();
     const count = this.list().length;
     const handle = this.#uniqueHandle(input.handle ? toHandle(input.handle) : toHandle(input.name));
+    const skills = cleanSkills(input.skills ?? ["memory", "web", "delegate", "schedule"]);
     const agent: Agent = {
       id: newId("agt"),
       handle,
@@ -62,9 +64,10 @@ export class AgentStore {
       instructions: input.instructions ?? DEFAULT_INSTRUCTIONS,
       model: input.model ?? null,
       thinkingLevel: input.thinkingLevel ?? "medium",
-      skills: cleanSkills(input.skills ?? ["memory", "web", "delegate", "schedule"]),
+      skills,
       maxTurns: clampTurns(input.maxTurns ?? 40),
       isDefault: input.isDefault ?? count === 0,
+      approvals: isApprovalPolicy(input.approvals) ? input.approvals : defaultApprovalPolicy(skills),
       createdAt: now,
       updatedAt: now,
     };
@@ -77,11 +80,19 @@ export class AgentStore {
   update(id: string, input: Partial<AgentInput>): Agent {
     const current = this.get(id);
     if (!current) throw new Error("Agent not found");
+    const skills = input.skills ? cleanSkills(input.skills) : current.skills;
+    // Granting the workspace skill turns approvals on unless the same change says otherwise.
+    const gainedWorkspace = skills.includes("workspace") && !current.skills.includes("workspace");
     const next: Agent = {
       ...current,
       ...stripUndefined(input),
       handle: input.handle !== undefined ? this.#uniqueHandle(toHandle(input.handle), current.id) : current.handle,
-      skills: input.skills ? cleanSkills(input.skills) : current.skills,
+      skills,
+      approvals: isApprovalPolicy(input.approvals)
+        ? input.approvals
+        : gainedWorkspace && current.approvals === "off"
+          ? "risky"
+          : current.approvals,
       maxTurns: input.maxTurns !== undefined ? clampTurns(input.maxTurns) : current.maxTurns,
       id: current.id,
       createdAt: current.createdAt,
@@ -134,7 +145,16 @@ export class AgentStore {
 }
 
 function fromRow(row: Row): Agent {
-  return { ...(JSON.parse(row.data) as Omit<Agent, "id" | "handle" | "createdAt" | "updatedAt">), id: row.id, handle: row.handle, createdAt: row.created_at, updatedAt: row.updated_at };
+  const data = JSON.parse(row.data) as Omit<Agent, "id" | "handle" | "createdAt" | "updatedAt">;
+  return {
+    ...data,
+    // Rows from before approvals existed: on for agents with the workspace skill.
+    approvals: isApprovalPolicy(data.approvals) ? data.approvals : defaultApprovalPolicy(data.skills ?? []),
+    id: row.id,
+    handle: row.handle,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 function cleanSkills(skills: readonly string[]): AgentSkill[] {

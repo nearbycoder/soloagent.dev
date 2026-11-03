@@ -38,6 +38,17 @@ export const MIGRATIONS: { id: string; sql: string }[] = [
    CREATE TABLE schedules (task_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, agent_id TEXT NOT NULL, text TEXT NOT NULL,
      at INTEGER NOT NULL, status TEXT NOT NULL);`,
   },
+  {
+    // Tool calls waiting for a human. One row per durable tool task, so a rerun after a restart finds its request.
+    id: "020_approvals",
+    sql: `CREATE TABLE approvals (
+     id TEXT PRIMARY KEY, task_id TEXT NOT NULL UNIQUE, call_id TEXT NOT NULL, conversation_id INTEGER NOT NULL,
+     thread_id TEXT, agent_id TEXT, tool TEXT NOT NULL, args TEXT NOT NULL, status TEXT NOT NULL,
+     decided_by TEXT, decided_via TEXT, reason TEXT, chat TEXT,
+     created_at INTEGER NOT NULL, decided_at INTEGER, expires_at INTEGER NOT NULL);
+   CREATE INDEX approvals_status ON approvals(status, created_at DESC);
+   CREATE INDEX approvals_thread ON approvals(thread_id, status);`,
+  },
 ];
 
 export class Db {

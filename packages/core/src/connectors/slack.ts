@@ -1,6 +1,7 @@
 import bolt from "@slack/bolt";
 import type { ConnectorDriver, DriverFactory } from "./types.ts";
 import { toSlack } from "./format.ts";
+import { approvalAction, parseApprovalAction } from "../approvals.ts";
 
 const { App, LogLevel } = bolt;
 
@@ -89,6 +90,23 @@ export const slackDriver: DriverFactory = (config, host): ConnectorDriver => {
         });
       });
 
+      // Approvals: Approve / Deny buttons. Socket Mode delivers them once the app has interactivity enabled.
+      app.action(/^solo_(approve|deny)$/, async ({ ack, body, action, client }) => {
+        await ack();
+        const value = "value" in action && typeof action.value === "string" ? action.value : "";
+        const parsed = parseApprovalAction(value);
+        const b = body as { user?: { id?: string }; channel?: { id?: string }; message?: { ts?: string; thread_ts?: string } };
+        const userId = b.user?.id;
+        if (!parsed || !userId) return;
+        const name = await userName(client, userId);
+        const result = await host.decide({ approvalId: parsed.id, approve: parsed.approve, user: { id: userId, name } });
+        if (!result.ok && b.channel?.id) {
+          await client.chat
+            .postEphemeral({ channel: b.channel.id, user: userId, text: result.message, thread_ts: b.message?.thread_ts ?? b.message?.ts })
+            .catch(() => {});
+        }
+      });
+
       app.error(async (error) => host.log(`slack: ${error.message}`));
       await app.start();
       host.status("connected", undefined, `@${auth.user ?? "bot"} in ${auth.team ?? "workspace"}`);
@@ -113,6 +131,34 @@ export const slackDriver: DriverFactory = (config, host): ConnectorDriver => {
     async edit(target, handle, markdown) {
       if (!app) throw new Error("Slack is not connected");
       await app.client.chat.update({ channel: handle.channel ?? target.channel!, ts: handle.ts!, text: toSlack(markdown) });
+    },
+
+    async requestApproval(target, approvalId, markdown) {
+      if (!app) throw new Error("Slack is not connected");
+      const text = toSlack(markdown).slice(0, 2_900);
+      const result = await app.client.chat.postMessage({
+        channel: target.channel!,
+        thread_ts: target.thread_ts,
+        text,
+        blocks: [
+          { type: "section", text: { type: "mrkdwn", text } },
+          {
+            type: "actions",
+            elements: [
+              { type: "button", action_id: "solo_approve", style: "primary", text: { type: "plain_text", text: "Approve" }, value: approvalAction(approvalId, true) },
+              { type: "button", action_id: "solo_deny", style: "danger", text: { type: "plain_text", text: "Deny" }, value: approvalAction(approvalId, false) },
+            ],
+          },
+        ],
+        unfurl_links: false,
+      });
+      return result.ts ? { ts: result.ts, channel: result.channel ?? target.channel! } : undefined;
+    },
+
+    async resolveApproval(target, handle, markdown) {
+      if (!app) throw new Error("Slack is not connected");
+      const text = toSlack(markdown).slice(0, 2_900);
+      await app.client.chat.update({ channel: handle.channel ?? target.channel!, ts: handle.ts!, text, blocks: [{ type: "section", text: { type: "mrkdwn", text } }] });
     },
   };
 };

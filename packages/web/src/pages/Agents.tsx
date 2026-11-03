@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bot, Brain, MessageSquare, Pencil, Plus, ShieldAlert, Star, Trash } from "lucide-react";
-import { AGENT_SKILLS, type Agent, type AgentInput, type AgentSkill, type ThinkingLevel } from "@soloagent/client";
+import { AGENT_SKILLS, APPROVAL_POLICIES, type Agent, type AgentInput, type AgentSkill, type ThinkingLevel } from "@soloagent/client";
 import { client } from "../api/client.ts";
 import { loadProviders, local, useApp } from "../api/store.ts";
 import { AgentAvatar, ProviderMark } from "../components/brand.tsx";
@@ -169,6 +169,7 @@ function toDraft(agent: Agent | null, defaultModel: Agent["model"]): Draft {
     skills: agent?.skills ?? ["memory", "web", "delegate", "schedule"],
     maxTurns: agent?.maxTurns ?? 40,
     isDefault: agent?.isDefault ?? false,
+    approvals: agent?.approvals ?? "off",
   };
 }
 
@@ -379,7 +380,12 @@ function AgentEditor({ agent, onClose }: { agent: Agent | null; onClose: () => v
             {AGENT_SKILLS.map((skill) => {
               const on = draft.skills.includes(skill.id);
               const toggle = (value: boolean) =>
-                set("skills", value ? [...draft.skills, skill.id] : draft.skills.filter((s): s is AgentSkill => s !== skill.id));
+                setDraft((d) => ({
+                  ...d,
+                  skills: value ? [...d.skills, skill.id] : d.skills.filter((s): s is AgentSkill => s !== skill.id),
+                  // Shell access asks first by default.
+                  approvals: value && skill.id === "workspace" && d.approvals === "off" ? "risky" : d.approvals,
+                }));
               return (
                 <label key={skill.id} className={cn("flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-2/40", skill.dangerous && on && "bg-warning-soft")}>
                   <div className="min-w-0 flex-1">
@@ -393,13 +399,31 @@ function AgentEditor({ agent, onClose }: { agent: Agent | null; onClose: () => v
                       )}
                     </div>
                     <p className="mt-0.5 text-[12.5px] leading-relaxed text-subtle">{skill.description}</p>
-                    {skill.dangerous && on && <p className="mt-1 text-[12px] text-warning">Anyone who can talk to this agent can run shell commands on your server.</p>}
+                    {skill.dangerous && on && (
+                      <p className="mt-1 text-[12px] text-warning">
+                        {draft.approvals === "off"
+                          ? "Anyone who can talk to this agent can run shell commands on your server. Consider turning on approvals below."
+                          : "Anyone who can talk to this agent can ask it to run shell commands; each one waits for an approval."}
+                      </p>
+                    )}
                   </div>
                   <Switch checked={on} onChange={toggle} label={skill.label} />
                 </label>
               );
             })}
           </div>
+        </Section>
+
+        <Section title="Approvals" description="Pause before tool calls until a person approves them, in the dashboard or with buttons in Slack, Discord, and Telegram.">
+          <Field label="Ask before" hint={APPROVAL_POLICIES.find((p) => p.id === draft.approvals)?.description}>
+            <Segmented
+              value={draft.approvals}
+              onChange={(v) => set("approvals", v)}
+              size="sm"
+              className="w-full max-w-md"
+              options={APPROVAL_POLICIES.map((p) => ({ value: p.id, label: p.label }))}
+            />
+          </Field>
         </Section>
 
         <Section title="Behavior">

@@ -22,6 +22,9 @@ import type {
   ActivityItem,
   Agent,
   AgentInput,
+  Approval,
+  ApprovalSettings,
+  ApprovalStatus,
   Author,
   Connector,
   LiveState,
@@ -37,9 +40,10 @@ import type {
   UsageSummary,
 } from "@soloagent/client";
 import { AgentStore } from "./agents.ts";
+import { ApprovalStore, approvalOutcome, approvalPrompt, canApproveInChat, createApprovalExtensions } from "./approvals.ts";
 import { ConnectorManager } from "./connectors/manager.ts";
 import { chunk } from "./connectors/format.ts";
-import type { InboundMessage, PostHandle, ReplyTarget } from "./connectors/types.ts";
+import type { ChatDecisionInput, InboundMessage, PostHandle, ReplyTarget } from "./connectors/types.ts";
 import { SealedCredentialStore } from "./credentials.ts";
 import { Db, newId } from "./db.ts";
 import { ProviderHub } from "./providers.ts";
@@ -106,10 +110,12 @@ export class SoloAgent {
   readonly agents: AgentStore;
   readonly providers: ProviderHub;
   readonly connectors: ConnectorManager;
+  readonly approvals: ApprovalStore;
   readonly adminToken: string;
   readonly dataDir: string;
   readonly startedAt = Date.now();
   #skills: ReturnType<typeof createSkills>;
+  #approvalExtensions: ReturnType<typeof createApprovalExtensions>;
   #watchers = new Map<string, ThreadWatcher>();
   #busy = new Set<string>();
   #outbound = new Map<string, Outbound>();
@@ -124,7 +130,9 @@ export class SoloAgent {
     agents: AgentStore;
     providers: ProviderHub;
     connectors: ConnectorManager;
+    approvals: ApprovalStore;
     skills: ReturnType<typeof createSkills>;
+    approvalExtensions: ReturnType<typeof createApprovalExtensions>;
     adminToken: string;
     dataDir: string;
     log: (message: string) => void;
@@ -134,7 +142,9 @@ export class SoloAgent {
     this.agents = init.agents;
     this.providers = init.providers;
     this.connectors = init.connectors;
+    this.approvals = init.approvals;
     this.#skills = init.skills;
+    this.#approvalExtensions = init.approvalExtensions;
     this.adminToken = init.adminToken;
     this.dataDir = init.dataDir;
     this.#log = init.log;
@@ -175,6 +185,7 @@ export class SoloAgent {
     const connectors = new ConnectorManager(db, sealer, {
       changed: (connector, deleted) => emit(deleted ? { type: "connector.deleted", connectorId: connector.id } : { type: "connector.updated", connector }),
       inbound: (connector, message) => void solo?.handleInbound(connector, message).catch((error) => log(`inbound ${connector.name}: ${String(error)}`)),
+      decide: async (connector, input) => solo?.decideFromChat(connector.id, input) ?? { ok: false, message: "soloagent is starting up; try again in a moment." },
       log: (connectorId, message, error) => {
         log(message);
         solo?.activity({ type: error ? "error" : "connector", text: message, connectorId });
@@ -224,8 +235,15 @@ export class SoloAgent {
     };
 
     const skills = createSkills(host);
+    const approvals = new ApprovalStore(db, (approval, created) => solo?.approvalChanged(approval, created));
+    const approvalExtensions = createApprovalExtensions({
+      store: approvals,
+      locate: (conversationId) => solo!.locateConversation(conversationId),
+      waiting: (approval) => solo?.approvalWaiting(approval),
+    });
     const registry = createRegistry();
     for (const extension of skills.all) registry.install(extension);
+    for (const extension of Object.values(approvalExtensions)) registry.install(extension);
 
     const storage = await openNodeSqliteStorage(join(dataDir, "durable.sqlite"));
     const harness = await Harness.open(
@@ -246,8 +264,9 @@ export class SoloAgent {
       ctx,
     );
 
-    solo = new SoloAgent({ db, harness, agents, providers, connectors, skills, adminToken, dataDir, log });
+    solo = new SoloAgent({ db, harness, agents, providers, connectors, approvals, skills, approvalExtensions, adminToken, dataDir, log });
     harness.resume();
+    void solo.reconcileApprovals();
     if (agents.list().length === 0) solo.seed();
     await solo.autoAssignModels();
     if (options.connectors !== false) void connectors.startAll();
@@ -336,7 +355,12 @@ export class SoloAgent {
     return {
       model: agent.model,
       thinkingLevel: agent.thinkingLevel as AgentChange["thinkingLevel"],
-      extensions: [this.#skills.Base, ...skills.map((s) => this.#skills.extensions[s])],
+      extensions: [
+        this.#skills.Base,
+        ...skills.map((s) => this.#skills.extensions[s]),
+        // Approvals: a beforeTool gate; agents with approvals off run exactly as before.
+        ...(agent.approvals === "risky" || agent.approvals === "all" ? [this.#approvalExtensions[agent.approvals]] : []),
+      ],
       tools: null,
       instructions: agent.instructions || null,
       maxTurns: agent.maxTurns,
@@ -357,9 +381,10 @@ export class SoloAgent {
     if (query.agentId) (clauses.push("agent_id = ?"), params.push(query.agentId));
     if (query.source) (clauses.push("source = ?"), params.push(query.source));
     const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    const waiting = this.approvals.pendingThreads();
     return this.db
       .all<ThreadRow>(`SELECT * FROM threads ${where} ORDER BY updated_at DESC LIMIT ?`, ...params, Math.min(query.limit ?? 200, 1000))
-      .map((row) => this.#thread(row));
+      .map((row) => this.#thread(row, waiting));
   }
 
   thread(id: string): Thread | undefined {
@@ -436,7 +461,7 @@ export class SoloAgent {
     const { messages, hasMore } = await this.messages(id, undefined, 60);
     const conversation = await this.#conversation(row);
     const view = await conversation.watch(ctx, { min: 1, max: 1 });
-    const live = toLive(view.value.docs);
+    const live = withApprovals(toLive(view.value.docs), this.approvals.list({ status: "pending", threadId: id }));
     await view.stop();
     return { thread: this.#thread(row), messages, hasMore, live };
   }
@@ -539,7 +564,9 @@ export class SoloAgent {
     if (!row) throw new Error("Thread not found");
     let watcher = this.#watchers.get(threadId);
     if (!watcher) {
-      watcher = new ThreadWatcher(threadId, row.agent_id, await this.#conversation(row), (live) => this.#onLive(threadId, live));
+      watcher = new ThreadWatcher(threadId, row.agent_id, await this.#conversation(row), (live) => this.#onLive(threadId, live), () =>
+        this.approvals.list({ status: "pending", threadId }),
+      );
       this.#watchers.set(threadId, watcher);
     }
     const w = watcher;
@@ -719,10 +746,12 @@ export class SoloAgent {
     const driver = row?.connector_id ? this.connectors.driver(row.connector_id) : undefined;
     if (!driver?.edit) return;
     const agent = row ? this.agents.get(row.agent_id) : undefined;
-    const running = live.tools.filter((t) => t.status !== "done").map((t) => `\`${t.name}\``);
+    const waiting = new Set((live.approvals ?? []).map((a) => a.callId));
+    const running = live.tools.filter((t) => t.status !== "done" && !waiting.has(t.callId)).map((t) => `\`${t.name}\``);
     const partial = live.partial?.text?.trim();
     let text = partial ? `${partial} ▍` : `${agent?.avatar ?? "✦"} _thinking…_`;
     if (running.length) text += `\n\n🔧 _running ${running.join(", ")}…_`;
+    if (live.approvals?.length) text += `\n\n🔐 _waiting for approval to run ${live.approvals.map((a) => `\`${a.tool}\``).join(", ")}…_`;
     if (live.retry) text += `\n\n⚠️ _retrying: ${live.retry.error.slice(0, 120)}_`;
     text = text.length > driver.maxLength ? `…${text.slice(text.length - driver.maxLength + 1)}` : text;
     if (text === outbound.lastText) return;
@@ -781,6 +810,138 @@ export class SoloAgent {
     }
     const detail = failure.detail ? `: ${failure.detail.slice(0, 300)}` : "";
     await this.#deliver(row, `⚠️ I couldn't answer (${failure.reason.replace(/_/g, " ")}${detail}).`);
+  }
+
+  // ───────────────────────────── approvals ─────────────────────────────
+
+  listApprovals(query: { status?: ApprovalStatus | "decided"; threadId?: string; limit?: number } = {}): Approval[] {
+    return this.approvals.list(query);
+  }
+
+  approvalSettings(): ApprovalSettings {
+    return this.approvals.settings();
+  }
+
+  setApprovalSettings(input: Partial<ApprovalSettings>): ApprovalSettings {
+    return this.approvals.setSettings(input);
+  }
+
+  /**
+   * Approve or deny a waiting tool call from the dashboard, the API, or the TUI. `by` names who decided; until
+   * users exist it defaults to "dashboard".
+   */
+  decideApproval(id: string, input: { approve: boolean; by?: string; via?: string; reason?: string }): Approval {
+    const approval = this.approvals.get(id);
+    if (!approval) throw new HttpError(404, "Approval not found");
+    if (approval.status !== "pending") throw new HttpError(409, `Already ${approval.status}${approval.decidedBy ? ` by ${approval.decidedBy}` : ""}`);
+    const decided = this.approvals.decide(id, {
+      status: input.approve ? "approved" : "denied",
+      by: input.by?.trim() || "dashboard",
+      via: input.via ?? "dashboard",
+      reason: input.approve ? undefined : input.reason,
+    });
+    if (!decided) throw new HttpError(409, "Someone else decided it first");
+    return decided;
+  }
+
+  /** A button press in Slack, Discord, or Telegram. Only the connector's approvers count. */
+  async decideFromChat(connectorId: string, input: ChatDecisionInput): Promise<{ ok: boolean; message: string }> {
+    const connector = this.connectors.get(connectorId);
+    const approval = this.approvals.get(input.approvalId);
+    const thread = approval?.threadId ? this.#row(approval.threadId) : undefined;
+    if (!connector || !approval || thread?.connector_id !== connectorId) return { ok: false, message: "This approval request no longer exists." };
+    if (approval.status !== "pending") {
+      return { ok: false, message: `This was already ${approval.status}${approval.decidedBy && approval.decidedBy !== "timeout" ? ` by ${approval.decidedBy}` : ""}.` };
+    }
+    if (!canApproveInChat(connector.approvers, input.user)) {
+      return {
+        ok: false,
+        message: connector.approvers.length
+          ? `Sorry ${input.user.name}, you are not an approver for this connector. Ask an approver, or decide in the soloagent dashboard.`
+          : "Approvals for this connector happen in the soloagent dashboard. An admin can add chat approvers in Connections.",
+      };
+    }
+    const decided = this.approvals.decide(approval.id, {
+      status: input.approve ? "approved" : "denied",
+      by: input.user.name,
+      via: connector.kind,
+      reason: input.approve ? undefined : input.reason,
+    });
+    if (!decided) return { ok: false, message: "Someone else decided it first." };
+    return { ok: true, message: input.approve ? "Approved." : "Denied." };
+  }
+
+  /** The thread and agent of a conversation; a delegate's child conversation belongs to its owner's thread. */
+  async locateConversation(conversationId: number): Promise<{ threadId: string | null; agentId: string | null }> {
+    const own = this.agentForConversation(conversationId)?.id ?? null;
+    let id = conversationId;
+    for (let depth = 0; depth < 8; depth++) {
+      const row = this.db.get<ThreadRow>("SELECT * FROM threads WHERE conversation_id = ?", id);
+      if (row) return { threadId: row.id, agentId: own ?? row.agent_id };
+      const record = await this.harness.commit((tx) => tx.conversation(cid(id)), ctx).catch(() => undefined);
+      if (record?.owner === undefined) break;
+      id = Number(record.owner.conversationId);
+    }
+    return { threadId: null, agentId: own };
+  }
+
+  /** Called by the gate whenever a call waits, also again after a restart. */
+  approvalWaiting(approval: Approval) {
+    if (approval.threadId) {
+      this.markBusy(approval.threadId);
+      void this.#postApproval(approval).catch((error) => this.#log(`approval post: ${String(error)}`));
+    }
+  }
+
+  /** Every created or decided approval: events, activity, the thread's live state, and its chat message. */
+  approvalChanged(approval: Approval, created: boolean) {
+    this.emit({ type: "approval.updated", approval });
+    const agent = approval.agentId ? this.agents.get(approval.agentId) : undefined;
+    const who = agent ? `@${agent.handle}` : "An agent";
+    if (created) {
+      this.activity({ type: "approval", text: `${who} is waiting for approval to run ${approval.tool}`, agentId: approval.agentId ?? undefined, threadId: approval.threadId ?? undefined });
+    } else if (approval.status !== "cancelled") {
+      const what = approval.status === "expired" ? "expired (denied)" : `${approval.status} by ${approval.decidedBy ?? "someone"}`;
+      this.activity({ type: "approval", text: `${who} ${approval.tool}: ${what}`, agentId: approval.agentId ?? undefined, threadId: approval.threadId ?? undefined });
+    }
+    if (approval.threadId) {
+      void this.#watchers.get(approval.threadId)?.refresh();
+      const thread = this.thread(approval.threadId);
+      if (thread) this.emit({ type: "thread.updated", thread });
+    }
+    if (!created) void this.#resolveApprovalMessage(approval).catch((error) => this.#log(`approval update: ${String(error)}`));
+  }
+
+  /** Requests whose tool task ended without a decision (a stop, a restart limit) are cancelled. */
+  async reconcileApprovals() {
+    for (const approval of this.approvals.list({ status: "pending", limit: 500 })) {
+      const task = await this.harness.getTask(Number(approval.taskId) as never, ctx).catch(() => undefined);
+      if (!task || task.state.status === "terminal") this.approvals.decide(approval.id, { status: "cancelled", by: "system", via: "system" });
+    }
+  }
+
+  #agentLabel(approval: Approval): string {
+    const agent = approval.agentId ? this.agents.get(approval.agentId) : undefined;
+    return agent ? `${agent.avatar} @${agent.handle}` : "An agent";
+  }
+
+  async #postApproval(approval: Approval) {
+    if (this.approvals.chat(approval.id)) return; // posted before a restart
+    const row = approval.threadId ? this.#row(approval.threadId) : undefined;
+    if (!row?.connector_id) return;
+    const driver = this.connectors.driver(row.connector_id);
+    if (!driver?.requestApproval) return;
+    const target = this.#outbound.get(row.id)?.target ?? (JSON.parse(row.meta ?? "{}") as ThreadMeta).target;
+    if (!target) return;
+    const handle = await driver.requestApproval(target, approval.id, approvalPrompt(approval, this.#agentLabel(approval)));
+    if (handle) this.approvals.setChat(approval.id, { connectorId: row.connector_id, target, handle });
+  }
+
+  async #resolveApprovalMessage(approval: Approval) {
+    const chat = this.approvals.chat(approval.id);
+    if (!chat) return;
+    const driver = this.connectors.driver(chat.connectorId);
+    await driver?.resolveApproval?.(chat.target, chat.handle, approvalOutcome(approval, this.#agentLabel(approval)));
   }
 
   // ───────────────────────────── insight ─────────────────────────────
@@ -900,7 +1061,8 @@ export class SoloAgent {
     return this.db.get<ThreadRow>("SELECT * FROM threads WHERE id = ?", id);
   }
 
-  #thread(row: ThreadRow): Thread {
+  #thread(row: ThreadRow, waiting?: Set<string>): Thread {
+    const waitingApproval = waiting ? waiting.has(row.id) : this.approvals.list({ status: "pending", threadId: row.id, limit: 1 }).length > 0;
     return {
       id: row.id,
       agentId: row.agent_id,
@@ -910,6 +1072,7 @@ export class SoloAgent {
       title: row.title,
       preview: row.preview,
       busy: this.#busy.has(row.id),
+      ...(waitingApproval ? { waitingApproval: true } : {}),
       messageCount: row.message_count,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -938,17 +1101,26 @@ class ThreadWatcher {
   #seen = new Set<string>();
   #lastLive = "";
   #live: LiveState | undefined;
+  #docs: Readonly<Record<string, unknown>> | undefined;
 
   readonly threadId: string;
   readonly agentId: string;
   readonly conversation: Conversation;
   readonly onLive: (live: LiveState) => void;
+  readonly approvals: () => Approval[];
 
-  constructor(threadId: string, agentId: string, conversation: Conversation, onLive: (live: LiveState) => void) {
+  constructor(threadId: string, agentId: string, conversation: Conversation, onLive: (live: LiveState) => void, approvals: () => Approval[]) {
     this.threadId = threadId;
     this.agentId = agentId;
     this.conversation = conversation;
     this.onLive = onLive;
+    this.approvals = approvals;
+  }
+
+  /** Republish live state after something outside the view changed (an approval). */
+  async refresh() {
+    await this.#starting;
+    if (this.#docs) this.#publishLive(this.#docs);
   }
 
   get size() {
@@ -971,7 +1143,7 @@ class ThreadWatcher {
     const watch = await this.conversation.watch(BACKGROUND_CONTEXT, { min: 20, max: 60 });
     this.#watch = watch;
     for (const entry of watch.value.entries) this.#seen.add(String(entry.id));
-    this.#publishLive(watch.value);
+    this.#publishLive(watch.value.docs);
     watch.start(async (call) => {
       if (call.kind !== "value") return;
       const fresh: Message[] = [];
@@ -982,12 +1154,13 @@ class ThreadWatcher {
         fresh.push(...toMessages(entry, this.threadId, this.agentId));
       }
       if (fresh.length) this.#broadcast({ type: "thread.messages", threadId: this.threadId, messages: fresh });
-      this.#publishLive(call.value);
+      this.#publishLive(call.value.docs);
     });
   }
 
-  #publishLive(view: ConversationView) {
-    const live = toLive(view.docs);
+  #publishLive(docs: Readonly<Record<string, unknown>>) {
+    this.#docs = docs;
+    const live = withApprovals(toLive(docs), this.approvals());
     const key = JSON.stringify(live);
     if (key === this.#lastLive) return;
     this.#lastLive = key;
@@ -1018,6 +1191,11 @@ export class HttpError extends Error {
     super(message);
     this.status = status;
   }
+}
+
+/** Approvals: attach a thread's pending requests to its live state. */
+function withApprovals(live: LiveState, approvals: Approval[]): LiveState {
+  return approvals.length ? { ...live, approvals } : live;
 }
 
 function persistentSecret(path: string): string {

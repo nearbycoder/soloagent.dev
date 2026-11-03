@@ -33,7 +33,7 @@ settings:
       - app_mention
       - message.im
   interactivity:
-    is_enabled: false
+    is_enabled: true
   org_deploy_enabled: false
   socket_mode_enabled: true
   token_rotation_enabled: false`;
@@ -52,7 +52,7 @@ export const CONNECTOR_KINDS: ConnectorKindInfo[] = [
 3. **Install App** to your workspace and copy the **Bot User OAuth Token** (\`xoxb-…\`).
 4. Paste both tokens here. Invite the bot to a channel with \`/invite @Solo\`, then mention it.
 
-Socket Mode means no public URL is needed — it works on Railway and on your laptop alike.
+Socket Mode means no public URL is needed — it works on Railway and on your laptop alike. The manifest turns on **Interactivity**, which the Approve / Deny buttons of tool approvals need; for an app made from an older manifest, switch it on under **Interactivity & Shortcuts** (no request URL is needed with Socket Mode).
 
 \`\`\`yaml
 ${SLACK_MANIFEST}

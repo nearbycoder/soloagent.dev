@@ -13,6 +13,7 @@ import {
   Plug,
   Search,
   Settings,
+  ShieldCheck,
   SquarePen,
   Sun,
   X,
@@ -31,6 +32,7 @@ const Agents = lazy(() => import("../pages/Agents.tsx").then((m) => ({ default: 
 const Providers = lazy(() => import("../pages/Providers.tsx").then((m) => ({ default: m.Providers })));
 const Connections = lazy(() => import("../pages/Connections.tsx").then((m) => ({ default: m.Connections })));
 const ActivityPage = lazy(() => import("../pages/Activity.tsx").then((m) => ({ default: m.ActivityPage })));
+const ApprovalsPage = lazy(() => import("../pages/Approvals.tsx").then((m) => ({ default: m.ApprovalsPage })));
 const Usage = lazy(() => import("../pages/Usage.tsx").then((m) => ({ default: m.Usage })));
 const SettingsPage = lazy(() => import("../pages/Settings.tsx").then((m) => ({ default: m.SettingsPage })));
 
@@ -41,6 +43,7 @@ export const NAV: { page: Route["page"]; path: string; label: string; icon: Reac
   { page: "providers", path: "/providers", label: "Providers", icon: <KeyRound /> },
   { page: "connections", path: "/connections", label: "Connections", icon: <Plug /> },
   { page: "activity", path: "/activity", label: "Activity", icon: <Activity /> },
+  { page: "approvals", path: "/approvals", label: "Approvals", icon: <ShieldCheck /> },
   { page: "usage", path: "/usage", label: "Usage", icon: <ChartNoAxesColumn /> },
   { page: "settings", path: "/settings", label: "Settings", icon: <Settings /> },
 ];
@@ -176,6 +179,8 @@ function PageFor({ route, onSignOut }: { route: Route; onSignOut: () => void }) 
       return <Connections editId={route.connectorId} />;
     case "activity":
       return <ActivityPage />;
+    case "approvals":
+      return <ApprovalsPage />;
     case "usage":
       return <Usage />;
     case "settings":
@@ -199,6 +204,7 @@ function SidebarContent({
   const agents = useApp((s) => s.agents);
   const busy = useApp((s) => s.threads?.filter((t) => t.busy).length ?? 0);
   const connectorErrors = useApp((s) => s.connectors?.filter((c) => c.enabled && c.status === "error").length ?? 0);
+  const approvals = useApp((s) => s.approvals?.length ?? 0);
   const { resolved } = useTheme();
 
   return (
@@ -263,7 +269,8 @@ function SidebarContent({
       <nav className={cn("mt-3 flex flex-col gap-px", collapsed ? "px-2.5" : "px-3")} aria-label="Main">
         {NAV.map((item) => {
           const active = route.page === item.page;
-          const badge = item.page === "chat" && busy > 0 ? busy : item.page === "connections" && connectorErrors > 0 ? connectorErrors : 0;
+          const badge =
+            item.page === "chat" && busy > 0 ? busy : item.page === "connections" && connectorErrors > 0 ? connectorErrors : item.page === "approvals" ? approvals : 0;
           return (
             <a
               key={item.page}
@@ -281,12 +288,12 @@ function SidebarContent({
               {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
               {badge > 0 &&
                 (collapsed ? (
-                  <span className={cn("absolute right-1.5 top-1.5 size-1.5 rounded-full", item.page === "chat" ? "bg-accent-text" : "bg-danger")} />
+                  <span className={cn("absolute right-1.5 top-1.5 size-1.5 rounded-full", item.page === "chat" ? "bg-accent-text" : item.page === "approvals" ? "bg-warning" : "bg-danger")} />
                 ) : (
                   <span
                     className={cn(
                       "grid h-4.5 min-w-4.5 place-items-center rounded-full px-1 text-[10.5px] font-semibold tabular-nums",
-                      item.page === "chat" ? "bg-accent-soft text-accent-text" : "bg-danger-soft text-danger",
+                      item.page === "chat" ? "bg-accent-soft text-accent-text" : item.page === "approvals" ? "bg-warning-soft text-warning" : "bg-danger-soft text-danger",
                     )}
                   >
                     {badge}

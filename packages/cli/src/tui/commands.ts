@@ -20,6 +20,8 @@ export const COMMANDS: CommandSpec[] = [
   { name: "title", args: "<text>", description: "rename this thread" },
   { name: "reset", description: "give the agent a fresh context in this thread" },
   { name: "stop", description: "stop the current run (esc)" },
+  { name: "approve", description: "approve the tool call this thread is waiting on" },
+  { name: "deny", args: "[reason]", description: "deny the waiting tool call; the agent sees the reason" },
   { name: "compact", description: "summarize older messages to free up context" },
   { name: "providers", description: "models and subscriptions, configured or not" },
   { name: "login", args: "<provider>", description: "sign in with a subscription (Claude, ChatGPT, Copilot…)" },

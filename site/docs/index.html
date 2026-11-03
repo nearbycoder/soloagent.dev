@@ -73,6 +73,7 @@
       <a class="sub" href="#configuration">Configuration</a>
       <a href="#providers">Providers &amp; subscriptions</a>
       <a href="#agents">Agents &amp; skills</a>
+      <a href="#approvals">Approvals</a>
       <a href="#connectors">Connectors</a>
       <a class="sub" href="#slack">Slack</a>
       <a class="sub" href="#discord">Discord</a>
@@ -99,6 +100,7 @@
       <a class="sub" href="#configuration">Configuration</a>
       <a href="#providers">Providers &amp; subscriptions</a>
       <a href="#agents">Agents &amp; skills</a>
+      <a href="#approvals">Approvals</a>
       <a href="#connectors">Connectors</a>
       <a class="sub" href="#slack">Slack</a>
       <a class="sub" href="#discord">Discord</a>
@@ -282,6 +284,7 @@
             <tr><td>Thinking level</td><td><code>off</code>, <code>minimal</code>, <code>low</code>, <code>medium</code>, <code>high</code>, or <code>xhigh</code> on models that support reasoning.</td></tr>
             <tr><td>Skills</td><td>The tool sets it may use (below). New agents get every skill except Workspace.</td></tr>
             <tr><td>Max turns</td><td>The most tool rounds one run may take, 40 by default.</td></tr>
+            <tr><td>Approvals</td><td>Which tool calls wait for a person first: <code>off</code>, <code>risky</code>, or <code>all</code>. See <a href="#approvals">Approvals</a>.</td></tr>
             <tr><td>Default</td><td>The default agent answers anything not addressed to a specific agent.</td></tr>
           </tbody>
         </table>
@@ -293,8 +296,47 @@
         <div class="skill-card"><b>Web</b><p>Fetch and read web pages and APIs, and search the web through DuckDuckGo.</p><div class="tools"><code>web_fetch</code><code>web_search</code></div></div>
         <div class="skill-card"><b>Delegate</b><p>Hand a sub-task to another agent and wait for its answer. The hand-off runs as a durable child conversation, which can't delegate further.</p><div class="tools"><code>ask_agent</code></div></div>
         <div class="skill-card"><b>Schedule</b><p>Durable reminders and follow-ups. They sleep in storage and fire even after restarts.</p><div class="tools"><code>schedule_reminder</code></div></div>
-        <div class="skill-card warn"><b>Workspace <span class="tag warn">powerful</span></b><p>Read, write, and edit files and run shell commands on the server, starting in a per-agent workspace folder. It is not a sandbox: commands run with the server's permissions. Only enable it for agents that trusted people can reach.</p><div class="tools"><code>read</code><code>write</code><code>edit</code><code>bash</code></div></div>
+        <div class="skill-card warn"><b>Workspace <span class="tag warn">powerful</span></b><p>Read, write, and edit files and run shell commands on the server, starting in a per-agent workspace folder. It is not a sandbox: commands run with the server's permissions. Only enable it for agents that trusted people can reach. Agents with this skill ask for <a href="#approvals">approval</a> before <code>bash</code>, <code>write</code>, and <code>edit</code> unless you turn approvals off.</p><div class="tools"><code>read</code><code>write</code><code>edit</code><code>bash</code></div></div>
       </div>
+    </section>
+
+    <!-- ========== APPROVALS ========== -->
+    <section id="approvals">
+      <h2><a href="#approvals">Approvals</a></h2>
+      <p>An agent can pause before a tool call until a person approves it. You can approve or deny in the dashboard, in the TUI, or with buttons in the Slack, Discord, or Telegram thread where the agent works. The wait is durable: it survives restarts and deploys, and an approved call runs exactly once.</p>
+      <h3>Policies</h3>
+      <p>Set the policy per agent under <b>Agents → Approvals</b>, or with the agent's <code>approvals</code> field.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Policy</th><th>Asks before</th></tr></thead>
+          <tbody>
+            <tr><td><code>off</code></td><td>Nothing. Tools run at once. The default for agents without the Workspace skill.</td></tr>
+            <tr><td><code>risky</code></td><td><code>bash</code>, <code>write</code>, <code>edit</code>, and the tools on the risky list. The default for agents with the Workspace skill.</td></tr>
+            <tr><td><code>all</code></td><td>Every tool call except read-only ones: <code>read</code>, <code>recall</code>, and <code>web_search</code>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Two settings apply to every agent. Change them under <b>Approvals → Settings</b> or with <code>PUT /api/approval-settings</code>:</p>
+      <ul>
+        <li><b>Timeout</b>, 24 hours by default. A request nobody answers in time is denied.</li>
+        <li><b>More risky tools</b>: extra tool names the <code>risky</code> policy asks about, such as <code>forget</code> or <code>schedule_reminder</code>.</li>
+      </ul>
+      <p>When a call is denied, the agent gets an error result such as <code>Denied by ann: not on prod</code> and carries on, usually by explaining or trying another way. Stopping the run cancels the request.</p>
+      <h3>Where to approve</h3>
+      <ul>
+        <li><b>Dashboard.</b> The tool card in the thread shows <i>Waiting for approval</i> with the arguments and <b>Approve</b> / <b>Deny</b> buttons. Deny takes an optional reason, which the agent sees. The <b>Approvals</b> page lists every waiting request across threads, with a count in the sidebar, and the recent decisions.</li>
+        <li><b>Chat apps.</b> In Slack, Discord, and Telegram threads, the agent posts a message with <b>Approve</b> and <b>Deny</b> buttons. Once someone decides, the message changes to show the outcome and who decided.</li>
+        <li><b>TUI.</b> The tool line shows <i>waiting for approval</i>. <code>/approve</code> approves the current thread's waiting call; <code>/deny [reason]</code> denies it.</li>
+        <li><b>API.</b> <code>GET /api/approvals?status=pending</code>, then <code>POST /api/approvals/:id/approve</code> or <code>POST /api/approvals/:id/deny</code> with <code>{ "reason": "…" }</code>. Both take an optional <code>by</code>, the name recorded as the decider (default <code>dashboard</code>).</li>
+      </ul>
+      <h3>Chat setup</h3>
+      <p>Only the people you list may press the buttons. In <b>Connections</b>, open the connector and fill in <b>Approvers</b> with platform user ids or display names, comma-separated. With an empty list, approvals happen only in the dashboard; anyone who presses a button is told so privately.</p>
+      <ul>
+        <li><b>Slack</b> delivers button presses over Socket Mode, but only when the app has <b>Interactivity</b> on. The manifest below enables it (<code>interactivity.is_enabled: true</code>). For an app made from an older manifest, turn it on under <b>Interactivity &amp; Shortcuts</b>; no request URL is needed. User ids look like <code>U012ABCDEF</code> (profile → <b>Copy member ID</b>).</li>
+        <li><b>Discord</b> needs no setup. Copy a user id with Developer Mode on (right-click → <b>Copy User ID</b>).</li>
+        <li><b>Telegram</b> needs no setup. Display names are first and last name as Telegram shows them; numeric user ids work too.</li>
+        <li><b>Webhook</b> connectors have no buttons. Approve their requests in the dashboard or through the API.</li>
+      </ul>
     </section>
 
     <!-- ========== CONNECTORS ========== -->
@@ -311,6 +353,7 @@
           <li><h4>Install and copy the bot token</h4><p><b>Install App</b> to your workspace and copy the <b>Bot User OAuth Token</b> (<code>xoxb-…</code>).</p></li>
           <li><h4>Connect and invite</h4><p>Paste both tokens into a new Slack connector. Invite the bot to a channel with <code>/invite @Solo</code>, then mention it. DMs work too.</p></li>
         </ol>
+        <p>The manifest turns on <b>Interactivity</b>, which the <a href="#approvals">approval</a> buttons need. Socket Mode delivers the clicks, so no request URL is needed.</p>
         <div class="code"><div class="code-head"><span>slack-manifest.yaml</span><button class="copy" type="button">copy</button></div><pre><code>display_information:
   name: Solo
   description: Your agents, on soloagent.dev
@@ -339,7 +382,7 @@ settings:
       - app_mention
       - message.im
   interactivity:
-    is_enabled: <span class="t-n">false</span>
+    is_enabled: <span class="t-n">true</span>
   org_deploy_enabled: <span class="t-n">false</span>
   socket_mode_enabled: <span class="t-n">true</span>
   token_rotation_enabled: <span class="t-n">false</span></code></pre></div>
@@ -449,6 +492,8 @@ settings:
             <tr><td><code>/title &lt;text&gt;</code></td><td>Rename this thread.</td></tr>
             <tr><td><code>/reset</code></td><td>Give the agent a fresh context in this thread.</td></tr>
             <tr><td><code>/stop</code></td><td>Stop the current run.</td></tr>
+            <tr><td><code>/approve</code></td><td>Approve the tool call this thread is waiting on.</td></tr>
+            <tr><td><code>/deny [reason]</code></td><td>Deny it. The agent sees the reason.</td></tr>
             <tr><td><code>/compact</code></td><td>Summarize older messages to free up context.</td></tr>
             <tr><td><code>/providers</code></td><td>Models and subscriptions, configured or not.</td></tr>
             <tr><td><code>/login &lt;provider&gt;</code></td><td>Sign in to a provider, for example <code>/login anthropic</code>.</td></tr>
@@ -500,13 +545,17 @@ settings:
             <tr><td><span class="verb put">PUT</span></td><td><code>/api/providers/:id/key</code></td><td>Save an API key: <code>{ key }</code>.</td></tr>
             <tr><td><span class="verb get">GET</span><span class="verb post">POST</span></td><td><code>/api/connectors</code></td><td>List or create connectors. Create takes <code>{ kind, name, agentId, config }</code>; a webhook's <code>config</code> is <code>{ secret }</code>.</td></tr>
             <tr><td><span class="verb post">POST</span></td><td><code>/api/hooks/:id</code></td><td>Inbound webhook. Authenticated by <code>x-solo-secret</code>, not the admin token.</td></tr>
+            <tr><td><span class="verb get">GET</span></td><td><code>/api/approvals</code></td><td>List approval requests. <code>?status=pending</code> for waiting ones, <code>decided</code> for the rest; <code>?threadId=</code> filters by thread.</td></tr>
+            <tr><td><span class="verb post">POST</span></td><td><code>/api/approvals/:id/approve</code></td><td>Approve a waiting tool call. Optional <code>{ by }</code>.</td></tr>
+            <tr><td><span class="verb post">POST</span></td><td><code>/api/approvals/:id/deny</code></td><td>Deny it: <code>{ reason?, by? }</code>. Returns <code>409</code> if it was already decided.</td></tr>
+            <tr><td><span class="verb get">GET</span><span class="verb put">PUT</span></td><td><code>/api/approval-settings</code></td><td>Read or change <code>{ timeoutMs, riskyTools }</code>.</td></tr>
             <tr><td><span class="verb ws">WS</span></td><td><code>/api/ws</code></td><td>Live events. Pass the token as <code>?token=</code>.</td></tr>
           </tbody>
         </table>
       </div>
 
       <h3>WebSocket events</h3>
-      <p>Connect to <code>/api/ws</code> and send <code>{ "type": "subscribe", "threadId": "…" }</code> to receive a thread's <code>thread.snapshot</code>, <code>thread.messages</code>, and <code>thread.live</code> events (streaming text, thinking, and tool calls). Send <code>{ "type": "tasks.subscribe" }</code> for the live durable task graph. Server-wide events such as <code>thread.updated</code>, <code>agent.updated</code>, and <code>connector.updated</code> arrive without subscribing.</p>
+      <p>Connect to <code>/api/ws</code> and send <code>{ "type": "subscribe", "threadId": "…" }</code> to receive a thread's <code>thread.snapshot</code>, <code>thread.messages</code>, and <code>thread.live</code> events (streaming text, thinking, and tool calls). Send <code>{ "type": "tasks.subscribe" }</code> for the live durable task graph. Server-wide events such as <code>thread.updated</code>, <code>agent.updated</code>, <code>connector.updated</code>, and <code>approval.updated</code> arrive without subscribing. A thread's <code>live.approvals</code> lists the tool calls it waits on.</p>
 
       <h3>TypeScript SDK</h3>
       <p><code>@soloagent/client</code>, in <code>packages/client</code>, is a typed client for the REST API and WebSocket with no dependencies. It runs in Node 22.19+ and in browsers. It isn't on npm yet, so use it from a clone of the repository.</p>
@@ -553,6 +602,7 @@ stream.<span class="t-f">close</span>();</code></pre></div>
         <li><b>Commit before show.</b> Each model turn and each tool call is recorded as a durable step and committed before it's shown in any UI or chat app. Streaming text is saved as it arrives, so a crash loses at most about a second of a half-written answer.</li>
         <li><b>Resume after a crash.</b> If the process exits mid-run (a crash, a restart, a deploy), the run resumes from its last committed step when the server starts again. Completed steps aren't repeated. An interrupted model request is retried; a tool call cut off midway runs again only if it's safe to repeat, and otherwise the agent is told it was interrupted.</li>
         <li><b>Durable sleep.</b> Scheduled reminders are durable timers. They wait in storage, not in memory, so they still fire after restarts.</li>
+        <li><b>Durable approvals.</b> A tool call waiting for <a href="#approvals">approval</a> has not started, so a restart simply asks again for the same request. Once approved, it runs once. The restart limit of Pi Durable still applies: after five restarts in a row while one request waits, that call ends with an error.</li>
         <li><b>Durable delegation.</b> <code>ask_agent</code> starts a child conversation that is itself durable. The parent waits for it, across restarts if needed.</li>
         <li><b>Visible.</b> The dashboard shows the live durable task graph and upcoming schedules.</li>
       </ul>

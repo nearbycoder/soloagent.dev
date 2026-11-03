@@ -19,8 +19,13 @@ export type InboundMessage = {
   isDirect: boolean;
 };
 
+/** Approvals: someone pressed Approve or Deny on an approval message. */
+export type ChatDecisionInput = { approvalId: string; approve: boolean; user: { id?: string; name: string }; reason?: string };
+
 export interface ConnectorHost {
   receive(message: InboundMessage): void;
+  /** Approvals: resolves with whether it counted, and a short message to show only that user when it did not. */
+  decide(input: ChatDecisionInput): Promise<{ ok: boolean; message: string }>;
   status(status: ConnectorStatus, detail?: string, identity?: string): void;
   log(message: string): void;
 }
@@ -33,6 +38,10 @@ export interface ConnectorDriver {
   post(target: ReplyTarget, markdown: string): Promise<PostHandle | undefined>;
   edit?(target: ReplyTarget, handle: PostHandle, markdown: string): Promise<void>;
   typing?(target: ReplyTarget): Promise<void>;
+  /** Approvals: post `markdown` with Approve and Deny buttons that carry `approvalId`. */
+  requestApproval?(target: ReplyTarget, approvalId: string, markdown: string): Promise<PostHandle | undefined>;
+  /** Approvals: replace an approval message with its outcome and remove the buttons. */
+  resolveApproval?(target: ReplyTarget, handle: PostHandle, markdown: string): Promise<void>;
 }
 
 export type DriverFactory = (config: Record<string, string>, host: ConnectorHost) => ConnectorDriver;

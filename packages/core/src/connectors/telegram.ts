@@ -1,4 +1,5 @@
 import { Bot } from "grammy";
+import { approvalAction, parseApprovalAction } from "../approvals.ts";
 import { toTelegramHtml } from "./format.ts";
 import type { ConnectorDriver, DriverFactory } from "./types.ts";
 
@@ -54,6 +55,17 @@ export const telegramDriver: DriverFactory = (config, host): ConnectorDriver => 
         });
       });
 
+      // Approvals: inline keyboard buttons on approval messages.
+      bot.on("callback_query:data", async (ctx) => {
+        const parsed = parseApprovalAction(ctx.callbackQuery.data);
+        if (!parsed) return ctx.answerCallbackQuery();
+        const from = ctx.from;
+        const name = [from.first_name, from.last_name].filter(Boolean).join(" ") || from.username || String(from.id);
+        const result = await host.decide({ approvalId: parsed.id, approve: parsed.approve, user: { id: String(from.id), name } });
+        // The answer shows only to the person who pressed the button.
+        await ctx.answerCallbackQuery(result.ok ? { text: result.message } : { text: result.message, show_alert: true });
+      });
+
       bot.catch((error) => host.log(`telegram: ${error.message}`));
       void bot.start({ drop_pending_updates: false, onStart: () => host.status("connected", undefined, `@${username}`) });
     },
@@ -74,6 +86,33 @@ export const telegramDriver: DriverFactory = (config, host): ConnectorDriver => 
 
     async edit(_target, handle, markdown) {
       if (!bot) throw new Error("Telegram is not connected");
+      try {
+        await bot.api.editMessageText(handle.chatId!, Number(handle.messageId), toTelegramHtml(markdown), { parse_mode: "HTML" });
+      } catch (error) {
+        if (String(error).includes("not modified")) return;
+        await bot.api.editMessageText(handle.chatId!, Number(handle.messageId), markdown).catch(() => {});
+      }
+    },
+
+    async requestApproval(target, approvalId, markdown) {
+      if (!bot) throw new Error("Telegram is not connected");
+      const sent = await send(target.chatId!, markdown, {
+        ...(target.threadId ? { message_thread_id: Number(target.threadId) } : {}),
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "✅ Approve", callback_data: approvalAction(approvalId, true) },
+              { text: "🚫 Deny", callback_data: approvalAction(approvalId, false) },
+            ],
+          ],
+        },
+      });
+      return { chatId: String(sent.chat.id), messageId: String(sent.message_id) };
+    },
+
+    async resolveApproval(_target, handle, markdown) {
+      if (!bot) throw new Error("Telegram is not connected");
+      // Editing the text without reply_markup removes the keyboard.
       try {
         await bot.api.editMessageText(handle.chatId!, Number(handle.messageId), toTelegramHtml(markdown), { parse_mode: "HTML" });
       } catch (error) {
