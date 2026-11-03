@@ -26,10 +26,12 @@ const COMMANDS: Record<string, FlagSpec> = {
   connect: {},
   disconnect: {},
   ask: { agent: "string", thread: "string", json: "boolean", file: "strings" },
-  agents: { json: "boolean" },
+  agents: { json: "boolean", mode: "string", "dry-run": "boolean" },
   threads: { json: "boolean", limit: "string", agent: "string" },
   login: { key: "boolean" },
   token: { data: "string" },
+  backup: { out: "string", "include-secret": "boolean", data: "string" },
+  restore: { data: "string", force: "boolean" },
   help: {},
 };
 
@@ -46,12 +48,16 @@ function help() {
 ${cmd("soloagent", "open the terminal UI", "--agent <handle>  --thread <id>  --new")}
 ${cmd('soloagent ask "<message>"', "ask once, print the answer", '--agent <handle>  --thread <id>  --json  --file <path> (repeatable)   (piped input is appended; "-" reads only stdin)')}
 ${cmd("soloagent agents", "list agents", "--json")}
+${cmd("soloagent agents export", "print every agent as JSON", "soloagent agents export > agents.json")}
+${cmd("soloagent agents import <file>", "add or update agents by handle", '--mode merge|skip-existing  --dry-run   ("-" reads stdin)')}
 ${cmd("soloagent threads", "list recent threads", "--limit <n>  --agent <handle>  --json")}
 ${cmd("soloagent login [provider]", "sign in with a subscription", "--key  save an API key instead")}
 ${cmd("soloagent serve", "run the server in the foreground", "--port <7420>  --data <dir>  --host <addr>")}
 ${cmd("soloagent connect <url>", "use a remote server from now on", "--token <token>")}
 ${cmd("soloagent disconnect", "forget the remote, run locally again")}
 ${cmd("soloagent token", "print the local admin token (web GUI login)")}
+${cmd("soloagent backup", "write a .tar.gz of all data", "--out <file|->  --include-secret  --data <dir>")}
+${cmd("soloagent restore <file>", "restore a backup (server stopped)", '--data <dir>  --force   ("-" reads stdin)')}
 
   ${p.dim("CONNECTION")}
     --url/--token, then SOLOAGENT_URL/SOLOAGENT_TOKEN, then ~/.soloagent/config.json.
@@ -62,6 +68,7 @@ ${cmd("soloagent token", "print the local admin token (web GUI login)")}
     git diff | soloagent ask - --agent reviewer --json
     soloagent ask "what's wrong in this screenshot?" --file ./screenshot.png
     soloagent login anthropic
+    soloagent backup --out - | aws s3 cp - s3://my-bucket/soloagent.tar.gz
 `);
 }
 
@@ -89,6 +96,14 @@ async function main(argv: string[]): Promise<number> {
 
   if (flags.version) {
     out(VERSION);
+    // A cached answer, refreshed at most daily with a short timeout. The notice goes to stderr.
+    const { knownUpdate, refreshUpdateCache } = await import("./updates.ts");
+    await refreshUpdateCache({ timeoutMs: 1500 });
+    const update = knownUpdate(VERSION);
+    if (update) {
+      const p = paint(process.stderr);
+      err(`${p.yellow("update available:")} ${VERSION} → ${p.bold(update.latest)}  ${p.dim(update.url)}`);
+    }
     return 0;
   }
   if (flags.help || name === "help") {
@@ -130,6 +145,15 @@ async function main(argv: string[]): Promise<number> {
       return withConnection(flags, (c) => ask(c, message, { agent: str(flags.agent), thread: str(flags.thread), json: flags.json === true, files: strs(flags.file) }));
     }
     case "agents": {
+      if (positionals[0] === "export") {
+        const { exportAgents } = await import("./commands/agents-io.ts");
+        return withConnection(flags, (c) => exportAgents(c));
+      }
+      if (positionals[0] === "import") {
+        const { importAgents } = await import("./commands/agents-io.ts");
+        return withConnection(flags, (c) => importAgents(c, positionals[1], { mode: str(flags.mode), dryRun: flags["dry-run"] === true }));
+      }
+      if (positionals[0]) throw new UsageError(`Unknown agents command "${positionals[0]}". Try soloagent agents, agents export, or agents import <file>.`);
       const { agents } = await import("./commands/list.ts");
       return withConnection(flags, (c) => agents(c, { json: flags.json === true }));
     }
@@ -144,6 +168,14 @@ async function main(argv: string[]): Promise<number> {
     case "token": {
       const { token } = await import("./commands/token.ts");
       return token({ data: str(flags.data) });
+    }
+    case "backup": {
+      const { backup } = await import("./commands/backup.ts");
+      return backup({ url: str(flags.url), token: str(flags.token), out: str(flags.out), includeSecret: flags["include-secret"] === true, data: str(flags.data) });
+    }
+    case "restore": {
+      const { restore } = await import("./commands/backup.ts");
+      return restore(positionals[0], { data: str(flags.data), force: flags.force === true });
     }
   }
   return 0;

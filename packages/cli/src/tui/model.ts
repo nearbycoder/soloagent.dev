@@ -45,6 +45,8 @@ export interface ViewModel {
   notices: Notice[];
   pending: Pending[];
   clearedAfter: string | null;
+  /** A newer soloagent release, shown on the welcome screen. */
+  update?: { latest: string; url: string };
   agentById(id: string | null | undefined): Agent | undefined;
   currentAgent(): Agent | undefined;
   currentThread(): Thread | undefined;

@@ -1,6 +1,9 @@
 import type {
   Agent,
   AttachmentUpload,
+  AgentExport,
+  AgentImportMode,
+  AgentImportResult,
   AgentInput,
   Approval,
   ApprovalSettings,
@@ -25,6 +28,7 @@ import type {
   Thread,
   ThreadSnapshot,
   UsageSummary,
+  VersionInfo,
 } from "./types.ts";
 
 export class SoloApiError extends Error {
@@ -135,6 +139,29 @@ export class SoloClient {
   }
   deleteAgent(id: string) {
     return this.request<{ ok: true }>("DELETE", `/agents/${encodeURIComponent(id)}`);
+  }
+
+  // Backups, export/import, upgrade notices
+  version() {
+    return this.request<VersionInfo>("GET", "/version");
+  }
+  exportAgents() {
+    return this.request<AgentExport>("GET", "/agents/export");
+  }
+  /** Import agents matched by handle. `dryRun` returns what would change without writing. */
+  importAgents(input: { agents: unknown[]; mode?: AgentImportMode }, options: { dryRun?: boolean } = {}) {
+    return this.request<AgentImportResult>("POST", `/agents/import${options.dryRun ? "?dryRun=1" : ""}`, input);
+  }
+  /** Stream a backup archive (`.tar.gz`). The caller reads `response.body`. */
+  async backup(options: { includeSecret?: boolean } = {}): Promise<Response> {
+    const headers: Record<string, string> = {};
+    if (this.token) headers.authorization = `Bearer ${this.token}`;
+    const response = await this.#fetch(`${this.baseUrl}/api/backup${options.includeSecret ? "?includeSecret=1" : ""}`, { headers, credentials: "include" });
+    if (!response.ok) {
+      const data = (await response.json().catch(() => undefined)) as { error?: string } | undefined;
+      throw new SoloApiError(response.status, data?.error ?? `${response.status} ${response.statusText}`);
+    }
+    return response;
   }
 
   // Providers & subscriptions

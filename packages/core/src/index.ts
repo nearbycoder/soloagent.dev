@@ -8,3 +8,26 @@ export { toMessages, toLive, MESSAGE_ENTRY, EVENT_ENTRY } from "./transcript.ts"
 export { DEFAULT_INSTRUCTIONS, toHandle } from "./agents.ts";
 export { TeamStore, TeamError, Ledger, MIN_PASSWORD, hashPassword, verifyPassword, listAllows, startOfUtcDay } from "./team.ts";
 export { ATTACHMENT_LIMITS, FileStore, attachmentContent, download, kindOf, normalizeMime, type AttachmentFile, type InboundAttachment } from "./attachments.ts";
+// Backups, export/import, upgrade notices
+export { readTar, writeTar, TarError, type TarEntry, type TarEntryInput } from "./tar.ts";
+export {
+  BACKUPS_DIR,
+  SERVER_LOCK,
+  backupFileName,
+  createBackup,
+  detectSecret,
+  extractVerified,
+  hasData,
+  listBackups,
+  parseDuration,
+  pruneBackups,
+  restoreBackup,
+  scheduleBackups,
+  secretFingerprint,
+  writeBackupFile,
+  type BackupOptions,
+  type RestoreResult,
+  type SecretInfo,
+} from "./backup.ts";
+export { exportAgents, importAgents, ImportError, type AgentHost } from "./portability.ts";
+export { UpdateChecker, updateCheckEnabled, type UpdateCheckerOptions } from "./updates.ts";

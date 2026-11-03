@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { Hono, type Context as HonoContext } from "hono";
 import { setCookie, deleteCookie } from "hono/cookie";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { CONNECTOR_KINDS, HttpError, TeamError, VERSION, parseUploads, type SoloAgent } from "@soloagent/core";
+import { backupFileName, CONNECTOR_KINDS, exportAgents, HttpError, importAgents, TeamError, UpdateChecker, VERSION, parseUploads, type SoloAgent } from "@soloagent/core";
 import type { AgentInput, ApprovalSettings, ApprovalStatus, ConnectorInput, Me, Role, Source } from "@soloagent/client";
 import { actorOf, adminOnly, type AuthEnv, COOKIE, LoginThrottle, requestToken, requireAuth, tokenMatches } from "./auth.ts";
 
@@ -14,6 +14,8 @@ export type AppOptions = {
   solo: SoloAgent;
   /** Built web GUI (packages/web/dist). Served at / when present. */
   webDir?: string;
+  /** Upgrade notices. Default: a checker that only reports the cached result (no network). */
+  updates?: UpdateChecker;
 };
 
 /** File types served inline by `GET /api/files/:sha256`. */
@@ -39,8 +41,9 @@ function publicOrigin(c: HonoContext): string {
   return `${proto}://${host}`;
 }
 
-export function createApp({ solo, webDir }: AppOptions) {
+export function createApp({ solo, webDir, updates: updateChecker }: AppOptions) {
   const app = new Hono();
+  const updates = updateChecker ?? new UpdateChecker({ current: VERSION, settings: solo.db, enabled: false });
 
   app.onError((error, c) => {
     const known = error instanceof HttpError || error instanceof TeamError;
@@ -90,6 +93,8 @@ export function createApp({ solo, webDir }: AppOptions) {
     solo.activity({ type: "access", text: `${user.name} joined the team as ${user.role === "admin" ? "an admin" : "a member"}` });
     return c.json({ ok: true, user }, 201);
   });
+  // Public: the running version and whether a newer release exists.
+  api.get("/version", (c) => c.json(updates.info()));
 
   api.post("/hooks/:id", async (c) => {
     const body = await c.req.json<{ text?: string; thread?: string; user?: string; callback_url?: string; attachments?: unknown }>().catch(() => ({}));
@@ -107,7 +112,38 @@ export function createApp({ solo, webDir }: AppOptions) {
   api.get("/me", (c) => c.json({ ok: true, version: VERSION, actor: actorOf(c), tokenFromEnv: solo.adminTokenSource !== "stored" } satisfies Me));
 
   // Overview (everyone signed in)
-  api.get("/overview", async (c) => c.json(await solo.overview()));
+  api.get("/overview", async (c) => c.json({ ...(await solo.overview()), update: updates.info() }));
+
+  // Backups and agent export/import (admins)
+  api.get("/backup", adminOnly, (c) => {
+    const includeSecret = /^(1|true|yes)$/i.test(c.req.query("includeSecret") ?? "");
+    const archive = solo.backup({ includeSecret });
+    // A client that disconnects mid-download cancels the backup and its temp files.
+    c.req.raw.signal.addEventListener("abort", () => archive.destroy(), { once: true });
+    return new Response(Readable.toWeb(archive) as ReadableStream, {
+      headers: {
+        "content-type": "application/gzip",
+        "content-disposition": `attachment; filename="${backupFileName()}"`,
+        "cache-control": "no-store",
+      },
+    });
+  });
+  api.get("/agents/export", adminOnly, (c) => {
+    c.header("content-disposition", `attachment; filename="soloagent-agents-${new Date().toISOString().slice(0, 10)}.json"`);
+    return c.json(exportAgents(solo, VERSION));
+  });
+  api.post("/agents/import", adminOnly, async (c) => {
+    const body = await c.req.json<{ agents?: unknown; mode?: unknown }>().catch(() => {
+      throw new HttpError(400, "Expected a JSON body with an agents array");
+    });
+    const dryRun = /^(1|true|yes)$/i.test(c.req.query("dryRun") ?? "");
+    const result = importAgents(solo, body, { dryRun });
+    if (!dryRun) {
+      const changed = result.items.filter((i) => i.action === "create" || i.action === "update").length;
+      if (changed) solo.activity({ type: "agent", text: `Imported ${changed === 1 ? "1 agent" : `${changed} agents`}` });
+    }
+    return c.json(result);
+  });
   api.get("/usage", async (c) => c.json(await solo.usage()));
   api.get("/usage/daily", (c) => c.json(solo.dailyUsage(Number(c.req.query("days") ?? 14) || 14)));
   api.get("/spend/today", (c) => c.json(solo.spendToday()));

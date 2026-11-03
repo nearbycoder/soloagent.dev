@@ -107,6 +107,9 @@ Serverless and edge platforms (Vercel functions, Netlify, Cloudflare Workers, La
 | `PORT` | HTTP port, default `7420`. |
 | `SOLOAGENT_DEMO` | `0` hides the built-in demo model. |
 | `SOLOAGENT_PUBLIC_URL` | The public address printed at startup. Railway's domain is detected automatically. |
+| `SOLOAGENT_BACKUP_INTERVAL` | Scheduled backups to `<data>/backups/`, e.g. `24h`. Off by default. |
+| `SOLOAGENT_BACKUP_KEEP` | Scheduled backups to keep, default `7`. |
+| `SOLOAGENT_UPDATE_CHECK` | `0` turns off the check for new releases. |
 
 Connect your terminal to a deployed server:
 
@@ -115,6 +118,18 @@ soloagent connect https://your-solo.example.com --token "$SOLOAGENT_TOKEN"
 ```
 
 > **OAuth on a remote server.** Subscription logins redirect to `localhost` on the machine that started them. When the server is remote, the dashboard shows a paste box — copy the final redirect URL (or code) from your browser and paste it in.
+
+### Backups and upgrades
+
+```bash
+soloagent backup --out solo.tar.gz          # both databases, workspaces, files; safe while running
+soloagent backup --out - | aws s3 cp - s3://my-bucket/solo.tar.gz
+soloagent restore solo.tar.gz --data <dir>  # with the server stopped; --force to replace existing data
+soloagent agents export > agents.json       # move agents between servers
+soloagent agents import agents.json         # matched by handle; --mode skip-existing, --dry-run
+```
+
+Backups leave the credentials secret out unless you pass `--include-secret`, so a restore needs the same `SOLOAGENT_SECRET` (or the original `<data>/.secret`). The dashboard shows when a new release is out, and **Settings** shows how to upgrade for each install method. Details: [soloagent.dev/docs/#backups](https://soloagent.dev/docs/#backups).
 
 ### From source
 
@@ -162,6 +177,8 @@ soloagent connect <url>       use a remote server              (--token)
 soloagent disconnect          go back to the local server
 soloagent agents | threads    list things                      (--json)
 soloagent token               print the local admin token
+soloagent backup | restore    back up or restore all data      (--out, --include-secret / --data, --force)
+soloagent agents export|import  move agents between servers    (--mode, --dry-run)
 ```
 
 Inside the TUI: <kbd>Enter</kbd> send (steers while busy) · <kbd>Shift</kbd>+<kbd>Enter</kbd> newline · <kbd>Esc</kbd> stop · <kbd>Ctrl</kbd>+<kbd>P</kbd> threads · <kbd>Ctrl</kbd>+<kbd>N</kbd> new · <kbd>Ctrl</kbd>+<kbd>B</kbd> sidebar · <kbd>Ctrl</kbd>+<kbd>T</kbd> thinking · <kbd>Ctrl</kbd>+<kbd>O</kbd> tool output · `/new @agent`, `/agent`, `/model`, `/login`, `/threads`, `/reset`, `/compact`, `/approve`, `/deny [reason]`, `/usage`, `/help`.
@@ -198,7 +215,7 @@ console.log(await sent.wait());
 await solo.close();
 ```
 
-REST routes live under `/api` with `Authorization: Bearer <token>` (only the WebSocket accepts `?token=`): `agents`, `threads` (`/messages`, `/ask`, `/stop`, `/reset`, `/compact`), `providers` (`/login`, `/key`), `connectors`, `schedules`, `approvals` (`/approve`, `/deny`), `usage`, `overview`, and the WebSocket at `/api/ws`. See the [docs](https://soloagent.dev/docs/).
+REST routes live under `/api` with `Authorization: Bearer <token>` (only the WebSocket accepts `?token=`): `agents`, `threads` (`/messages`, `/ask`, `/stop`, `/reset`, `/compact`), `providers` (`/login`, `/key`), `connectors`, `schedules`, `approvals` (`/approve`, `/deny`), `usage`, `overview`, `backup`, `agents/export`, `agents/import`, `version` (no token needed), and the WebSocket at `/api/ws`. See the [docs](https://soloagent.dev/docs/).
 
 ## Architecture
 

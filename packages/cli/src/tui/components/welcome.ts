@@ -81,12 +81,14 @@ export class Welcome implements Component {
       hint.push(...note.map((l, i) => left + (i === 0 ? `${c.yellow("✦")} ${l}` : `  ${l}`)));
     }
 
+    const update = vm.update ? [center(`${c.accent("↑")} ${c.muted(`soloagent ${vm.update.latest} is available`)} ${c.dim(`· ${vm.update.url.replace(/^https:\/\//, "")}`)}`, width)] : [];
+
     // Largest layout that fits without scrolling; the hint always stays.
     const variants = [
-      [...(big ?? small), "", ...who, "", ...tips, ...(hint.length ? ["", ...hint] : [])],
-      [...small, "", ...who, "", ...tips, ...(hint.length ? ["", ...hint] : [])],
-      [...small, ...who, "", ...(hint.length ? hint : tips.slice(0, 2))],
-      [...small, ...hint],
+      [...(big ?? small), "", ...who, "", ...tips, ...(hint.length ? ["", ...hint] : []), ...(update.length ? ["", ...update] : [])],
+      [...small, "", ...who, "", ...tips, ...(hint.length ? ["", ...hint] : []), ...(update.length ? ["", ...update] : [])],
+      [...small, ...who, "", ...(hint.length ? hint : tips.slice(0, 2)), ...update],
+      [...small, ...hint, ...update],
     ];
     const lines = variants.find((v) => v.length + 1 <= available) ?? variants[variants.length - 1]!;
     // Sit a little above the middle.

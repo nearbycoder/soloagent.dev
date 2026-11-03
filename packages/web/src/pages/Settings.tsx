@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { ExternalLink, KeyRound, LogOut, Monitor, Moon, RotateCw, SquareTerminal, Sun } from "lucide-react";
+import { ArrowUpCircle, CheckCircle2, Download, ExternalLink, KeyRound, LogOut, Monitor, Moon, RotateCw, SquareTerminal, Sun } from "lucide-react";
 import { client } from "../api/client.ts";
 import { useApp, useIsAdmin } from "../api/store.ts";
 import { confirm, toast } from "../lib/toast.ts";
-import { Button, Card, CopyField, Kbd, Page, PageHeader, Segmented, SectionHeader } from "../components/ui.tsx";
+import { Badge, Button, Card, CopyField, Kbd, Page, PageHeader, Segmented, SectionHeader, Switch } from "../components/ui.tsx";
 import { duration } from "../lib/format.ts";
 import { setTheme, useTheme, type ThemePref } from "../lib/theme.ts";
 
@@ -47,7 +47,11 @@ export function SettingsPage({ onSignOut }: { onSignOut: () => void }) {
 
       {isAdmin && <AdminToken />}
 
-      <section>
+      <UpdatesSection />
+
+      {isAdmin && <BackupSection />}
+
+      <section className="mt-10">
         <SectionHeader title="Appearance" />
         <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -128,6 +132,135 @@ export function SettingsPage({ onSignOut }: { onSignOut: () => void }) {
         </Card>
       </section>
     </Page>
+  );
+}
+
+const RELEASE_TGZ = "https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz";
+
+const UPGRADE_STEPS: { id: string; label: string; steps: { text: string; command?: string }[] }[] = [
+  {
+    id: "npm",
+    label: "Installer / npm",
+    steps: [
+      { text: "Run the installer again, or install the release with npm:", command: "curl -fsSL https://soloagent.dev/install.sh | sh" },
+      { text: "", command: `npm install -g --allow-remote=root ${RELEASE_TGZ}` },
+      { text: "Then restart the server: stop soloagent serve and start it again, or sudo systemctl restart soloagent." },
+    ],
+  },
+  {
+    id: "docker",
+    label: "Docker",
+    steps: [
+      { text: "In the folder with docker-compose.yml:", command: "docker compose pull && docker compose up -d" },
+      { text: "With plain docker run, pull ghcr.io/nearbycoder/soloagent.dev, remove the container, and run it again with the same volume." },
+    ],
+  },
+  {
+    id: "hosted",
+    label: "Railway · Render · Fly",
+    steps: [
+      { text: "These build from the repository. If you deployed a fork, sync it with nearbycoder/soloagent.dev first." },
+      { text: "Railway: open the service's Deployments and redeploy the latest commit. Render: Manual Deploy → Deploy latest commit." },
+      { text: "Fly.io: from an up-to-date checkout:", command: "git pull && fly deploy" },
+    ],
+  },
+];
+
+function UpdatesSection() {
+  const version = useApp((s) => s.version);
+  const update = useApp((s) => s.overview?.update);
+  const [method, setMethod] = useState("npm");
+  const current = update?.current ?? version;
+  const steps = UPGRADE_STEPS.find((m) => m.id === method)!;
+  return (
+    <section id="updates" className="mt-10 scroll-mt-6">
+      <SectionHeader title="Updates" description="Data and durable work carry over upgrades; migrations run on start. Take a backup first." />
+      <Card className="divide-y divide-border">
+        <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3.5">
+            <div className={update?.updateAvailable ? "grid size-9 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-text" : "grid size-9 shrink-0 place-items-center rounded-lg bg-success-soft text-success"}>
+              {update?.updateAvailable ? <ArrowUpCircle className="size-4.5" /> : <CheckCircle2 className="size-4.5" />}
+            </div>
+            <div>
+              <h3 className="text-[14px] font-semibold text-fg">
+                {update?.updateAvailable ? `soloagent v${update.latest} is available` : update?.latest ? "You're on the latest release" : "soloagent"}
+              </h3>
+              <p className="mt-0.5 text-[12.5px] text-subtle">
+                Running <span className="font-mono">v{current || "—"}</span>
+                {update?.latest && (
+                  <>
+                    {" · "}latest <span className="font-mono">v{update.latest}</span>
+                  </>
+                )}
+                {update?.checkedAt ? ` · checked ${new Date(update.checkedAt).toLocaleString()}` : ""}
+                {update && !update.enabled && " · update checks are off (SOLOAGENT_UPDATE_CHECK=0)"}
+              </p>
+            </div>
+          </div>
+          {update?.url && (
+            <a href={update.url} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 text-[13px] text-accent-text hover:underline">
+              Release notes <ExternalLink className="size-3" />
+            </a>
+          )}
+        </div>
+        <div className="p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-[13.5px] font-medium text-fg">How to upgrade</h3>
+            <div className="max-w-full overflow-x-auto">
+              <Segmented size="sm" value={method} onChange={setMethod} options={UPGRADE_STEPS.map((m) => ({ value: m.id, label: <span className="whitespace-nowrap">{m.label}</span> }))} />
+            </div>
+          </div>
+          <div className="mt-3 flex flex-col gap-2.5 text-[12.5px] leading-relaxed text-subtle">
+            {steps.steps.map((step, i) => (
+              <div key={i}>
+                {step.text && <p>{step.text}</p>}
+                {step.command && <CopyField value={step.command} className="mt-1.5" />}
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+    </section>
+  );
+}
+
+function BackupSection() {
+  const [includeSecret, setIncludeSecret] = useState(false);
+  return (
+    <section className="mt-10">
+      <SectionHeader title="Backups" description="One .tar.gz with both databases, agent workspaces, and files. Safe to take while agents run." />
+      <Card className="divide-y divide-border">
+        <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-[13.5px] font-medium text-fg">Download a backup</h3>
+            <p className="mt-0.5 text-[12.5px] text-subtle">
+              Restore it with <code className="rounded bg-surface-3 px-1 font-mono text-[11.5px] text-muted">soloagent restore &lt;file&gt;</code> while the server is stopped.
+            </p>
+          </div>
+          <a
+            href={`/api/backup${includeSecret ? "?includeSecret=1" : ""}`}
+            download
+            className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-accent px-3 font-mono text-[13px] font-semibold text-accent-fg transition-colors hover:bg-accent-hover active:translate-y-px"
+          >
+            <Download className="size-4" />
+            Download backup
+          </a>
+        </div>
+        <div className="flex items-start justify-between gap-4 p-5">
+          <div>
+            <h3 className="flex items-center gap-2 text-[13.5px] font-medium text-fg">
+              Include the credentials secret {includeSecret && <Badge tone="warning">sensitive</Badge>}
+            </h3>
+            <p className="mt-0.5 text-[12.5px] text-subtle">
+              {includeSecret
+                ? "Anyone with this file can read every provider login and bot token. Store it like a password."
+                : "Off: logins and bot tokens stay sealed, and a restore needs the same SOLOAGENT_SECRET or .secret file."}
+            </p>
+          </div>
+          <Switch checked={includeSecret} onChange={setIncludeSecret} label="Include the credentials secret" />
+        </div>
+      </Card>
+    </section>
   );
 }
 

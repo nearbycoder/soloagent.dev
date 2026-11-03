@@ -12,6 +12,7 @@ import {
 import {
   type Agent,
   applyThreadEvent,
+  compareSemver,
   emptyLive,
   type ProviderInfo,
   type ServerEvent,
@@ -27,6 +28,7 @@ import { authorName, findAgent, readAttachments } from "../commands/ask.ts";
 import { findProvider, sortProviders } from "../commands/login.ts";
 import { openBrowser } from "../commands/prompt.ts";
 import { loadHistory, saveHistory } from "../config.ts";
+import { knownUpdate, refreshUpdateCache, updateChecksEnabled } from "../updates.ts";
 import { type Connection, logToFile, silenceConsole } from "../connect.ts";
 import { COMMANDS, type CommandSpec, findCommand, parseCommand, SlashAutocomplete } from "./commands.ts";
 import { ChatEditor, renderFooter, renderHeader } from "./components/chrome.ts";
@@ -68,6 +70,7 @@ export class App implements ViewModel {
   notices: Notice[] = [];
   pending: Pending[] = [];
   clearedAfter: string | null = null;
+  update: { latest: string; url: string } | undefined;
 
   readonly editor: ChatEditor;
   readonly conversation: Conversation;
@@ -213,6 +216,21 @@ export class App implements ViewModel {
     });
   }
 
+  /** Upgrade notice: the server's cached release check, else this CLI's daily cache. Never blocks startup. */
+  async #checkForUpdate() {
+    if (!updateChecksEnabled()) return;
+    const server = await this.client.version().catch(() => undefined);
+    await refreshUpdateCache({ timeoutMs: 3000 });
+    const local = knownUpdate(this.version);
+    const candidates = [local, server?.latest ? { latest: server.latest, url: server.url ?? "" } : undefined].filter((u) => !!u);
+    const newest = candidates.sort((a, b) => compareSemver(b.latest, a.latest))[0];
+    // Newer than this CLI, or than the server it talks to.
+    if (newest && (compareSemver(newest.latest, this.version) > 0 || server?.updateAvailable)) {
+      this.update = { latest: newest.latest, url: newest.url || "https://github.com/nearbycoder/soloagent.dev/releases" };
+      this.tui.requestRender();
+    }
+  }
+
   // ── lifecycle ───────────────────────────────────────────────────────────
 
   async start(options: TuiOptions): Promise<number> {
@@ -224,6 +242,7 @@ export class App implements ViewModel {
     this.agents = agents;
     this.threads = sortThreads(threads);
     this.providers = providers;
+    void this.#checkForUpdate();
 
     this.#restoreConsole = silenceConsole();
     const onCrash = (error: unknown) => {

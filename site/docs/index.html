@@ -89,6 +89,7 @@
       <a href="#tui">Terminal UI</a>
       <a href="#api">HTTP API &amp; SDK</a>
       <a href="#durability">Durability</a>
+      <a href="#backups">Backups &amp; upgrades</a>
       <a href="#security">Security</a>
     </nav>
   </details>
@@ -122,6 +123,7 @@
       <a href="#tui">Terminal UI</a>
       <a href="#api">HTTP API &amp; SDK</a>
       <a href="#durability">Durability</a>
+      <a href="#backups">Backups &amp; upgrades</a>
       <a href="#security">Security</a>
     </nav>
     <div class="toc-card">
@@ -242,6 +244,9 @@
             <tr><td><code>SOLOAGENT_DEMO</code></td><td><code>0</code> hides the built-in demo model.</td></tr>
             <tr><td><code>SOLOAGENT_ALLOW_PRIVATE_FILE_URLS</code></td><td><code>1</code> lets attachment URLs point at loopback and private network addresses. Off by default, so webhook callers can't make the server fetch internal services. See <a href="#files">Files &amp; images</a>.</td></tr>
             <tr><td><code>SOLOAGENT_PUBLIC_URL</code></td><td>The public address printed at startup. Railway's domain is detected automatically.</td></tr>
+            <tr><td><code>SOLOAGENT_BACKUP_INTERVAL</code></td><td>Take a backup on a timer, for example <code>24h</code> or <code>6h</code>. Off by default. See <a href="#backups">Backups</a>.</td></tr>
+            <tr><td><code>SOLOAGENT_BACKUP_KEEP</code></td><td>How many scheduled backups to keep, default <code>7</code>.</td></tr>
+            <tr><td><code>SOLOAGENT_UPDATE_CHECK</code></td><td><code>0</code> turns off the check for new releases.</td></tr>
           </tbody>
         </table>
       </div>
@@ -630,7 +635,7 @@ settings:
     <!-- ========== API ========== -->
     <section id="api">
       <h2><a href="#api">HTTP API &amp; SDK</a></h2>
-      <p>The dashboard and TUI use the same public API, so anything they do, your scripts can do. All routes live under <code>/api</code> and require the admin token in an <code>authorization: Bearer …</code> header (or a signed-in user's session cookie), except inbound webhooks, which carry their own secret, and invite links. Only the WebSocket accepts the token as <code>?token=</code>; REST routes reject it. Requests without a valid token get <code>401</code>.</p>
+      <p>The dashboard and TUI use the same public API, so anything they do, your scripts can do. All routes live under <code>/api</code> and require the admin token in an <code>authorization: Bearer …</code> header (or a signed-in user's session cookie), except inbound webhooks, which carry their own secret, invite links, and <code>/api/version</code>. Only the WebSocket accepts the token as <code>?token=</code>; REST routes reject it. Requests without a valid token get <code>401</code>.</p>
       <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">curl https://solo.example.com/api/agents \</span>
   -H <span class="t-s">"authorization: Bearer $SOLOAGENT_TOKEN"</span></code></pre></div>
 
@@ -647,6 +652,10 @@ settings:
             <tr><td><span class="verb post">POST</span></td><td><code>/api/providers/:id/login</code></td><td>Start a login flow: <code>{ type: "oauth" }</code> (the default) or <code>{ type: "api_key" }</code>.</td></tr>
             <tr><td><span class="verb put">PUT</span></td><td><code>/api/providers/:id/key</code></td><td>Save an API key: <code>{ key }</code>.</td></tr>
             <tr><td><span class="verb get">GET</span><span class="verb post">POST</span></td><td><code>/api/connectors</code></td><td>List or create connectors. Create takes <code>{ kind, name, agentId, config }</code>; a webhook's <code>config</code> is <code>{ secret }</code>.</td></tr>
+            <tr><td><span class="verb get">GET</span></td><td><code>/api/agents/export</code></td><td>Every agent's full settings as JSON, without server ids.</td></tr>
+            <tr><td><span class="verb post">POST</span></td><td><code>/api/agents/import</code></td><td>Import <code>{ agents, mode: "merge" | "skip-existing" }</code>, matched by handle. <code>?dryRun=1</code> reports what would change.</td></tr>
+            <tr><td><span class="verb get">GET</span></td><td><code>/api/backup</code></td><td>Stream a <code>.tar.gz</code> backup. <code>?includeSecret=1</code> adds the credentials secret.</td></tr>
+            <tr><td><span class="verb get">GET</span></td><td><code>/api/version</code></td><td><code>{ current, latest, url, updateAvailable }</code>. No token needed.</td></tr>
             <tr><td><span class="verb post">POST</span></td><td><code>/api/hooks/:id</code></td><td>Inbound webhook. Authenticated by <code>x-solo-secret</code>, not the admin token.</td></tr>
             <tr><td><span class="verb get">GET</span></td><td><code>/api/approvals</code></td><td>List approval requests. <code>?status=pending</code> for waiting ones, <code>decided</code> for the rest; <code>?threadId=</code> filters by thread.</td></tr>
             <tr><td><span class="verb post">POST</span></td><td><code>/api/approvals/:id/approve</code></td><td>Approve a waiting tool call. Optional <code>{ by }</code>.</td></tr>
@@ -714,6 +723,61 @@ stream.<span class="t-f">close</span>();</code></pre></div>
       </ul>
       <div class="callout">
         <b>Keep the data directory.</b> Durability is only as good as the storage behind it. In the Docker image (Docker, Railway, Render, Fly.io), that's the volume at <code>/data</code>. Elsewhere, make sure <code>SOLOAGENT_DATA_DIR</code> points at persistent storage.
+      </div>
+    </section>
+
+    <!-- ========== BACKUPS & UPGRADES ========== -->
+    <section id="backups">
+      <h2><a href="#backups">Backups &amp; upgrades</a></h2>
+      <p>A backup is one <code>.tar.gz</code> of the data directory: consistent snapshots of both SQLite databases, agent workspaces, uploaded files, and a <code>manifest.json</code>. It's safe to take while agents are running.</p>
+      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">soloagent backup                          # ./soloagent-backup-&lt;time&gt;.tar.gz</span>
+<span class="cmd">soloagent backup --out solo.tar.gz --url https://solo.example.com --token "$SOLOAGENT_TOKEN"</span>
+<span class="cmd">soloagent restore solo.tar.gz             # into ~/.soloagent/data, or --data &lt;dir&gt;</span></code></pre></div>
+      <p><code>soloagent backup</code> talks to your remote server or local server if one is configured or running. Otherwise it reads <code>~/.soloagent/data</code> directly, or the directory you pass with <code>--data</code>. You can also download a backup from <b>Settings</b> in the dashboard, or <code>GET /api/backup</code>.</p>
+      <p><code>soloagent restore</code> checks the archive before it touches anything: the manifest, every file's checksum, and each database's integrity. It refuses to run while a server is using that data directory, and it won't replace existing data without <code>--force</code>. With <code>--force</code>, the <code>backups/</code> folder is kept.</p>
+      <p>With Docker Compose, the image has the CLI and uses <code>/data</code>:</p>
+      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">docker compose exec -T soloagent soloagent backup --out - &gt; solo.tar.gz</span>
+<span class="cmd">docker compose stop soloagent</span>
+<span class="cmd">docker compose run --rm -v "$PWD:/backup" soloagent soloagent restore /backup/solo.tar.gz --force</span>
+<span class="cmd">docker compose start soloagent</span></code></pre></div>
+
+      <h3>Secrets and restores</h3>
+      <p>Provider logins and bot tokens are sealed with <code>SOLOAGENT_SECRET</code>, or with the <code>.secret</code> file generated in the data directory. Backups leave the secret out by default, so a restored server needs the same secret to open them:</p>
+      <ul>
+        <li>If you set <code>SOLOAGENT_SECRET</code>, set the same value on the restored server.</li>
+        <li>If you didn't, either keep a copy of <code>&lt;data&gt;/.secret</code> somewhere safe, or back up with <code>--include-secret</code>. Anyone with that archive can then read every credential, so store it like a password.</li>
+      </ul>
+      <p>The restore warns you when the secret is missing or doesn't match the one the backup was made with. Agents, threads, and memory don't depend on the secret; only credentials do.</p>
+
+      <h3>Scheduled backups</h3>
+      <p>Set <code>SOLOAGENT_BACKUP_INTERVAL</code> (<code>24h</code>, <code>6h</code>, <code>30m</code>…) and the server writes a backup to <code>&lt;data&gt;/backups/</code> on that interval, keeping the newest <code>SOLOAGENT_BACKUP_KEEP</code> (default 7). Scheduled backups never include the secret. They sit on the same disk as your data, so copy them somewhere else too.</p>
+      <p>To send backups to S3 or any other object store, write to stdout with <code>--out -</code>:</p>
+      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">soloagent backup --out - | aws s3 cp - s3://my-bucket/soloagent/$(date +%F).tar.gz</span>
+<span class="cmd">aws s3 cp s3://my-bucket/soloagent/2026-11-03.tar.gz - | soloagent restore - --data /var/lib/soloagent</span></code></pre></div>
+      <p>Run the first line from cron on any machine that can reach the server, with <code>SOLOAGENT_URL</code> and <code>SOLOAGENT_TOKEN</code> set.</p>
+
+      <h3>Moving agents between servers</h3>
+      <p>Export writes every agent's settings (instructions, model, skills, and anything else stored on the agent) to JSON. Import matches agents by handle: new handles are created, and existing ones are updated (<code>merge</code>, the default) or left alone (<code>skip-existing</code>). Import never changes which agent is the default. The dashboard's <b>Agents</b> page has the same Export and Import buttons, with a preview before anything changes.</p>
+      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">soloagent agents export &gt; agents.json</span>
+<span class="cmd">soloagent agents import agents.json --dry-run</span>
+<span class="cmd">soloagent agents import agents.json --mode skip-existing</span></code></pre></div>
+
+      <h3>Upgrading</h3>
+      <p>The server checks GitHub for a new release when it starts and every 12 hours. When there is one, the dashboard shows a note in the sidebar, <b>Settings</b> shows how to upgrade, and the terminal UI mentions it on its welcome screen. <code>soloagent --version</code> also says when an update is available; it checks at most once a day. Set <code>SOLOAGENT_UPDATE_CHECK=0</code> to turn checks off.</p>
+      <p>Your data and unfinished durable work carry over. Database migrations run when the new version starts. Take a backup first.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Installed with</th><th>Upgrade</th></tr></thead>
+          <tbody>
+            <tr><td>Installer or npm</td><td>Run <code>curl -fsSL https://soloagent.dev/install.sh | sh</code> again (or <code>npm install -g</code> the release tarball), then restart <code>soloagent serve</code> or <code>sudo systemctl restart soloagent</code>.</td></tr>
+            <tr><td>Docker Compose</td><td><code>docker compose pull &amp;&amp; docker compose up -d</code></td></tr>
+            <tr><td>Docker</td><td><code>docker pull ghcr.io/nearbycoder/soloagent.dev</code>, then remove and re-run the container with the same volume.</td></tr>
+            <tr><td>Railway</td><td>Redeploy the latest commit from the service's <b>Deployments</b>. If you deployed a fork, sync it first.</td></tr>
+            <tr><td>Render</td><td><b>Manual Deploy → Deploy latest commit</b>. Sync your fork first if you use one.</td></tr>
+            <tr><td>Fly.io</td><td><code>git pull &amp;&amp; fly deploy</code> from your checkout.</td></tr>
+            <tr><td>From source</td><td><code>git pull &amp;&amp; npm install &amp;&amp; npm run build</code>, then restart.</td></tr>
+          </tbody>
+        </table>
       </div>
     </section>
 

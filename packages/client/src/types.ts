@@ -285,6 +285,8 @@ export type Overview = {
   activity: ActivityItem[];
   version: string;
   uptimeMs: number;
+  /** Upgrade notice (backups/upgrades workstream). */
+  update?: VersionInfo;
 };
 
 export type Schedule = {
@@ -397,6 +399,63 @@ export type AgentSpend = { agentId: string; usd: number; runs: number; budget: A
 
 /** Recorded provider spend for one UTC day. */
 export type DailyUsage = { day: string; usage: Usage; responses: number; byAgent: { agentId: string; cost: number }[] };
+// ── Backups, export/import, upgrade notices ─────────────────────────────
+
+/** `GET /api/version` and `Overview.update`. `latest` is undefined until a check has succeeded. */
+export type VersionInfo = {
+  current: string;
+  latest?: string;
+  /** Release notes for `latest`. */
+  url?: string;
+  updateAvailable: boolean;
+  /** When GitHub was last asked successfully (ms). */
+  checkedAt?: number;
+  /** False when SOLOAGENT_UPDATE_CHECK=0. */
+  enabled: boolean;
+};
+
+/** An agent as exported: its full stored data without the server-local id. */
+export type ExportedAgent = Omit<Agent, "id"> & Record<string, unknown>;
+
+/** `GET /api/agents/export`. */
+export type AgentExport = { version: string; exportedAt: number; agents: ExportedAgent[] };
+
+/** How `POST /api/agents/import` treats an agent whose handle already exists. */
+export type AgentImportMode = "merge" | "skip-existing";
+
+export type AgentImportItem = {
+  handle: string;
+  name: string;
+  /** "unchanged": merge would not change anything. */
+  action: "create" | "update" | "skip" | "unchanged";
+  /** Fields a merge changes on an existing agent. */
+  fields: string[];
+};
+
+export type AgentImportResult = {
+  items: AgentImportItem[];
+  /** The created and updated agents (empty for a dry run). */
+  agents: Agent[];
+  /** True for `?dryRun=1`: nothing was written. */
+  dryRun: boolean;
+};
+
+/** `manifest.json` at the root of a backup archive. */
+export type BackupManifest = {
+  format: "soloagent-backup";
+  formatVersion: 1;
+  version: string;
+  createdAt: number;
+  hostname: string;
+  /** Which secret sealed the credentials in this backup. */
+  secret: "env" | "file";
+  /** Short fingerprint of that secret, to check a restore uses the same one. */
+  secretFingerprint: string;
+  /** Whether `.secret` is in the archive. */
+  includesSecret: boolean;
+  /** SQLite databases snapshotted consistently (file names in the data dir). */
+  databases: string[];
+};
 
 /** Server → client WebSocket events. */
 export type ServerEvent =

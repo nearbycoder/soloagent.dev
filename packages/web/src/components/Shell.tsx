@@ -26,6 +26,7 @@ import { toggleTheme, useTheme } from "../lib/theme.ts";
 import { AgentAvatar, Logo } from "./brand.tsx";
 import { CommandPalette } from "./CommandPalette.tsx";
 import { Dot, Kbd, Spinner } from "./ui.tsx";
+import { UpdateNotice } from "./UpdateNotice.tsx";
 import { Overview } from "../pages/Overview.tsx";
 import { Chat } from "../pages/chat/Chat.tsx";
 
@@ -334,6 +335,8 @@ function SidebarContent({
         </div>
       )}
       {(collapsed || !agents || agents.length === 0) && <div className="flex-1" />}
+
+      <UpdateNotice collapsed={collapsed} onNavigate={onClose} />
 
       <div className={cn("flex shrink-0 items-center gap-1 border-t border-border py-2.5", collapsed ? "flex-col px-2" : "px-3")}>
         <StatusPill collapsed={collapsed} />
