@@ -272,8 +272,8 @@ export class SoloAgent {
     this.agents.create({
       name: "Solo",
       handle: "solo",
-      avatar: "✦",
-      color: "#8b5cf6",
+      avatar: "●",
+      color: "#9cbf10",
       description: "Your everyday generalist. Answers anything not addressed to a specific agent.",
       isDefault: true,
       skills: ["memory", "web", "delegate", "schedule"],
