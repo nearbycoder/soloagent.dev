@@ -155,6 +155,8 @@
 
 <span class="t-c"># or run once, nothing installed</span>
 <span class="cmd">npx -y --allow-remote=root https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz</span></code></pre></div>
+      <p>On macOS or Linux with <b>Homebrew</b>, which brings its own Node:</p>
+      <div class="code code-float"><button class="copy" type="button">copy</button><pre><code><span class="cmd">brew install nearbycoder/soloagent/soloagent</span></code></pre></div>
       <p>No Node? Use Docker, one command, any OS:</p>
       <div class="code code-float"><button class="copy" type="button">copy</button><pre><code><span class="cmd">docker run -d --name soloagent -p 7420:7420 -v soloagent:/data ghcr.io/nearbycoder/soloagent.dev</span></code></pre></div>
       <p>Then open <code>http://localhost:7420</code> and paste the token from <code>docker logs soloagent</code>.</p>
@@ -897,6 +899,7 @@ stream.<span class="t-f">close</span>();</code></pre></div>
         <table>
           <thead><tr><th>Installed with</th><th>Upgrade</th></tr></thead>
           <tbody>
+            <tr><td>Homebrew</td><td><code>brew upgrade soloagent</code>, then restart <code>soloagent serve</code>.</td></tr>
             <tr><td>Installer or npm</td><td>Run <code>curl -fsSL https://soloagent.dev/install.sh | sh</code> again (or <code>npm install -g</code> the release tarball), then restart <code>soloagent serve</code> or <code>sudo systemctl restart soloagent</code>.</td></tr>
             <tr><td>Docker Compose</td><td><code>docker compose pull &amp;&amp; docker compose up -d</code></td></tr>
             <tr><td>Docker</td><td><code>docker pull ghcr.io/nearbycoder/soloagent.dev</code>, then remove and re-run the container with the same volume.</td></tr>

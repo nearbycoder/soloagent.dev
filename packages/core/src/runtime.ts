@@ -135,6 +135,8 @@ type Denial = { reason: "access_denied" | "over_budget" | "rate_limited"; messag
  */
 export class SoloAgent {
   readonly events = new EventEmitter<{ event: [ServerEvent] }>();
+  /** Fires when credentials change (users removed or re-roled, sign-outs, admin token rotated). Open WebSockets re-check. */
+  readonly access = new EventEmitter<{ changed: [] }>();
   readonly db: Db;
   readonly harness: Harness;
   readonly agents: AgentStore;
@@ -197,7 +199,7 @@ export class SoloAgent {
     this.#approvalExtensions = init.approvalExtensions;
     this.#adminToken = init.adminToken;
     this.adminTokenSource = init.adminTokenSource;
-    this.team = new TeamStore(init.db);
+    this.team = new TeamStore(init.db, () => this.access.emit("changed"));
     this.ledger = new Ledger(init.db);
     this.dataDir = init.dataDir;
     this.files = new FileStore(join(init.dataDir, "files"), init.db);
@@ -366,6 +368,7 @@ export class SoloAgent {
     const token = `solo_${randomBytes(18).toString("base64url")}`;
     this.db.setSetting("admin_token", token);
     this.#adminToken = token;
+    this.access.emit("changed");
     this.activity({ type: "access", text: "The admin token was rotated" });
     return token;
   }

@@ -71,9 +71,12 @@ export class TeamError extends Error {
 
 export class TeamStore {
   #db: Db;
+  #changed: () => void;
 
-  constructor(db: Db) {
+  /** `changed` runs when a user's role, name, or sessions change, so open connections can re-check access. */
+  constructor(db: Db, changed: () => void = () => {}) {
     this.#db = db;
+    this.#changed = changed;
   }
 
   // ── users ──
@@ -108,11 +111,13 @@ export class TeamStore {
       if (taken && taken.id !== id) throw new TeamError(409, `Someone is already called ${name}`);
       this.#db.run("UPDATE users SET name = ?, name_key = ? WHERE id = ?", name, nameKey(name), id);
     }
+    this.#changed();
     return this.user(id)!;
   }
 
   deleteUser(id: string) {
     this.#db.run("DELETE FROM users WHERE id = ?", id); // sessions cascade
+    this.#changed();
   }
 
   /** The user for a name and password, or undefined. Always does the hashing work, so timing says nothing. */
@@ -148,7 +153,9 @@ export class TeamStore {
   }
 
   deleteSession(token: string | undefined) {
-    if (token?.startsWith("sas_")) this.#db.run("DELETE FROM sessions WHERE token_hash = ?", sha256(token));
+    if (!token?.startsWith("sas_")) return;
+    this.#db.run("DELETE FROM sessions WHERE token_hash = ?", sha256(token));
+    this.#changed();
   }
 
   // ── invites ──

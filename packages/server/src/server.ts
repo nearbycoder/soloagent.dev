@@ -81,7 +81,7 @@ export async function startServer(options: StartOptions): Promise<RunningServer>
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
       return socket.destroy();
     }
-    wss.handleUpgrade(request, socket, head, (ws) => attach(solo, ws, actor));
+    wss.handleUpgrade(request, socket, head, (ws) => attach(solo, ws, actor, token));
   });
 
   const url = `http://${host === "0.0.0.0" ? "localhost" : host}:${actualPort}`;
@@ -129,7 +129,13 @@ function startScheduledBackups(solo: SoloAgent, log: (message: string) => void):
 /** Provider sign-in flows are for admins only. */
 const ADMIN_EVENTS = new Set<ServerEvent["type"]>(["login.updated"]);
 
-function attach(solo: SoloAgent, ws: WebSocket, actor: Actor) {
+/** Close code for a socket whose credential stopped working. Clients should not reconnect with it. */
+export const WS_SESSION_ENDED = 4401;
+/** Close code after a role change. Clients reconnect and reload their permissions. */
+export const WS_ACCESS_CHANGED = 4000;
+
+function attach(solo: SoloAgent, ws: WebSocket, initialActor: Actor, credential: string | undefined) {
+  let actor = initialActor;
   const send = (event: ServerEvent) => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(event));
   };
@@ -140,6 +146,15 @@ function attach(solo: SoloAgent, ws: WebSocket, actor: Actor) {
     if (BROADCAST.has(event.type) && (actor.role === "admin" || !ADMIN_EVENTS.has(event.type))) send(event);
   };
   solo.events.on("event", onEvent);
+  // Removed users, ended sessions, and a rotated admin token lose the socket right away; role changes apply live.
+  const onAccess = () => {
+    const next = authenticate(solo, credential);
+    if (!next) return ws.close(WS_SESSION_ENDED, "Session ended");
+    // A new role: reconnect so the dashboard reloads what this person may see.
+    if (next.role !== actor.role) ws.close(WS_ACCESS_CHANGED, "Access changed");
+    actor = next;
+  };
+  solo.access.on("changed", onAccess);
   send({ type: "hello", version: VERSION });
 
   ws.on("message", async (raw) => {
@@ -185,6 +200,7 @@ function attach(solo: SoloAgent, ws: WebSocket, actor: Actor) {
 
   ws.on("close", async () => {
     solo.events.off("event", onEvent);
+    solo.access.off("changed", onAccess);
     for (const subscription of subscriptions.values()) (await subscription.catch(() => undefined))?.();
     (await tasks)?.();
   });

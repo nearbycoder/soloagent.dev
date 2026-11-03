@@ -228,11 +228,19 @@ export function startSession(me: Me) {
   let wasLive = false;
   offStream = [
     stream.on(onEvent),
+    // The server ended this session (user removed, signed out elsewhere, token rotated): the 401 sends us to login.
+    stream.onSessionEnded(() => void client.me().catch(() => {})),
     stream.onStatus((connected) => {
       if (connected) {
         set({ status: "live" });
-        // Catch up on anything missed while disconnected.
-        if (wasLive) void refreshAll();
+        // Catch up on anything missed while disconnected, including a changed role.
+        if (wasLive) {
+          void refreshAll();
+          void client
+            .me()
+            .then((me) => set({ me }))
+            .catch(() => {});
+        }
         wasLive = true;
       } else {
         set({ status: wasLive ? "reconnecting" : "connecting" });

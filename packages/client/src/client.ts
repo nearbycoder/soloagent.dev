@@ -420,6 +420,7 @@ export class SoloStream {
   #socket: WebSocket | undefined;
   #listeners = new Set<Listener>();
   #statusListeners = new Set<(connected: boolean) => void>();
+  #endedListeners = new Set<() => void>();
   #threads = new Set<string>();
   #tasks = false;
   #closed = false;
@@ -454,10 +455,16 @@ export class SoloStream {
       }
       for (const listener of this.#listeners) listener(event);
     };
-    socket.onclose = () => {
+    socket.onclose = (event) => {
       if (this.#ping) clearInterval(this.#ping);
       this.#setConnected(false);
       if (this.#closed) return;
+      // 4401: the server ended this credential's access. Retrying with it can't work.
+      if (event.code === 4401) {
+        this.#closed = true;
+        for (const listener of this.#endedListeners) listener();
+        return;
+      }
       const delay = Math.min(10_000, 500 * 2 ** this.#retry++);
       this.#timer = setTimeout(() => this.#open(), delay);
     };
@@ -476,6 +483,12 @@ export class SoloStream {
   on(listener: Listener): () => void {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
+  }
+
+  /** The server closed the socket because the session or token stopped working (user removed, token rotated). */
+  onSessionEnded(listener: () => void): () => void {
+    this.#endedListeners.add(listener);
+    return () => this.#endedListeners.delete(listener);
   }
 
   onStatus(listener: (connected: boolean) => void): () => void {
