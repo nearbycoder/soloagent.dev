@@ -2,6 +2,7 @@ import type { Agent, AgentInput, AgentSkill } from "@soloagent/client";
 import { AGENT_SKILLS } from "@soloagent/client";
 import { type Db, newId } from "./db.ts";
 import { defaultApprovalPolicy, isApprovalPolicy } from "./approvals.ts";
+import { cleanBudget, NO_BUDGET } from "./team.ts";
 
 const PALETTE = ["#8b5cf6", "#06b6d4", "#f59e0b", "#10b981", "#ef4444", "#ec4899", "#3b82f6", "#84cc16"];
 const AVATARS = ["✦", "◆", "●", "▲", "✸", "◉", "⬢", "✺"];
@@ -68,6 +69,8 @@ export class AgentStore {
       maxTurns: clampTurns(input.maxTurns ?? 40),
       isDefault: input.isDefault ?? count === 0,
       approvals: isApprovalPolicy(input.approvals) ? input.approvals : defaultApprovalPolicy(skills),
+      budget: cleanBudget(input.budget),
+      chatAccess: input.chatAccess === true,
       createdAt: now,
       updatedAt: now,
     };
@@ -94,6 +97,8 @@ export class AgentStore {
           ? "risky"
           : current.approvals,
       maxTurns: input.maxTurns !== undefined ? clampTurns(input.maxTurns) : current.maxTurns,
+      budget: input.budget !== undefined ? cleanBudget(input.budget, current.budget) : current.budget,
+      chatAccess: input.chatAccess !== undefined ? input.chatAccess === true : current.chatAccess,
       id: current.id,
       createdAt: current.createdAt,
       updatedAt: Math.max(Date.now(), current.updatedAt + 1),
@@ -150,6 +155,9 @@ function fromRow(row: Row): Agent {
     ...data,
     // Rows from before approvals existed: on for agents with the workspace skill.
     approvals: isApprovalPolicy(data.approvals) ? data.approvals : defaultApprovalPolicy(data.skills ?? []),
+    // Teams fields: rows written before 0.2 have neither.
+    budget: cleanBudget(data.budget ?? NO_BUDGET),
+    chatAccess: data.chatAccess === true,
     id: row.id,
     handle: row.handle,
     createdAt: row.created_at,

@@ -4,6 +4,13 @@ import type {
   Approval,
   ApprovalSettings,
   ApprovalStatus,
+  AgentSpend,
+  CreatedInvite,
+  DailyUsage,
+  Invite,
+  Me,
+  Role,
+  User,
   ClientEvent,
   Connector,
   ConnectorInput,
@@ -92,10 +99,14 @@ export class SoloClient {
 
   // Session
   me() {
-    return this.request<{ ok: true; version: string }>("GET", "/me");
+    return this.request<Me>("GET", "/me");
   }
   login(token: string) {
     return this.request<{ ok: true }>("POST", "/session", { token });
+  }
+  /** Sign in as a team member with the name and password they chose. */
+  loginPassword(name: string, password: string) {
+    return this.request<{ ok: true }>("POST", "/session", { name, password });
   }
   logout() {
     return this.request<{ ok: true }>("DELETE", "/session");
@@ -238,6 +249,42 @@ export class SoloClient {
   }
   updateApprovalSettings(input: Partial<ApprovalSettings>) {
     return this.request<ApprovalSettings>("PUT", "/approval-settings", input);
+  }
+  // Teams: users, invites, the admin token, and spend
+  users() {
+    return this.request<User[]>("GET", "/users");
+  }
+  updateUser(id: string, input: { role?: Role; name?: string }) {
+    return this.request<User>("PATCH", `/users/${encodeURIComponent(id)}`, input);
+  }
+  deleteUser(id: string) {
+    return this.request<{ ok: true }>("DELETE", `/users/${encodeURIComponent(id)}`);
+  }
+  invites() {
+    return this.request<Invite[]>("GET", "/invites");
+  }
+  createInvite(input: { role: Role; name?: string }) {
+    return this.request<CreatedInvite>("POST", "/invites", input);
+  }
+  revokeInvite(id: string) {
+    return this.request<{ ok: true }>("DELETE", `/invites/${encodeURIComponent(id)}`);
+  }
+  /** Public: what an invite link offers, before accepting it. */
+  invite(code: string) {
+    return this.request<{ role: Role; name: string | null; expiresAt: number }>("GET", `/invite/${encodeURIComponent(code)}`);
+  }
+  /** Public: accept an invite, create the account, and sign in (sets the session cookie). */
+  acceptInvite(code: string, input: { name: string; password: string }) {
+    return this.request<{ ok: true; user: User }>("POST", `/invite/${encodeURIComponent(code)}`, input);
+  }
+  rotateAdminToken() {
+    return this.request<{ token: string }>("POST", "/admin-token/rotate");
+  }
+  spendToday() {
+    return this.request<AgentSpend[]>("GET", "/spend/today");
+  }
+  dailyUsage(days = 14) {
+    return this.request<DailyUsage[]>("GET", `/usage/daily?days=${days}`);
   }
 
   /** Open the live event stream. Reconnects automatically until `close()`. */

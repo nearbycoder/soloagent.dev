@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ChartNoAxesColumn, RefreshCw } from "lucide-react";
-import type { Usage as UsageNumbers, UsageSummary } from "@soloagent/client";
+import type { DailyUsage, Usage as UsageNumbers, UsageSummary } from "@soloagent/client";
 import { client } from "../api/client.ts";
 import { useAgentMap, useApp } from "../api/store.ts";
 import { AgentAvatar, ProviderMark } from "../components/brand.tsx";
 import { Button, Card, EmptyState, Page, PageHeader, Segmented, SectionHeader, Skeleton } from "../components/ui.tsx";
+import { cn } from "../lib/cn.ts";
 import { cost, num, pluralize, tokens } from "../lib/format.ts";
 import { toast } from "../lib/toast.ts";
 
@@ -17,6 +18,7 @@ type Metric = "cost" | "tokens";
 
 export function Usage() {
   const [usage, setUsage] = useState<UsageSummary | null>(null);
+  const [daily, setDaily] = useState<DailyUsage[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [metric, setMetric] = useState<Metric | null>(null);
   const activityCount = useApp((s) => s.activity.length);
@@ -24,7 +26,9 @@ export function Usage() {
   const load = async () => {
     setLoading(true);
     try {
-      setUsage(await client.usage());
+      const [summary, days] = await Promise.all([client.usage(), client.dailyUsage(14).catch(() => null)]);
+      setUsage(summary);
+      setDaily(days);
     } catch (error) {
       toast.error(error, "Could not load usage");
     } finally {
@@ -39,7 +43,10 @@ export function Usage() {
   // Refresh quietly as new replies come in.
   useEffect(() => {
     if (!usage) return;
-    const id = setTimeout(() => void client.usage().then(setUsage).catch(() => {}), 1500);
+    const id = setTimeout(() => {
+      void client.usage().then(setUsage).catch(() => {});
+      void client.dailyUsage(14).then(setDaily).catch(() => {});
+    }, 1500);
     return () => clearTimeout(id);
   }, [activityCount]);
 
@@ -82,6 +89,16 @@ export function Usage() {
             <h2 className="text-[13px] font-semibold text-fg">Where the tokens went</h2>
             <TokenMix usage={usage.total} />
           </Card>
+
+          {daily && daily.some((d) => d.responses > 0) && (
+            <Card className="mt-3 p-5">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="text-[13px] font-semibold text-fg">{effective === "cost" ? "Spend" : "Tokens"} per day</h2>
+                <span className="text-[12px] text-faint">Last 14 days, UTC</span>
+              </div>
+              <DailyBars days={daily} value={value} format={format} />
+            </Card>
+          )}
 
           <div className="mt-10 flex items-center justify-between gap-3">
             <h2 className="text-[15px] font-semibold tracking-tight text-fg">Breakdown</h2>
@@ -213,6 +230,74 @@ function AgentBars({ usage, value, format }: { usage: UsageSummary; value: (u: U
       value={value}
       format={format}
     />
+  );
+}
+
+/** One column per UTC day: a single series, so one hue and no legend; details on hover, a table for screen readers. */
+function DailyBars({ days, value, format }: { days: DailyUsage[]; value: (u: UsageNumbers) => number; format: (n: number) => string }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const values = days.map((d) => value(d.usage));
+  const max = Math.max(...values, 0) || 1;
+  const label = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+  const shown = hover !== null ? days[hover] : undefined;
+  return (
+    <div className="mt-4">
+      <div className="relative">
+        <span className="absolute -top-0.5 left-0 text-[11px] tabular-nums text-faint">{format(max)}</span>
+        <div className="flex h-36 items-end gap-[2px] border-b border-border pt-5" onMouseLeave={() => setHover(null)} aria-hidden>
+          {days.map((d, i) => (
+            <div key={d.day} className="flex h-full flex-1 cursor-default items-end" onMouseEnter={() => setHover(i)}>
+              <div
+                className={cn("w-full rounded-t-[4px] bg-accent transition-opacity", hover !== null && hover !== i && "opacity-50")}
+                style={{ height: `${values[i]! > 0 ? Math.max(2, (values[i]! / max) * 100) : 0}%` }}
+              />
+            </div>
+          ))}
+        </div>
+        {shown && (
+          <div
+            className="pointer-events-none absolute top-0 z-10 w-44 -translate-x-1/2 rounded-lg border border-border bg-[var(--overlay)] px-3 py-2 text-[12px] shadow-lg"
+            style={{ left: `clamp(88px, ${((hover! + 0.5) / days.length) * 100}%, calc(100% - 88px))` }}
+          >
+            <p className="font-medium text-fg">{label(shown.day)}</p>
+            <p className="mt-1 flex justify-between text-subtle">
+              Spend <span className="tabular-nums text-fg">{cost(shown.usage.cost)}</span>
+            </p>
+            <p className="flex justify-between text-subtle">
+              Tokens <span className="tabular-nums text-fg">{tokens(totalTokens(shown.usage))}</span>
+            </p>
+            <p className="flex justify-between text-subtle">
+              Responses <span className="tabular-nums text-fg">{num(shown.responses)}</span>
+            </p>
+          </div>
+        )}
+      </div>
+      <div className="mt-1.5 flex justify-between text-[11px] text-faint">
+        <span>{label(days[0]!.day)}</span>
+        <span>Today</span>
+      </div>
+      <table className="sr-only">
+        <caption>Usage per day</caption>
+        <thead>
+          <tr>
+            <th>Day</th>
+            <th>Spend</th>
+            <th>Tokens</th>
+            <th>Responses</th>
+          </tr>
+        </thead>
+        <tbody>
+          {days.map((d) => (
+            <tr key={d.day}>
+              <td>{d.day}</td>
+              <td>{cost(d.usage.cost)}</td>
+              <td>{num(totalTokens(d.usage))}</td>
+              <td>{d.responses}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

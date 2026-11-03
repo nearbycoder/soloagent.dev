@@ -5,8 +5,9 @@ import { existsSync } from "node:fs";
 import { serve } from "@hono/node-server";
 import { WebSocketServer, type WebSocket } from "ws";
 import { SoloAgent, VERSION, type SoloAgentOptions } from "@soloagent/core";
-import type { ClientEvent, ServerEvent } from "@soloagent/client";
-import { createApp, tokenMatches } from "./app.ts";
+import type { Actor, ClientEvent, ServerEvent } from "@soloagent/client";
+import { createApp } from "./app.ts";
+import { authenticate } from "./auth.ts";
 
 /** Events every connected client receives; thread streams and tasks are opt-in. */
 const BROADCAST = new Set<ServerEvent["type"]>([
@@ -62,11 +63,12 @@ export async function startServer(options: StartOptions): Promise<RunningServer>
     if (url.pathname !== "/api/ws") return socket.destroy();
     const cookie = /(?:^|;\s*)solo_session=([^;]+)/.exec(request.headers.cookie ?? "")?.[1];
     const token = url.searchParams.get("token") ?? (cookie ? decodeURIComponent(cookie) : undefined);
-    if (!tokenMatches(solo.adminToken, token)) {
+    const actor = authenticate(solo, token);
+    if (!actor) {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
       return socket.destroy();
     }
-    wss.handleUpgrade(request, socket, head, (ws) => attach(solo, ws));
+    wss.handleUpgrade(request, socket, head, (ws) => attach(solo, ws, actor));
   });
 
   const url = `http://${host === "0.0.0.0" ? "localhost" : host}:${actualPort}`;
@@ -82,7 +84,10 @@ export async function startServer(options: StartOptions): Promise<RunningServer>
   };
 }
 
-function attach(solo: SoloAgent, ws: WebSocket) {
+/** Provider sign-in flows are for admins only. */
+const ADMIN_EVENTS = new Set<ServerEvent["type"]>(["login.updated"]);
+
+function attach(solo: SoloAgent, ws: WebSocket, actor: Actor) {
   const send = (event: ServerEvent) => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(event));
   };
@@ -90,7 +95,7 @@ function attach(solo: SoloAgent, ws: WebSocket) {
   let tasks: Promise<() => void> | undefined;
 
   const onEvent = (event: ServerEvent) => {
-    if (BROADCAST.has(event.type)) send(event);
+    if (BROADCAST.has(event.type) && (actor.role === "admin" || !ADMIN_EVENTS.has(event.type))) send(event);
   };
   solo.events.on("event", onEvent);
   send({ type: "hello", version: VERSION });

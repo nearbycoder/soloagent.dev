@@ -35,6 +35,7 @@ export type Route =
   | { page: "activity" }
   | { page: "approvals" }
   | { page: "usage" }
+  | { page: "team" }
   | { page: "settings" };
 
 export function parseRoute(path: string): Route {
@@ -58,6 +59,8 @@ export function parseRoute(path: string): Route {
       return { page: "approvals" };
     case "usage":
       return { page: "usage" };
+    case "team":
+      return { page: "team" };
     case "settings":
       return { page: "settings" };
     default:

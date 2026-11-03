@@ -52,6 +52,7 @@ export const telegramDriver: DriverFactory = (config, host): ConnectorDriver => 
             ...(isDirect ? {} : { replyTo: String(message.message_id) }),
           },
           isDirect,
+          ...(isDirect ? {} : { channel: { id: String(chat.id), name: title } }),
         });
       });
 

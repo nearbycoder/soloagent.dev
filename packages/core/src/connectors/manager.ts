@@ -1,11 +1,20 @@
-import type { Connector, ConnectorInput, ConnectorKind, ConnectorStatus } from "@soloagent/client";
+import type { Connector, ConnectorAccess, ConnectorInput, ConnectorKind, ConnectorLimits, ConnectorStatus } from "@soloagent/client";
 import { type Db, newId } from "../db.ts";
+import { cleanAccess, cleanLimits } from "../team.ts";
 import type { Sealer } from "../secrets.ts";
 import { DRIVERS, kindInfo } from "./kinds.ts";
 import type { ChatDecisionInput, ConnectorDriver, InboundMessage } from "./types.ts";
 
 type Row = { id: string; kind: ConnectorKind; data: string; secrets: string | null; created_at: number; updated_at: number };
-type Data = { name: string; enabled: boolean; agentId: string | null; config: Record<string, string>; approvers?: string[] };
+type Data = {
+  name: string;
+  enabled: boolean;
+  agentId: string | null;
+  config: Record<string, string>;
+  approvers?: string[];
+  access?: ConnectorAccess;
+  limits?: ConnectorLimits;
+};
 
 export const SECRET_MASK = "••••••••";
 
@@ -64,6 +73,8 @@ export class ConnectorManager {
       agentId: input.agentId ?? null,
       config,
       approvers: cleanApprovers(input.approvers ?? []),
+      access: cleanAccess(input.access),
+      limits: cleanLimits(input.limits),
     };
     this.#db.run(
       "INSERT INTO connectors (id, kind, data, secrets, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -90,6 +101,8 @@ export class ConnectorManager {
       agentId: input.agentId === undefined ? data.agentId : input.agentId,
       config: { ...data.config, ...config },
       approvers: input.approvers !== undefined ? cleanApprovers(input.approvers) : (data.approvers ?? []),
+      access: cleanAccess(input.access, cleanAccess(data.access)),
+      limits: cleanLimits(input.limits, cleanLimits(data.limits)),
     };
     this.#db.run(
       "UPDATE connectors SET data = ?, secrets = ?, updated_at = ? WHERE id = ?",
@@ -234,6 +247,8 @@ export class ConnectorManager {
       statusDetail: status.detail,
       identity: status.identity,
       approvers: data.approvers ?? [],
+      access: cleanAccess(data.access),
+      limits: cleanLimits(data.limits),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

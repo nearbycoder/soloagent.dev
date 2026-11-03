@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowUpRight, ShieldCheck } from "lucide-react";
 import type { Approval, ApprovalSettings } from "@soloagent/client";
 import { client } from "../api/client.ts";
-import { useAgentMap, useApp } from "../api/store.ts";
+import { useAgentMap, useApp, useIsAdmin } from "../api/store.ts";
 import { ApprovalActions, approvalArgs, approvalStatusText } from "../components/ApprovalActions.tsx";
 import { AgentAvatar, SourceBadge } from "../components/brand.tsx";
 import { Badge, Button, Card, EmptyState, Field, Input, Page, PageHeader, SectionHeader, Skeleton } from "../components/ui.tsx";
@@ -14,6 +14,7 @@ import { toast } from "../lib/toast.ts";
 export function ApprovalsPage() {
   const pending = useApp((s) => s.approvals);
   const version = useApp((s) => s.approvalsVersion);
+  const isAdmin = useIsAdmin();
   const [recent, setRecent] = useState<Approval[] | null>(null);
 
   useEffect(() => {
@@ -67,7 +68,7 @@ export function ApprovalsPage() {
           </Card>
         )}
       </section>
-      <SettingsSection />
+      {isAdmin && <SettingsSection />}
     </Page>
   );
 }

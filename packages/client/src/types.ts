@@ -51,11 +51,14 @@ export type Agent = {
   isDefault: boolean;
   /** Approvals: which tool calls wait for a human first. See `ApprovalPolicy`. */
   approvals: ApprovalPolicy;
+  // Teams: spend limits, and whether chat connectors may reach an agent that has the workspace skill.
+  budget: AgentBudget;
+  chatAccess: boolean;
   createdAt: number;
   updatedAt: number;
 };
 
-export type AgentInput = Partial<Omit<Agent, "id" | "createdAt" | "updatedAt">> & { name: string };
+export type AgentInput = Partial<Omit<Agent, "id" | "createdAt" | "updatedAt" | "budget">> & { name: string; budget?: Partial<AgentBudget> };
 
 export type ProviderModel = {
   id: string;
@@ -136,6 +139,9 @@ export type Connector = {
   identity?: string;
   /** Approvals: platform user ids or display names allowed to approve tool calls in chat. Empty: dashboard only. */
   approvers: string[];
+  // Teams: who may use this connector, where, which agents they reach, and how often.
+  access: ConnectorAccess;
+  limits: ConnectorLimits;
   createdAt: number;
   updatedAt: number;
 };
@@ -148,6 +154,8 @@ export type ConnectorInput = {
   config?: Record<string, string>;
   /** Approvals: see `Connector.approvers`. */
   approvers?: string[];
+  access?: Partial<ConnectorAccess>;
+  limits?: Partial<ConnectorLimits>;
 };
 
 export type Thread = {
@@ -249,7 +257,7 @@ export type TaskNode = {
 export type ActivityItem = {
   id: number;
   at: number;
-  type: "message" | "reply" | "connector" | "agent" | "provider" | "schedule" | "error" | "approval";
+  type: "message" | "reply" | "connector" | "agent" | "provider" | "schedule" | "error" | "approval" | "access";
   text: string;
   agentId?: string;
   threadId?: string;
@@ -323,6 +331,62 @@ export type ApprovalSettings = {
   /** Extra tool names the "risky" policy asks about, e.g. "forget" or an MCP tool. */
   riskyTools: string[];
 };
+// ───────────────────────────── Teams ─────────────────────────────
+
+/** Per-agent spend limits for the current UTC day. null: unlimited. */
+export type AgentBudget = { dailyUsd: number | null; dailyRuns: number | null };
+
+/**
+ * Who may use a connector. Each empty list means everyone, everywhere, or every agent.
+ * `users` match the platform user id or display name, `channels` the channel id or name ("#eng"),
+ * `agents` agent ids or handles.
+ */
+export type ConnectorAccess = { users: string[]; channels: string[]; agents: string[] };
+
+export type ConnectorLimits = { perUserPerHour: number | null };
+
+export type Role = "admin" | "member";
+
+/** Who is making a request: the admin token (superuser) or a signed-in user. */
+export type Actor = { kind: "token" | "user"; userId?: string; name: string; role: Role };
+
+export type Me = {
+  ok: true;
+  version: string;
+  actor: Actor;
+  /** The admin token comes from SOLOAGENT_TOKEN and has to be rotated there. */
+  tokenFromEnv: boolean;
+};
+
+export type User = {
+  id: string;
+  name: string;
+  role: Role;
+  hasPassword: boolean;
+  createdAt: number;
+  lastSeenAt: number | null;
+};
+
+export type Invite = {
+  id: string;
+  role: Role;
+  /** Suggested name for the invitee. */
+  name: string | null;
+  createdBy: string;
+  createdAt: number;
+  expiresAt: number;
+  usedAt: number | null;
+  usedBy: string | null;
+};
+
+/** Returned once, when an invite is created: the code is never stored in plain text. */
+export type CreatedInvite = { invite: Invite; code: string; path: string; url: string };
+
+/** Today's (UTC) spend for one agent against its budget. */
+export type AgentSpend = { agentId: string; usd: number; runs: number; budget: AgentBudget };
+
+/** Recorded provider spend for one UTC day. */
+export type DailyUsage = { day: string; usage: Usage; responses: number; byAgent: { agentId: string; cost: number }[] };
 
 /** Server → client WebSocket events. */
 export type ServerEvent =

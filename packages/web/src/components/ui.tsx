@@ -369,3 +369,125 @@ export function Dot({ tone, pulse, className }: { tone: "success" | "warning" | 
     </span>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Multi-value input (Teams: connector access lists)
+
+/**
+ * Chips plus a text box. Enter, comma, or Tab adds what's typed; Backspace on an empty box removes the
+ * last chip; pasting a comma- or newline-separated list adds each item. `suggestions` are offered as you type.
+ */
+export function TagInput({
+  id,
+  values,
+  onChange,
+  placeholder,
+  suggestions = [],
+  disabled,
+  className,
+}: {
+  id?: string;
+  values: string[];
+  onChange: (values: string[]) => void;
+  placeholder?: string;
+  suggestions?: { value: string; label?: ReactNode }[];
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [text, setText] = useState("");
+  const [focused, setFocused] = useState(false);
+  const has = (v: string) => values.some((x) => x.toLowerCase() === v.toLowerCase());
+  const add = (raw: string) => {
+    const items = raw
+      .split(/[,\n]/)
+      .map((v) => v.trim())
+      .filter(Boolean);
+    const next = [...values];
+    for (const item of items) if (!next.some((x) => x.toLowerCase() === item.toLowerCase())) next.push(item);
+    if (next.length !== values.length) onChange(next);
+    setText("");
+  };
+  const q = text.trim().toLowerCase();
+  const offered = suggestions.filter((s) => !has(s.value) && (!q || s.value.toLowerCase().includes(q))).slice(0, 6);
+
+  return (
+    <div className={cn("relative", className)}>
+      <div
+        className={cn(
+          fieldBase,
+          "flex min-h-9 flex-wrap items-center gap-1 px-1.5 py-1 focus-within:border-accent-line/70 focus-within:bg-surface focus-within:ring-3 focus-within:ring-accent-line/15",
+          disabled && "opacity-60",
+        )}
+        onClick={(e) => (e.currentTarget.querySelector("input") as HTMLInputElement | null)?.focus()}
+      >
+        {values.map((value) => (
+          <span key={value} className="inline-flex h-6 max-w-full items-center gap-1 rounded-md border border-border bg-surface-3 pl-2 pr-1 font-mono text-[12px] text-fg">
+            <span className="truncate">{value}</span>
+            {!disabled && (
+              <button
+                type="button"
+                aria-label={`Remove ${value}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChange(values.filter((v) => v !== value));
+                }}
+                className="grid size-4 place-items-center rounded text-subtle hover:bg-surface-2 hover:text-fg"
+              >
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+        <input
+          id={id}
+          value={text}
+          disabled={disabled}
+          spellCheck={false}
+          autoComplete="off"
+          placeholder={values.length ? "" : placeholder}
+          onFocus={() => setFocused(true)}
+          onBlur={() => {
+            setFocused(false);
+            if (text.trim()) add(text);
+          }}
+          onChange={(e) => setText(e.target.value)}
+          onPaste={(e) => {
+            const pasted = e.clipboardData.getData("text");
+            if (/[,\n]/.test(pasted)) {
+              e.preventDefault();
+              add(text + pasted);
+            }
+          }}
+          onKeyDown={(e) => {
+            if ((e.key === "Enter" || e.key === "," || (e.key === "Tab" && text.trim())) && text.trim()) {
+              e.preventDefault();
+              add(text);
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+            } else if (e.key === "Backspace" && !text && values.length) {
+              onChange(values.slice(0, -1));
+            }
+          }}
+          className="h-6 min-w-[8ch] flex-1 bg-transparent px-1.5 text-[13px] text-fg outline-none placeholder:text-faint"
+        />
+      </div>
+      {focused && offered.length > 0 && (
+        <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-border bg-[var(--overlay)] p-1 shadow-lg">
+          {offered.map((s) => (
+            <button
+              key={s.value}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                add(s.value);
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-muted hover:bg-surface-2 hover:text-fg"
+            >
+              {s.label ?? s.value}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

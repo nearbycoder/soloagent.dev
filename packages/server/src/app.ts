@@ -1,11 +1,13 @@
-import { timingSafeEqual } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { Hono, type Context as HonoContext } from "hono";
-import { getCookie, setCookie, deleteCookie } from "hono/cookie";
+import { setCookie, deleteCookie } from "hono/cookie";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { CONNECTOR_KINDS, HttpError, VERSION, type SoloAgent } from "@soloagent/core";
-import type { AgentInput, ApprovalSettings, ApprovalStatus, ConnectorInput, Source } from "@soloagent/client";
+import { CONNECTOR_KINDS, HttpError, TeamError, VERSION, type SoloAgent } from "@soloagent/core";
+import type { AgentInput, ApprovalSettings, ApprovalStatus, ConnectorInput, Me, Role, Source } from "@soloagent/client";
+import { actorOf, adminOnly, type AuthEnv, COOKIE, LoginThrottle, requestToken, requireAuth, tokenMatches } from "./auth.ts";
+
+export { requestToken, tokenMatches } from "./auth.ts";
 
 export type AppOptions = {
   solo: SoloAgent;
@@ -13,47 +15,76 @@ export type AppOptions = {
   webDir?: string;
 };
 
-const COOKIE = "solo_session";
-
-export function tokenMatches(expected: string, given: string | undefined): boolean {
-  if (!given) return false;
-  const a = Buffer.from(expected);
-  const b = Buffer.from(given);
-  return a.length === b.length && timingSafeEqual(a, b);
+function setSession(c: HonoContext, value: string, maxAgeSeconds: number) {
+  setCookie(c, COOKIE, value, {
+    httpOnly: true,
+    sameSite: "Lax",
+    secure: new URL(c.req.url).protocol === "https:" || c.req.header("x-forwarded-proto") === "https",
+    path: "/",
+    maxAge: maxAgeSeconds,
+  });
 }
 
-export function requestToken(c: HonoContext): string | undefined {
-  const header = c.req.header("authorization");
-  if (header?.startsWith("Bearer ")) return header.slice(7).trim();
-  // Query-string tokens are accepted only on the WebSocket upgrade (see server.ts), never on REST.
-  return getCookie(c, COOKIE) ?? undefined;
+/** Where invite links point: SOLOAGENT_PUBLIC_URL, else the origin this request came in on. */
+function publicOrigin(c: HonoContext): string {
+  const configured = process.env.SOLOAGENT_PUBLIC_URL?.replace(/\/+$/, "");
+  if (configured) return configured;
+  const url = new URL(c.req.url);
+  const proto = c.req.header("x-forwarded-proto")?.split(",")[0]?.trim() || url.protocol.replace(":", "");
+  const host = c.req.header("x-forwarded-host")?.split(",")[0]?.trim() || c.req.header("host") || url.host;
+  return `${proto}://${host}`;
 }
 
 export function createApp({ solo, webDir }: AppOptions) {
   const app = new Hono();
 
   app.onError((error, c) => {
-    const status = error instanceof HttpError ? error.status : /not found/i.test(error.message) ? 404 : 400;
-    if (status >= 500 || !(error instanceof HttpError)) console.error(`[solo] ${c.req.method} ${c.req.path}: ${error.message}`);
+    const known = error instanceof HttpError || error instanceof TeamError;
+    const status = known ? error.status : /not found/i.test(error.message) ? 404 : 400;
+    if (status >= 500 || !known) console.error(`[solo] ${c.req.method} ${c.req.path}: ${error.message}`);
     return c.json({ error: error.message }, status as 400);
   });
 
   app.get("/healthz", (c) => c.json({ ok: true, uptimeMs: Date.now() - solo.startedAt }));
 
-  const api = new Hono();
+  const api = new Hono<AuthEnv>();
+  const throttle = new LoginThrottle();
 
-  // Public: session login and inbound webhooks (they carry their own secret).
+  // Public: sign-in (admin token, or a name and password), invite links, and inbound webhooks (they carry their own secret).
   api.post("/session", async (c) => {
-    const { token } = await c.req.json<{ token?: string }>();
-    if (!tokenMatches(solo.adminToken, token)) return c.json({ error: "That token is not right" }, 401);
-    setCookie(c, COOKIE, token!, {
-      httpOnly: true,
-      sameSite: "Lax",
-      secure: new URL(c.req.url).protocol === "https:" || c.req.header("x-forwarded-proto") === "https",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 90,
-    });
+    const body = await c.req.json<{ token?: string; name?: string; password?: string }>().catch(() => ({}) as { token?: string; name?: string; password?: string });
+    if (body.token !== undefined) {
+      if (!tokenMatches(solo.adminToken, body.token)) return c.json({ error: "That token is not right" }, 401);
+      setSession(c, body.token, 60 * 60 * 24 * 90);
+      return c.json({ ok: true });
+    }
+    const name = body.name?.trim() ?? "";
+    if (!name || !body.password) return c.json({ error: "Enter your name and password" }, 400);
+    if (throttle.blocked(name)) return c.json({ error: "Too many attempts. Wait a few minutes and try again." }, 429);
+    const user = await solo.team.checkPassword(name, body.password);
+    if (!user) {
+      throttle.fail(name);
+      return c.json({ error: "That name and password don't match" }, 401);
+    }
+    throttle.clear(name);
+    const session = solo.team.createSession(user.id);
+    setSession(c, session.token, Math.floor((session.expiresAt - Date.now()) / 1000));
     return c.json({ ok: true });
+  });
+
+  api.get("/invite/:code", (c) => {
+    const invite = solo.team.openInvite(c.req.param("code"));
+    if (!invite) return c.json({ error: "This invite link has expired or was already used. Ask an admin for a new one." }, 410);
+    return c.json({ role: invite.role, name: invite.name, expiresAt: invite.expiresAt });
+  });
+
+  api.post("/invite/:code", async (c) => {
+    const body = await c.req.json<{ name?: string; password?: string }>().catch(() => ({}) as { name?: string; password?: string });
+    const user = await solo.team.acceptInvite(c.req.param("code"), { name: body.name ?? "", password: body.password ?? "" });
+    const session = solo.team.createSession(user.id);
+    setSession(c, session.token, Math.floor((session.expiresAt - Date.now()) / 1000));
+    solo.activity({ type: "access", text: `${user.name} joined the team as ${user.role === "admin" ? "an admin" : "a member"}` });
+    return c.json({ ok: true, user }, 201);
   });
 
   api.post("/hooks/:id", async (c) => {
@@ -62,67 +93,102 @@ export function createApp({ solo, webDir }: AppOptions) {
     return c.json(result, "accepted" in result ? 202 : 200);
   });
 
-  api.use("*", async (c, next) => {
-    if (!tokenMatches(solo.adminToken, requestToken(c))) return c.json({ error: "Unauthorized" }, 401);
-    await next();
-  });
+  api.use("*", requireAuth(solo));
 
   api.delete("/session", (c) => {
+    solo.team.deleteSession(requestToken(c));
     deleteCookie(c, COOKIE, { path: "/" });
     return c.json({ ok: true });
   });
-  api.get("/me", (c) => c.json({ ok: true, version: VERSION }));
+  api.get("/me", (c) => c.json({ ok: true, version: VERSION, actor: actorOf(c), tokenFromEnv: solo.adminTokenSource !== "stored" } satisfies Me));
 
-  // Overview
+  // Overview (everyone signed in)
   api.get("/overview", async (c) => c.json(await solo.overview()));
   api.get("/usage", async (c) => c.json(await solo.usage()));
+  api.get("/usage/daily", (c) => c.json(solo.dailyUsage(Number(c.req.query("days") ?? 14) || 14)));
+  api.get("/spend/today", (c) => c.json(solo.spendToday()));
 
-  // Agents
+  // Team (admins)
+  api.get("/users", adminOnly, (c) => c.json(solo.team.users()));
+  api.patch("/users/:id", adminOnly, async (c) => {
+    const body = await c.req.json<{ role?: Role; name?: string }>();
+    const before = solo.team.user(c.req.param("id"));
+    const user = solo.team.updateUser(c.req.param("id"), body);
+    if (before && before.role !== user.role) solo.activity({ type: "access", text: `${actorOf(c).name} made ${user.name} ${user.role === "admin" ? "an admin" : "a member"}` });
+    return c.json(user);
+  });
+  api.delete("/users/:id", adminOnly, (c) => {
+    const user = solo.team.user(c.req.param("id"));
+    solo.team.deleteUser(c.req.param("id"));
+    if (user) solo.activity({ type: "access", text: `${actorOf(c).name} removed ${user.name} from the team` });
+    return c.json({ ok: true });
+  });
+  api.get("/invites", adminOnly, (c) => c.json(solo.team.invites()));
+  api.post("/invites", adminOnly, async (c) => {
+    const body = await c.req.json<{ role?: Role; name?: string }>().catch(() => ({}) as { role?: Role; name?: string });
+    const actor = actorOf(c);
+    const { invite, code } = solo.team.createInvite({ role: body.role ?? "member", name: body.name, createdBy: actor.name });
+    const path = `/invite/${code}`;
+    solo.activity({ type: "access", text: `${actor.name} created an invite for ${invite.name ?? (invite.role === "admin" ? "an admin" : "a member")}` });
+    return c.json({ invite, code, path, url: `${publicOrigin(c)}${path}` }, 201);
+  });
+  api.delete("/invites/:id", adminOnly, (c) => {
+    solo.team.revokeInvite(c.req.param("id"));
+    return c.json({ ok: true });
+  });
+  api.post("/admin-token/rotate", adminOnly, (c) => {
+    const token = solo.rotateAdminToken();
+    // Keep a token-signed-in browser signed in with the new token.
+    if (actorOf(c).kind === "token" && !c.req.header("authorization")) setSession(c, token, 60 * 60 * 24 * 90);
+    return c.json({ token });
+  });
+
+  // Agents (everyone reads; admins change)
   api.get("/agents", (c) => c.json(solo.agents.list()));
-  api.post("/agents", async (c) => c.json(solo.createAgent(await c.req.json<AgentInput>()), 201));
+  api.post("/agents", adminOnly, async (c) => c.json(solo.createAgent(await c.req.json<AgentInput>()), 201));
   api.get("/agents/:id", (c) => {
     const agent = solo.agents.get(c.req.param("id"));
     return agent ? c.json(agent) : c.json({ error: "Agent not found" }, 404);
   });
-  api.patch("/agents/:id", async (c) => c.json(solo.updateAgent(c.req.param("id"), await c.req.json<Partial<AgentInput>>())));
-  api.delete("/agents/:id", (c) => {
+  api.patch("/agents/:id", adminOnly, async (c) => c.json(solo.updateAgent(c.req.param("id"), await c.req.json<Partial<AgentInput>>())));
+  api.delete("/agents/:id", adminOnly, (c) => {
     solo.agents.delete(c.req.param("id"));
     return c.json({ ok: true });
   });
 
-  // Providers
+  // Providers (everyone reads model names; admins sign in and out)
   api.get("/providers", async (c) => c.json(await solo.providers.list()));
-  api.put("/providers/:id/key", async (c) => {
+  api.put("/providers/:id/key", adminOnly, async (c) => {
     const { key } = await c.req.json<{ key?: string }>();
     if (!key?.trim()) throw new HttpError(400, "key is required");
     await solo.providers.setApiKey(c.req.param("id"), key);
     return c.json({ ok: true });
   });
-  api.delete("/providers/:id/credential", async (c) => {
+  api.delete("/providers/:id/credential", adminOnly, async (c) => {
     await solo.providers.logout(c.req.param("id"));
     return c.json({ ok: true });
   });
-  api.post("/providers/:id/login", async (c) => {
+  api.post("/providers/:id/login", adminOnly, async (c) => {
     const { type } = await c.req.json<{ type?: "oauth" | "api_key" }>().catch(() => ({ type: undefined }));
     return c.json(solo.providers.startLogin(c.req.param("id"), type ?? "oauth"));
   });
-  api.get("/logins/:id", (c) => {
+  api.get("/logins/:id", adminOnly, (c) => {
     const flow = solo.providers.flow(c.req.param("id"));
     return flow ? c.json(flow) : c.json({ error: "Login not found" }, 404);
   });
-  api.post("/logins/:id/answer", async (c) => {
+  api.post("/logins/:id/answer", adminOnly, async (c) => {
     const { value } = await c.req.json<{ value?: string }>();
     return c.json(solo.providers.answer(c.req.param("id"), value ?? ""));
   });
-  api.delete("/logins/:id", (c) => c.json(solo.providers.cancel(c.req.param("id"))));
+  api.delete("/logins/:id", adminOnly, (c) => c.json(solo.providers.cancel(c.req.param("id"))));
 
-  // Connectors
+  // Connectors (everyone reads; secrets are masked; admins change)
   api.get("/connector-kinds", (c) => c.json(CONNECTOR_KINDS));
   api.get("/connectors", (c) => c.json(solo.connectors.list()));
-  api.post("/connectors", async (c) => c.json(solo.connectors.create(await c.req.json<ConnectorInput>()), 201));
-  api.patch("/connectors/:id", async (c) => c.json(solo.connectors.update(c.req.param("id"), await c.req.json<Partial<ConnectorInput>>())));
-  api.post("/connectors/:id/restart", async (c) => c.json(await solo.connectors.restart(c.req.param("id"))));
-  api.delete("/connectors/:id", async (c) => {
+  api.post("/connectors", adminOnly, async (c) => c.json(solo.connectors.create(await c.req.json<ConnectorInput>()), 201));
+  api.patch("/connectors/:id", adminOnly, async (c) => c.json(solo.connectors.update(c.req.param("id"), await c.req.json<Partial<ConnectorInput>>())));
+  api.post("/connectors/:id/restart", adminOnly, async (c) => c.json(await solo.connectors.restart(c.req.param("id"))));
+  api.delete("/connectors/:id", adminOnly, async (c) => {
     await solo.connectors.delete(c.req.param("id"));
     return c.json({ ok: true });
   });
@@ -145,11 +211,14 @@ export function createApp({ solo, webDir }: AppOptions) {
   api.get("/threads/:id/messages", async (c) =>
     c.json(await solo.messages(c.req.param("id"), c.req.query("before"), Math.min(200, Number(c.req.query("limit") ?? 50)))),
   );
-  const sendBody = async (c: HonoContext) => {
+  const sendBody = async (c: HonoContext<AuthEnv>) => {
     const body = await c.req.json<{ text?: string; author?: string; source?: Source; whenBusy?: "steer" | "followUp" }>();
     if (!body.text?.trim()) throw new HttpError(400, "text is required");
     const source: Source = body.source === "tui" || body.source === "api" ? body.source : "web";
-    return { text: body.text, author: { name: body.author?.trim() || "You", source }, whenBusy: body.whenBusy };
+    // Signed-in people always speak as themselves; the admin token may name its author.
+    const actor = actorOf(c);
+    const author = actor.kind === "user" ? { name: actor.name, id: actor.userId, source } : { name: body.author?.trim() || "You", source };
+    return { text: body.text, author, whenBusy: body.whenBusy };
   };
   api.post("/threads/:id/messages", async (c) => {
     const sent = await solo.send(c.req.param("id"), await sendBody(c));
@@ -192,21 +261,26 @@ export function createApp({ solo, webDir }: AppOptions) {
     );
   });
   api.get("/approval-settings", (c) => c.json(solo.approvalSettings()));
-  api.put("/approval-settings", async (c) => c.json(solo.setApprovalSettings(await c.req.json<Partial<ApprovalSettings>>())));
+  api.put("/approval-settings", adminOnly, async (c) => c.json(solo.setApprovalSettings(await c.req.json<Partial<ApprovalSettings>>())));
   api.get("/approvals/:id", (c) => {
     const approval = solo.approvals.get(c.req.param("id"));
     return approval ? c.json(approval) : c.json({ error: "Approval not found" }, 404);
   });
   const decisionBody = async (c: HonoContext) =>
     c.req.json<{ by?: string; reason?: string; via?: string }>().catch(() => ({}) as { by?: string; reason?: string; via?: string });
+  /** Signed-in people decide as themselves; the admin token (CLI, scripts) may name who it acts for. */
+  const decider = (c: HonoContext, by: string | undefined) => {
+    const actor = actorOf(c);
+    return actor.kind === "user" ? actor.name : by?.trim() || "admin";
+  };
   api.post("/approvals/:id/approve", async (c) => {
     const body = await decisionBody(c);
-    return c.json(solo.decideApproval(c.req.param("id"), { approve: true, by: body.by, via: body.via === "tui" || body.via === "api" ? body.via : "dashboard" }));
+    return c.json(solo.decideApproval(c.req.param("id"), { approve: true, by: decider(c, body.by), via: body.via === "tui" || body.via === "api" ? body.via : "dashboard" }));
   });
   api.post("/approvals/:id/deny", async (c) => {
     const body = await decisionBody(c);
     return c.json(
-      solo.decideApproval(c.req.param("id"), { approve: false, by: body.by, reason: body.reason, via: body.via === "tui" || body.via === "api" ? body.via : "dashboard" }),
+      solo.decideApproval(c.req.param("id"), { approve: false, by: decider(c, body.by), reason: body.reason, via: body.via === "tui" || body.via === "api" ? body.via : "dashboard" }),
     );
   });
 

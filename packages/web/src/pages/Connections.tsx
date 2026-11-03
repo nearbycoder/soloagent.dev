@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Ellipsis, Eye, EyeOff, Pencil, Plug, Plus, RefreshCw, Trash } from "lucide-react";
-import type { Connector, ConnectorKind, ConnectorKindInfo } from "@soloagent/client";
+import { BookOpen, Ellipsis, Eye, EyeOff, Pencil, Plug, Plus, RefreshCw, ShieldCheck, Trash, TriangleAlert } from "lucide-react";
+import type { Connector, ConnectorAccess, ConnectorKind, ConnectorKindInfo } from "@soloagent/client";
 import { client } from "../api/client.ts";
-import { loadKinds, local, useAgentMap, useApp } from "../api/store.ts";
+import { loadKinds, local, useAgentMap, useApp, useIsAdmin } from "../api/store.ts";
 import { AgentAvatar, ConnectorTile, KIND_STYLE } from "../components/brand.tsx";
 import { Markdown } from "../components/Markdown.tsx";
 import { Drawer, MenuItem, MenuSeparator, Popover } from "../components/overlay.tsx";
-import { Badge, Button, Card, CopyField, Dot, EmptyState, Field, IconButton, Input, Page, PageHeader, SectionHeader, Select, Skeleton, Switch } from "../components/ui.tsx";
+import { Badge, Button, Card, CopyField, Dot, EmptyState, Field, IconButton, Input, Page, PageHeader, SectionHeader, Select, Skeleton, Switch, TagInput } from "../components/ui.tsx";
+import { AdminsOnly } from "./Team.tsx";
 import { cn } from "../lib/cn.ts";
 import { relativeTime } from "../lib/format.ts";
 import { navigate } from "../lib/router.ts";
@@ -18,6 +19,7 @@ export function Connections({ editId }: { editId?: string }) {
   const kinds = useApp((s) => s.kinds);
   const connectors = useApp((s) => s.connectors);
   const [createKind, setCreateKind] = useState<ConnectorKind | null>(null);
+  const isAdmin = useIsAdmin();
 
   useEffect(() => {
     void loadKinds();
@@ -32,6 +34,8 @@ export function Connections({ editId }: { editId?: string }) {
     setCreateKind(null);
     navigate("/connections");
   };
+
+  if (!isAdmin) return <AdminsOnly what="connections" />;
 
   return (
     <Page>
@@ -119,6 +123,15 @@ export function Connections({ editId }: { editId?: string }) {
   );
 }
 
+/** "2 users · 1 channel · 1 agent · 20/h", or nothing when the connection is open to everyone. */
+function accessSummary(connector: Connector): string {
+  const { users, channels, agents } = connector.access;
+  const n = (count: number, one: string) => (count ? `${count} ${one}${count === 1 ? "" : "s"}` : "");
+  const parts = connector.kind === "webhook" ? [n(agents.length, "agent")] : [n(users.length, "user"), n(channels.length, "channel"), n(agents.length, "agent")];
+  if (connector.limits.perUserPerHour !== null) parts.push(`${connector.limits.perUserPerHour}/h per person`);
+  return parts.filter(Boolean).join(" · ");
+}
+
 /** The webhook driver reports its identity with an "<id>" placeholder; show the real path. */
 function identityOf(connector: Connector): string | undefined {
   return connector.identity?.replaceAll("<id>", connector.id);
@@ -184,6 +197,12 @@ function ConnectorRow({ connector }: { connector: Connector }) {
               {connector.name}
             </button>
             <StatusPill connector={connector} />
+            {accessSummary(connector) && (
+              <Badge tone="info">
+                <ShieldCheck className="size-3" />
+                {accessSummary(connector)}
+              </Badge>
+            )}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-subtle">
             <span>{KIND_STYLE[connector.kind].label}</span>
@@ -300,6 +319,19 @@ function ConnectorEditor({
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(info.fields.map((f) => [f.key, connector?.config[f.key] ?? ""])));
   const [reveal, setReveal] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
+  const [access, setAccess] = useState<ConnectorAccess>(() => connector?.access ?? { users: [], channels: [], agents: [] });
+  const [perHour, setPerHour] = useState(connector?.limits.perUserPerHour == null ? "" : String(connector.limits.perUserPerHour));
+  const setList = (key: keyof ConnectorAccess) => (values: string[]) => setAccess((a) => ({ ...a, [key]: values }));
+  const isChat = kind !== "webhook";
+  // Workspace agents this connection would otherwise reach, but can't (chat access is off).
+  const blockedWorkspace = isChat
+    ? agents.filter(
+        (a) =>
+          a.skills.includes("workspace") &&
+          !a.chatAccess &&
+          (access.agents.length === 0 || access.agents.some((x) => x.replace(/^@/, "").toLowerCase() === a.handle || x === a.id)),
+      )
+    : [];
 
   const missing = info.fields.filter((f) => !f.optional && !values[f.key]?.trim());
   const origin = location.origin;
@@ -322,12 +354,14 @@ function ConnectorEditor({
         .split(/[,\n]/)
         .map((a) => a.trim())
         .filter(Boolean);
+      const limit = Number(perHour);
+      const limits = { perUserPerHour: perHour.trim() === "" || !Number.isFinite(limit) || limit < 0 ? null : Math.round(limit) };
       if (connector) {
-        local.connector(await client.updateConnector(connector.id, { name: name.trim() || info.name, agentId, enabled, config, approvers: approverList }));
+        local.connector(await client.updateConnector(connector.id, { name: name.trim() || info.name, agentId, enabled, config, approvers: approverList, access, limits }));
         toast.success("Connection saved");
         onClose();
       } else {
-        const created = await client.createConnector({ kind, name: name.trim() || info.name, agentId, enabled, config, approvers: approverList });
+        const created = await client.createConnector({ kind, name: name.trim() || info.name, agentId, enabled, config, approvers: approverList, access, limits });
         local.connector(created);
         toast.success(`${info.name} added`, "Watch the status below as it connects.");
         // Stay in the editor so the user sees the live status (and the webhook URL).
@@ -489,6 +523,49 @@ function ConnectorEditor({
               <Input id="conn-approvers" value={approvers} placeholder={kind === "slack" ? "U012ABCDEF, ann" : kind === "discord" ? "123456789012345678, ann" : "123456789, Ann Lee"} onChange={(e) => setApprovers(e.target.value)} />
             </Field>
           )}
+          <div className="flex flex-col gap-4 rounded-xl border border-border p-4">
+            <div>
+              <h4 className="flex items-center gap-2 text-[13px] font-semibold text-fg">
+                <ShieldCheck className="size-4 text-accent-text" /> Access
+              </h4>
+              <p className="mt-1 text-[12.5px] leading-relaxed text-subtle">
+                {isChat
+                  ? "Leave a list empty to allow everyone, everywhere, or every agent. People who aren't allowed get one short reply and an entry in Activity."
+                  : "Webhooks are authenticated by their secret, so only the agent list applies."}
+              </p>
+            </div>
+            {isChat && (
+              <>
+                <Field label="People" htmlFor="conn-users" hint="Platform user ids or display names. Empty: everyone in the workspace or server.">
+                  <TagInput id="conn-users" values={access.users} onChange={setList("users")} placeholder="Everyone" />
+                </Field>
+                <Field label="Channels" htmlFor="conn-channels" hint="Channel ids or names, like #eng. When set, DMs work only for people listed above.">
+                  <TagInput id="conn-channels" values={access.channels} onChange={setList("channels")} placeholder="Everywhere" />
+                </Field>
+              </>
+            )}
+            <Field label="Agents" htmlFor="conn-agents" hint="Agents people can reach here, by handle. Empty: all agents.">
+              <TagInput
+                id="conn-agents"
+                values={access.agents}
+                onChange={setList("agents")}
+                placeholder="All agents"
+                suggestions={agents.map((a) => ({ value: a.handle, label: <span className="flex items-center gap-2"><AgentAvatar agent={a} size="xs" /> {a.name} <span className="font-mono text-faint">@{a.handle}</span></span> }))}
+              />
+            </Field>
+            {blockedWorkspace.length > 0 && (
+              <p className="flex gap-2 rounded-lg bg-warning-soft px-3 py-2 text-[12.5px] leading-relaxed text-warning">
+                <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                <span>
+                  {blockedWorkspace.map((a) => `@${a.handle}`).join(", ")} {blockedWorkspace.length === 1 ? "has" : "have"} the workspace skill and can't be reached from chat apps. Turn on chat
+                  access in the agent's settings to allow it.
+                </span>
+              </p>
+            )}
+            <Field label="Messages per person per hour" htmlFor="conn-rate" hint="Over the limit, people get a short reply instead of an answer. Empty: no limit.">
+              <Input id="conn-rate" type="number" min={0} step={1} value={perHour} placeholder="No limit" className="w-40" onChange={(e) => setPerHour(e.target.value)} />
+            </Field>
+          </div>
 
           <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-border px-4 py-3">
             <div>

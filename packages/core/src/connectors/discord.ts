@@ -66,6 +66,7 @@ export const discordDriver: DriverFactory = (config, host): ConnectorDriver => {
           text,
           target: { channelId: message.channelId, replyTo: message.id },
           isDirect,
+          ...(isDirect ? {} : { channel: { id: message.channelId, name: channelName === "channel" ? undefined : channelName, parent: parentOf(message) } }),
         });
       });
 
@@ -134,3 +135,10 @@ export const discordDriver: DriverFactory = (config, host): ConnectorDriver => {
     },
   };
 };
+
+/** A thread's parent channel, so "#eng" in an access list also covers threads inside #eng. */
+function parentOf(message: Message): { id: string; name?: string } | undefined {
+  const channel = message.channel as unknown as { isThread?: () => boolean; parent?: { id: string; name?: string } | null };
+  if (!channel.isThread?.() || !channel.parent) return undefined;
+  return { id: channel.parent.id, name: channel.parent.name ? `#${channel.parent.name}` : undefined };
+}

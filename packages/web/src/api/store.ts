@@ -6,6 +6,7 @@ import type {
   Connector,
   ConnectorKindInfo,
   LoginFlowState,
+  Me,
   Overview,
   ProviderInfo,
   ServerEvent,
@@ -32,6 +33,8 @@ export type AppState = {
   approvals: Approval[] | null;
   /** Approvals: bumps on every approval.updated, so lists of decided ones can refresh. */
   approvalsVersion: number;
+  /** Who is signed in (Teams). */
+  me: Me | null;
 };
 
 const initial = (): AppState => ({
@@ -47,6 +50,7 @@ const initial = (): AppState => ({
   flows: {},
   approvals: null,
   approvalsVersion: 0,
+  me: null,
 });
 
 let state: AppState = initial();
@@ -217,9 +221,9 @@ function onEvent(event: ServerEvent) {
   }
 }
 
-export function startSession(version: string) {
+export function startSession(me: Me) {
   endSession();
-  state = { ...initial(), version };
+  state = { ...initial(), version: me.version, me };
   stream = client.connect();
   let wasLive = false;
   offStream = [
@@ -282,6 +286,11 @@ export const local = {
 /** Approvals: optimistic local update after a decision. */
 export function localApproval(approval: Approval) {
   onEvent({ type: "approval.updated", approval });
+}
+
+/** Admins (the admin token, or a user with the admin role) manage agents, providers, connectors, and the team. */
+export function useIsAdmin(): boolean {
+  return useApp((s) => s.me?.actor.role === "admin");
 }
 
 export function agentById(id: string | null | undefined): Agent | undefined {
