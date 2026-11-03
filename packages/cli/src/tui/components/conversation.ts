@@ -88,8 +88,10 @@ function toolStatus(vm: ViewModel, callId: string): LiveState["tools"][number] |
 /** `🔧 web_fetch("https://…") ✓ 3 lines`, plus the result when expanded. */
 function renderToolCall(vm: ViewModel, call: ToolCallInfo, result: ToolMessage | undefined, width: number, indent = INDENT): string[] {
   const live = toolStatus(vm, call.id);
+  const approval = result ? undefined : vm.state.live.approvals?.find((a) => a.callId === call.id);
   let status: string;
-  if (result) {
+  if (approval) status = c.yellow(" ⏸ waiting for approval");
+  else if (result) {
     const n = result.text ? result.text.split("\n").length : 0;
     status = result.isError ? c.red(" ✗") : `${c.green(" ✓")}${result.text ? c.dim(` ${n > 1 ? `${n} lines` : bytes(result.text.length)}`) : ""}`;
   } else if (live?.status === "running") status = ` ${c.accent(spinnerFrame())}`;
@@ -111,6 +113,7 @@ function renderToolCall(vm: ViewModel, call: ToolCallInfo, result: ToolMessage |
   } else if (result?.isError && result.text) {
     lines.push(fit(`${indent}   ${c.faint("⎿")} ${c.red(oneLine(sanitize(result.text)))}`, width));
   }
+  if (approval) lines.push(fit(`${indent}   ${c.faint("⎿")} ${c.yellow("/approve")} ${c.dim("to run it, or")} ${c.yellow("/deny [reason]")}`, width));
   return lines;
 }
 
@@ -290,7 +293,8 @@ class LiveBlock implements Component {
   /** Whether anything should be drawn. Also starts or stops the spinner. */
   active(): boolean {
     const live = this.vm.state.live;
-    const showLoader = live.busy && !live.partial?.text.trim() && !live.partial?.thinking && !live.tools.some((t) => t.status === "running");
+    const showLoader =
+      live.busy && !live.partial?.text.trim() && !live.partial?.thinking && !live.tools.some((t) => t.status === "running") && !live.approvals?.length;
     if (showLoader && !this.#loaderRunning) {
       this.loader.start();
       this.#loaderRunning = true;

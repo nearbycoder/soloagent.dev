@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import type {
   ActivityItem,
   Agent,
+  Approval,
   Connector,
   ConnectorKindInfo,
   LoginFlowState,
@@ -27,6 +28,10 @@ export type AppState = {
   overview: Overview | null;
   activity: ActivityItem[];
   flows: Record<string, LoginFlowState>;
+  /** Approvals: tool calls waiting for a decision, oldest first. */
+  approvals: Approval[] | null;
+  /** Approvals: bumps on every approval.updated, so lists of decided ones can refresh. */
+  approvalsVersion: number;
 };
 
 const initial = (): AppState => ({
@@ -40,6 +45,8 @@ const initial = (): AppState => ({
   overview: null,
   activity: [],
   flows: {},
+  approvals: null,
+  approvalsVersion: 0,
 });
 
 let state: AppState = initial();
@@ -106,13 +113,15 @@ async function safe<T>(promise: Promise<T>, fallback: T, quiet = false): Promise
 }
 
 export async function refreshAll() {
-  const [agents, threads, connectors, overview] = await Promise.all([
+  const [agents, threads, connectors, overview, approvals] = await Promise.all([
     safe(client.agents(), state.agents ?? []),
     safe(client.threads({ limit: 300 }), state.threads ?? []),
     safe(client.connectors(), state.connectors ?? []),
     safe(client.overview(), state.overview, true),
+    safe(client.approvals({ status: "pending" }), state.approvals ?? [], true),
   ]);
   set({
+    approvals,
     agents: sortAgents(agents),
     threads: sortThreads(threads),
     connectors,
@@ -195,6 +204,14 @@ function onEvent(event: ServerEvent) {
       set((s) => ({ activity: mergeActivity([event.item], s.activity) }));
       refreshOverviewSoon();
       break;
+    case "approval.updated": {
+      const approval = event.approval;
+      set((s) => {
+        const rest = (s.approvals ?? []).filter((a) => a.id !== approval.id);
+        return { approvals: approval.status === "pending" ? [...rest, approval].sort((a, b) => a.createdAt - b.createdAt) : rest, approvalsVersion: s.approvalsVersion + 1 };
+      });
+      break;
+    }
     default:
       break;
   }
@@ -261,6 +278,11 @@ export const local = {
     onEvent({ type: "thread.deleted", threadId });
   },
 };
+
+/** Approvals: optimistic local update after a decision. */
+export function localApproval(approval: Approval) {
+  onEvent({ type: "approval.updated", approval });
+}
 
 export function agentById(id: string | null | undefined): Agent | undefined {
   return id ? state.agents?.find((a) => a.id === id) : undefined;

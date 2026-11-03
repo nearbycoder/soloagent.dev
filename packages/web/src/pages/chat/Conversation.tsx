@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowLeft, Copy, Ellipsis, LoaderCircle, MessageSquareDashed, Minimize2, Pencil, RotateCcw, Trash } from "lucide-react";
+import { ArrowDown, ArrowLeft, Copy, Ellipsis, LoaderCircle, MessageSquareDashed, Minimize2, Pencil, RotateCcw, ShieldAlert, Trash } from "lucide-react";
 import type { Agent, Message, Thread } from "@soloagent/client";
 import { client } from "../../api/client.ts";
 import { local, useAgentMap, useApp } from "../../api/store.ts";
@@ -181,7 +181,13 @@ export function Conversation({ threadId }: { threadId: string }) {
             items
           )}
 
-          <LiveTurn live={view.live} agent={agent} head={!lastIsAssistant} thinkingMs={view.liveThinkingMs ?? undefined} />
+          <LiveTurn
+            live={view.live}
+            agent={agent}
+            head={!lastIsAssistant}
+            thinkingMs={view.liveThinkingMs ?? undefined}
+            shownCalls={new Set(view.messages.flatMap((m) => (m.kind === "assistant" ? m.toolCalls.map((c) => c.id) : [])))}
+          />
           {view.live.retry && <RetryNotice retry={view.live.retry} />}
           {showFailure && view.live.failure && <FailureNotice failure={view.live.failure} />}
         </div>
@@ -343,11 +349,18 @@ function ConversationHeader({ threadId, thread, agent }: { threadId: string; thr
               <span className="truncate">{thread.location}</span>
             </>
           )}
-          {thread?.busy && (
-            <span className="ml-1 flex items-center gap-1 text-accent-text">
-              <LoaderCircle className="size-3 animate-spin" />
-              working
+          {thread?.waitingApproval ? (
+            <span className="ml-1 flex items-center gap-1 text-warning">
+              <ShieldAlert className="size-3" />
+              waiting for approval
             </span>
+          ) : (
+            thread?.busy && (
+              <span className="ml-1 flex items-center gap-1 text-accent-text">
+                <LoaderCircle className="size-3 animate-spin" />
+                working
+              </span>
+            )
           )}
         </div>
       </div>

@@ -1,4 +1,16 @@
-import { ChannelType, Client, Events, GatewayIntentBits, Partials, type Message } from "discord.js";
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ChannelType,
+  Client,
+  Events,
+  GatewayIntentBits,
+  MessageFlags,
+  Partials,
+  type Message,
+} from "discord.js";
+import { approvalAction, parseApprovalAction } from "../approvals.ts";
 import type { ConnectorDriver, DriverFactory } from "./types.ts";
 
 /**
@@ -57,6 +69,22 @@ export const discordDriver: DriverFactory = (config, host): ConnectorDriver => {
         });
       });
 
+      // Approvals: Approve / Deny buttons on approval messages.
+      client.on(Events.InteractionCreate, async (interaction) => {
+        if (!interaction.isButton()) return;
+        const parsed = parseApprovalAction(interaction.customId);
+        if (!parsed) return;
+        try {
+          await interaction.deferUpdate();
+          const member = interaction.member as { displayName?: string } | null;
+          const name = member?.displayName ?? interaction.user.globalName ?? interaction.user.username;
+          const result = await host.decide({ approvalId: parsed.id, approve: parsed.approve, user: { id: interaction.user.id, name } });
+          if (!result.ok) await interaction.followUp({ content: result.message, flags: MessageFlags.Ephemeral });
+        } catch (error) {
+          host.log(`discord: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      });
+
       client.on(Events.Error, (error) => host.log(`discord: ${error.message}`));
       await client.login(token);
       await ready;
@@ -82,6 +110,22 @@ export const discordDriver: DriverFactory = (config, host): ConnectorDriver => {
       const channel = await fetchChannel(handle.channelId!);
       const message = await channel.messages.fetch(handle.messageId!);
       await message.edit({ content: markdown });
+    },
+
+    async requestApproval(target, approvalId, markdown) {
+      const channel = await fetchChannel(target.channelId!);
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(approvalAction(approvalId, true)).setLabel("Approve").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(approvalAction(approvalId, false)).setLabel("Deny").setStyle(ButtonStyle.Danger),
+      );
+      const sent = await channel.send({ content: markdown.slice(0, 1_950), components: [row], allowedMentions: { parse: [] } });
+      return { channelId: sent.channelId, messageId: sent.id };
+    },
+
+    async resolveApproval(_target, handle, markdown) {
+      const channel = await fetchChannel(handle.channelId!);
+      const message = await channel.messages.fetch(handle.messageId!);
+      await message.edit({ content: markdown.slice(0, 1_950), components: [] });
     },
 
     async typing(target) {

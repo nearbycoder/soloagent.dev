@@ -19,6 +19,7 @@ const BROADCAST = new Set<ServerEvent["type"]>([
   "providers.changed",
   "login.updated",
   "activity",
+  "approval.updated",
 ]);
 
 // A long-running server should never die from a stray promise rejection in a connector or a

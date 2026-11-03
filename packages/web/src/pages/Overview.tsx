@@ -11,6 +11,7 @@ import {
   MessagesSquare,
   Plug,
   Radio,
+  ShieldCheck,
   Sparkles,
   SquarePen,
   Star,
@@ -273,6 +274,7 @@ const ACTIVITY_ICON: Record<ActivityItem["type"], { icon: ReactNode; className: 
   provider: { icon: <KeyRound />, className: "text-warning bg-warning-soft" },
   schedule: { icon: <Radio />, className: "text-info bg-info-soft" },
   error: { icon: <CircleAlert />, className: "text-danger bg-danger-soft" },
+  approval: { icon: <ShieldCheck />, className: "text-warning bg-warning-soft" },
 };
 
 /** Live activity list. Shared with the Activity page. */

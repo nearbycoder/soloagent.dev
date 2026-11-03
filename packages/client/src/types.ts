@@ -49,6 +49,8 @@ export type Agent = {
   maxTurns: number;
   /** Default agent answers anything not addressed to a specific agent. */
   isDefault: boolean;
+  /** Approvals: which tool calls wait for a human first. See `ApprovalPolicy`. */
+  approvals: ApprovalPolicy;
   createdAt: number;
   updatedAt: number;
 };
@@ -132,6 +134,8 @@ export type Connector = {
   statusDetail?: string;
   /** Who the connector is signed in as on the platform, e.g. "@solo in Acme". */
   identity?: string;
+  /** Approvals: platform user ids or display names allowed to approve tool calls in chat. Empty: dashboard only. */
+  approvers: string[];
   createdAt: number;
   updatedAt: number;
 };
@@ -142,6 +146,8 @@ export type ConnectorInput = {
   enabled?: boolean;
   agentId?: string | null;
   config?: Record<string, string>;
+  /** Approvals: see `Connector.approvers`. */
+  approvers?: string[];
 };
 
 export type Thread = {
@@ -154,6 +160,8 @@ export type Thread = {
   title: string;
   preview: string;
   busy: boolean;
+  /** Approvals: a tool call in this thread waits for someone to approve it. */
+  waitingApproval?: boolean;
   messageCount: number;
   createdAt: number;
   updatedAt: number;
@@ -217,6 +225,8 @@ export type LiveState = {
   tools: { callId: string; name: string; status: "pending" | "running" | "done"; output?: string }[];
   retry?: { at: number; error: string };
   failure?: { reason: string; detail?: string };
+  /** Approvals: tool calls of this thread waiting for a decision. The run is paused on them. */
+  approvals?: Approval[];
 };
 
 export type ThreadSnapshot = { thread: Thread; messages: Message[]; hasMore: boolean; live: LiveState };
@@ -239,7 +249,7 @@ export type TaskNode = {
 export type ActivityItem = {
   id: number;
   at: number;
-  type: "message" | "reply" | "connector" | "agent" | "provider" | "schedule" | "error";
+  type: "message" | "reply" | "connector" | "agent" | "provider" | "schedule" | "error" | "approval";
   text: string;
   agentId?: string;
   threadId?: string;
@@ -268,6 +278,52 @@ export type Schedule = {
   status: "sleeping" | "running" | "done";
 };
 
+// ───────────── Approvals (human-in-the-loop tool calls) ─────────────
+
+/**
+ * Which of an agent's tool calls wait for a human: none, the risky ones (`bash`, `write`, `edit`, plus the
+ * names in `ApprovalSettings.riskyTools`), or all but read-only ones (`read`, `recall`, `web_search`).
+ */
+export type ApprovalPolicy = "off" | "risky" | "all";
+
+export const APPROVAL_POLICIES: readonly { id: ApprovalPolicy; label: string; description: string }[] = [
+  { id: "off", label: "Off", description: "Tools run without asking." },
+  { id: "risky", label: "Risky tools", description: "Ask before shell commands, file writes and edits, and tools on the risky list." },
+  { id: "all", label: "Every tool", description: "Ask before every tool call except read-only ones (read, recall, web_search)." },
+];
+
+/** `expired`: nobody answered before the timeout (a denial). `cancelled`: the run was stopped or the call ended. */
+export type ApprovalStatus = "pending" | "approved" | "denied" | "expired" | "cancelled";
+
+export type Approval = {
+  id: string;
+  /** The tool call: its name, arguments, and call id (matches `ToolCallInfo.id` and `LiveState.tools[].callId`). */
+  tool: string;
+  args: unknown;
+  callId: string;
+  /** The durable tool task that waits. */
+  taskId: string;
+  threadId: string | null;
+  agentId: string | null;
+  status: ApprovalStatus;
+  /** Who decided: "dashboard", a chat display name, or "timeout". */
+  decidedBy?: string;
+  /** Where the decision came from: "dashboard", "api", "slack", "discord", "telegram", "tui", "timeout". */
+  decidedVia?: string;
+  reason?: string;
+  createdAt: number;
+  decidedAt?: number;
+  /** Auto-denied at this time. */
+  expiresAt: number;
+};
+
+export type ApprovalSettings = {
+  /** How long a request waits before it is auto-denied. Default 24 hours. */
+  timeoutMs: number;
+  /** Extra tool names the "risky" policy asks about, e.g. "forget" or an MCP tool. */
+  riskyTools: string[];
+};
+
 /** Server → client WebSocket events. */
 export type ServerEvent =
   | { type: "hello"; version: string }
@@ -283,7 +339,9 @@ export type ServerEvent =
   | { type: "providers.changed" }
   | { type: "login.updated"; flow: LoginFlowState }
   | { type: "activity"; item: ActivityItem }
-  | { type: "tasks"; tasks: TaskNode[] };
+  | { type: "tasks"; tasks: TaskNode[] }
+  // Approvals
+  | { type: "approval.updated"; approval: Approval };
 
 /** Client → server WebSocket messages. */
 export type ClientEvent =

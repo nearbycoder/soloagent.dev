@@ -2,16 +2,18 @@ import type { Connector, ConnectorInput, ConnectorKind, ConnectorStatus } from "
 import { type Db, newId } from "../db.ts";
 import type { Sealer } from "../secrets.ts";
 import { DRIVERS, kindInfo } from "./kinds.ts";
-import type { ConnectorDriver, InboundMessage } from "./types.ts";
+import type { ChatDecisionInput, ConnectorDriver, InboundMessage } from "./types.ts";
 
 type Row = { id: string; kind: ConnectorKind; data: string; secrets: string | null; created_at: number; updated_at: number };
-type Data = { name: string; enabled: boolean; agentId: string | null; config: Record<string, string> };
+type Data = { name: string; enabled: boolean; agentId: string | null; config: Record<string, string>; approvers?: string[] };
 
 export const SECRET_MASK = "••••••••";
 
 export interface ConnectorEvents {
   changed(connector: Connector, deleted?: boolean): void;
   inbound(connector: Connector, message: InboundMessage): void;
+  /** Approvals: a button press on an approval message. */
+  decide(connector: Connector, input: ChatDecisionInput): Promise<{ ok: boolean; message: string }>;
   log(connectorId: string, message: string, error?: boolean): void;
 }
 
@@ -56,7 +58,13 @@ export class ConnectorManager {
     const now = Date.now();
     const id = newId(input.kind.slice(0, 3));
     const { config, secrets } = this.#split(input.kind, input.config ?? {}, {});
-    const data: Data = { name: input.name?.trim() || info.name, enabled: input.enabled ?? true, agentId: input.agentId ?? null, config };
+    const data: Data = {
+      name: input.name?.trim() || info.name,
+      enabled: input.enabled ?? true,
+      agentId: input.agentId ?? null,
+      config,
+      approvers: cleanApprovers(input.approvers ?? []),
+    };
     this.#db.run(
       "INSERT INTO connectors (id, kind, data, secrets, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
       id,
@@ -81,6 +89,7 @@ export class ConnectorManager {
       enabled: input.enabled ?? data.enabled,
       agentId: input.agentId === undefined ? data.agentId : input.agentId,
       config: { ...data.config, ...config },
+      approvers: input.approvers !== undefined ? cleanApprovers(input.approvers) : (data.approvers ?? []),
     };
     this.#db.run(
       "UPDATE connectors SET data = ?, secrets = ?, updated_at = ? WHERE id = ?",
@@ -138,6 +147,10 @@ export class ConnectorManager {
       receive: (message) => {
         const current = this.get(id);
         if (current) this.#events.inbound(current, message);
+      },
+      decide: async (input) => {
+        const current = this.get(id);
+        return current ? this.#events.decide(current, input) : { ok: false, message: "This connector was removed." };
       },
       status: (status, detail, identity) => this.#setStatus(id, status, detail, identity),
       log: (message) => this.#events.log(id, message, true),
@@ -220,8 +233,13 @@ export class ConnectorManager {
       status: status.status,
       statusDetail: status.detail,
       identity: status.identity,
+      approvers: data.approvers ?? [],
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
   }
+}
+
+function cleanApprovers(approvers: readonly string[]): string[] {
+  return [...new Set(approvers.map((a) => String(a).trim()).filter(Boolean))].slice(0, 100);
 }

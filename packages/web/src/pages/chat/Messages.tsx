@@ -11,6 +11,7 @@ import {
   Info,
   LoaderCircle,
   RotateCcw,
+  ShieldAlert,
   Square,
   SquareTerminal,
   TriangleAlert,
@@ -18,7 +19,8 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import type { Agent, LiveState, Message, ToolCallInfo } from "@soloagent/client";
+import type { Agent, Approval, LiveState, Message, ToolCallInfo } from "@soloagent/client";
+import { ApprovalWaiting } from "../../components/ApprovalActions.tsx";
 import { AgentAvatar, SourceBadge } from "../../components/brand.tsx";
 import { Markdown } from "../../components/Markdown.tsx";
 import { CopyButton } from "../../components/ui.tsx";
@@ -194,7 +196,14 @@ export const AssistantMessageView = memo(function AssistantMessageView({
       {message.toolCalls.length > 0 && (
         <div className="mt-2 flex flex-col gap-1.5">
           {message.toolCalls.map((call) => (
-            <ToolCard key={call.id} call={call} result={results.get(call.id)} liveTool={live.tools.find((t) => t.callId === call.id)} busy={live.busy} />
+            <ToolCard
+              key={call.id}
+              call={call}
+              result={results.get(call.id)}
+              liveTool={live.tools.find((t) => t.callId === call.id)}
+              approval={live.approvals?.find((a) => a.callId === call.id)}
+              busy={live.busy}
+            />
           ))}
         </div>
       )}
@@ -220,11 +229,26 @@ export const AssistantMessageView = memo(function AssistantMessageView({
 });
 
 /** The in-progress turn: streamed text with a caret, running tools, and the typing state. */
-export function LiveTurn({ live, agent, head, thinkingMs }: { live: LiveState; agent: Agent | undefined; head: boolean; thinkingMs?: number }) {
+export function LiveTurn({
+  live,
+  agent,
+  head,
+  thinkingMs,
+  shownCalls,
+}: {
+  live: LiveState;
+  agent: Agent | undefined;
+  head: boolean;
+  thinkingMs?: number;
+  /** Tool calls the committed transcript already shows as cards. */
+  shownCalls?: ReadonlySet<string>;
+}) {
   const partial = live.partial;
   const hasContent = !!partial && (!!partial.text || !!partial.thinking || partial.toolCalls.length > 0);
-  const pendingTools = live.tools.filter((t) => t.status !== "done" && !partial?.toolCalls.some((c) => c.id === t.callId));
+  const pendingTools = live.tools.filter((t) => t.status !== "done" && !shownCalls?.has(t.callId) && !partial?.toolCalls.some((c) => c.id === t.callId));
   if (!live.busy && !hasContent) return null;
+  // Paused on an approval: its tool card says so; no typing dots.
+  if (!hasContent && pendingTools.length === 0 && live.approvals?.length) return null;
   return (
     <AssistantRow agent={agent} head={head} header={<AssistantHeader agent={agent} extra={<span className="text-[11.5px] text-faint">{live.turns > 1 ? `turn ${live.turns}` : null}</span>} />}>
       {partial?.thinking && <ThinkingBlock text={partial.thinking} live={!partial.text && partial.toolCalls.length === 0} ms={thinkingMs} />}
@@ -232,14 +256,27 @@ export function LiveTurn({ live, agent, head, thinkingMs }: { live: LiveState; a
       {partial && partial.toolCalls.length > 0 && (
         <div className="mt-2 flex flex-col gap-1.5">
           {partial.toolCalls.map((call) => (
-            <ToolCard key={call.id} call={call} liveTool={live.tools.find((t) => t.callId === call.id)} busy streaming />
+            <ToolCard
+              key={call.id}
+              call={call}
+              liveTool={live.tools.find((t) => t.callId === call.id)}
+              approval={live.approvals?.find((a) => a.callId === call.id)}
+              busy
+              streaming
+            />
           ))}
         </div>
       )}
       {pendingTools.length > 0 && !partial && (
         <div className="mt-1 flex flex-col gap-1.5">
           {pendingTools.map((tool) => (
-            <ToolCard key={tool.callId} call={{ id: tool.callId, name: tool.name, args: undefined }} liveTool={tool} busy />
+            <ToolCard
+              key={tool.callId}
+              call={{ id: tool.callId, name: tool.name, args: live.approvals?.find((a) => a.callId === tool.callId)?.args }}
+              liveTool={tool}
+              approval={live.approvals?.find((a) => a.callId === tool.callId)}
+              busy
+            />
           ))}
         </div>
       )}
@@ -386,21 +423,27 @@ export function ToolCard({
   call,
   result,
   liveTool,
+  approval,
   busy,
   streaming,
 }: {
   call: ToolCallInfo;
   result?: ToolMessage;
   liveTool?: LiveState["tools"][number];
+  /** Approvals: the call waits for a decision. */
+  approval?: Approval;
   busy?: boolean;
   streaming?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const status: "running" | "pending" | "done" | "error" | "unknown" = result
+  const waiting = !result && approval?.status === "pending";
+  const status: ToolState = result
     ? result.isError
       ? "error"
       : "done"
-    : liveTool
+    : waiting
+      ? "approval"
+      : liveTool
       ? liveTool.status === "done"
         ? "done"
         : liveTool.status
@@ -413,7 +456,13 @@ export function ToolCard({
   const args = prettyArgs(call.args);
 
   return (
-    <div className={cn("overflow-hidden rounded-lg border bg-surface transition-colors", status === "error" ? "border-danger/30" : "border-border", open && "shadow-sm")}>
+    <div
+      className={cn(
+        "overflow-hidden rounded-lg border bg-surface transition-colors",
+        status === "error" ? "border-danger/30" : status === "approval" ? "border-warning/40 shadow-sm" : "border-border",
+        open && "shadow-sm",
+      )}
+    >
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -423,7 +472,13 @@ export function ToolCard({
         <span
           className={cn(
             "grid size-5 shrink-0 place-items-center rounded-md [&_svg]:size-3",
-            status === "error" ? "bg-danger-soft text-danger" : status === "done" ? "bg-surface-3 text-muted" : "bg-accent-soft text-accent-text",
+            status === "error"
+              ? "bg-danger-soft text-danger"
+              : status === "approval"
+                ? "bg-warning-soft text-warning"
+                : status === "done"
+                  ? "bg-surface-3 text-muted"
+                  : "bg-accent-soft text-accent-text",
           )}
         >
           <Icon />
@@ -434,6 +489,10 @@ export function ToolCard({
         <ToolStatus status={status} />
         <ChevronRight className={cn("size-3.5 shrink-0 text-faint transition-transform", open && "rotate-90")} />
       </button>
+      {waiting && !open && args && (
+        <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words border-t border-border bg-code px-3 py-2 font-mono text-[12px] leading-relaxed text-muted">{args}</pre>
+      )}
+      {waiting && approval && <ApprovalWaiting approval={approval} />}
       {open && (
         <div className="animate-fade-in border-t border-border bg-code">
           {args && (
@@ -464,8 +523,17 @@ function ToolSection({ label, children, copy, tone }: { label: string; children:
   );
 }
 
-function ToolStatus({ status }: { status: "running" | "pending" | "done" | "error" | "unknown" }) {
+type ToolState = "running" | "pending" | "approval" | "done" | "error" | "unknown";
+
+function ToolStatus({ status }: { status: ToolState }) {
   switch (status) {
+    case "approval":
+      return (
+        <span className="flex shrink-0 items-center gap-1 text-[11.5px] font-medium text-warning">
+          <ShieldAlert className="size-3.5" />
+          <span className="hidden sm:inline">Needs approval</span>
+        </span>
+      );
     case "running":
     case "pending":
       return (

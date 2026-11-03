@@ -1,6 +1,9 @@
 import type {
   Agent,
   AgentInput,
+  Approval,
+  ApprovalSettings,
+  ApprovalStatus,
   ClientEvent,
   Connector,
   ConnectorInput,
@@ -214,6 +217,27 @@ export class SoloClient {
   }
   cancelSchedule(taskId: string) {
     return this.request<{ ok: true }>("DELETE", `/schedules/${encodeURIComponent(taskId)}`);
+  }
+
+  // Approvals
+  approvals(query: { status?: ApprovalStatus | "decided"; threadId?: string; limit?: number } = {}) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) if (value !== undefined) params.set(key, String(value));
+    const qs = params.toString();
+    return this.request<Approval[]>("GET", `/approvals${qs ? `?${qs}` : ""}`);
+  }
+  /** `by` names who decided (default "dashboard"); `via` is "dashboard", "tui", or "api". */
+  approve(id: string, options: { by?: string; via?: "dashboard" | "tui" | "api" } = {}) {
+    return this.request<Approval>("POST", `/approvals/${encodeURIComponent(id)}/approve`, options);
+  }
+  deny(id: string, options: { reason?: string; by?: string; via?: "dashboard" | "tui" | "api" } = {}) {
+    return this.request<Approval>("POST", `/approvals/${encodeURIComponent(id)}/deny`, options);
+  }
+  approvalSettings() {
+    return this.request<ApprovalSettings>("GET", "/approval-settings");
+  }
+  updateApprovalSettings(input: Partial<ApprovalSettings>) {
+    return this.request<ApprovalSettings>("PUT", "/approval-settings", input);
   }
 
   /** Open the live event stream. Reconnects automatically until `close()`. */

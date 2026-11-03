@@ -718,6 +718,20 @@ export class App implements ViewModel {
         this.flash("Stopped", "warn");
         return;
       }
+      case "approve":
+      case "deny": {
+        this.#requireThread();
+        const waiting = this.state.live.approvals ?? [];
+        const approval = waiting[0];
+        if (!approval) return this.flash("Nothing in this thread is waiting for approval");
+        const decided =
+          name === "approve"
+            ? await this.client.approve(approval.id, { by: this.author, via: "tui" })
+            : await this.client.deny(approval.id, { by: this.author, via: "tui", reason: arg || undefined });
+        const more = waiting.length > 1 ? ` · ${waiting.length - 1} more waiting` : "";
+        this.flash(`${decided.status === "approved" ? "Approved" : "Denied"} ${decided.tool}${more}`, decided.status === "approved" ? "success" : "warn");
+        return;
+      }
       case "compact": {
         this.flash("Compacting…");
         await this.client.compact(this.#requireThread());

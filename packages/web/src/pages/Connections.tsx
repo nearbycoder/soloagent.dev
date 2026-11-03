@@ -296,6 +296,7 @@ function ConnectorEditor({
   const [name, setName] = useState(connector?.name ?? info.name);
   const [agentId, setAgentId] = useState<string | null>(connector?.agentId ?? null);
   const [enabled, setEnabled] = useState(connector?.enabled ?? true);
+  const [approvers, setApprovers] = useState((connector?.approvers ?? []).join(", "));
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(info.fields.map((f) => [f.key, connector?.config[f.key] ?? ""])));
   const [reveal, setReveal] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
@@ -317,12 +318,16 @@ function ConnectorEditor({
     setSaving(true);
     try {
       const config = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, v.trim()]));
+      const approverList = approvers
+        .split(/[,\n]/)
+        .map((a) => a.trim())
+        .filter(Boolean);
       if (connector) {
-        local.connector(await client.updateConnector(connector.id, { name: name.trim() || info.name, agentId, enabled, config }));
+        local.connector(await client.updateConnector(connector.id, { name: name.trim() || info.name, agentId, enabled, config, approvers: approverList }));
         toast.success("Connection saved");
         onClose();
       } else {
-        const created = await client.createConnector({ kind, name: name.trim() || info.name, agentId, enabled, config });
+        const created = await client.createConnector({ kind, name: name.trim() || info.name, agentId, enabled, config, approvers: approverList });
         local.connector(created);
         toast.success(`${info.name} added`, "Watch the status below as it connects.");
         // Stay in the editor so the user sees the live status (and the webhook URL).
@@ -474,6 +479,16 @@ function ConnectorEditor({
               ))}
             </Select>
           </Field>
+
+          {kind !== "webhook" && (
+            <Field
+              label="Approvers"
+              htmlFor="conn-approvers"
+              hint="Who may press Approve or Deny on tool approval requests in this chat: platform user ids or display names, comma-separated. Leave empty to approve only in the dashboard."
+            >
+              <Input id="conn-approvers" value={approvers} placeholder={kind === "slack" ? "U012ABCDEF, ann" : kind === "discord" ? "123456789012345678, ann" : "123456789, Ann Lee"} onChange={(e) => setApprovers(e.target.value)} />
+            </Field>
+          )}
 
           <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-border px-4 py-3">
             <div>

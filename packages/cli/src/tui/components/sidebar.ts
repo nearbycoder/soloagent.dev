@@ -45,7 +45,7 @@ export class Sidebar implements Component {
       const agent = vm.agentById(thread.agentId);
       const bar = selected ? c.accent("▌") : " ";
       const icon = selected ? c.accent(sourceIcon(thread.source)) : c.dim(sourceIcon(thread.source));
-      const marker = thread.busy ? c.accent(spinnerFrame()) : vm.unread.has(thread.id) ? c.accentBright("●") : "";
+      const marker = thread.waitingApproval ? c.yellow("⏸") : thread.busy ? c.accent(spinnerFrame()) : vm.unread.has(thread.id) ? c.accentBright("●") : "";
       const titleRoom = inner - 4 - (marker ? 2 : 0);
       const raw = oneLine(thread.title) || "Untitled";
       const title = selected ? bold(fit(raw, titleRoom)) : vm.unread.has(thread.id) ? fit(raw, titleRoom) : c.muted(fit(raw, titleRoom));

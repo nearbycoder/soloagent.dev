@@ -5,7 +5,7 @@ import { Hono, type Context as HonoContext } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { CONNECTOR_KINDS, HttpError, VERSION, type SoloAgent } from "@soloagent/core";
-import type { AgentInput, ConnectorInput, Source } from "@soloagent/client";
+import type { AgentInput, ApprovalSettings, ApprovalStatus, ConnectorInput, Source } from "@soloagent/client";
 
 export type AppOptions = {
   solo: SoloAgent;
@@ -177,6 +177,37 @@ export function createApp({ solo, webDir }: AppOptions) {
   api.delete("/schedules/:id", async (c) => {
     await solo.cancelSchedule(c.req.param("id"));
     return c.json({ ok: true });
+  });
+
+  // Approvals
+  api.get("/approvals", (c) => {
+    const status = c.req.query("status");
+    const allowed = ["pending", "approved", "denied", "expired", "cancelled", "decided"];
+    return c.json(
+      solo.listApprovals({
+        status: status && allowed.includes(status) ? (status as ApprovalStatus | "decided") : undefined,
+        threadId: c.req.query("threadId"),
+        limit: Number(c.req.query("limit") ?? 100),
+      }),
+    );
+  });
+  api.get("/approval-settings", (c) => c.json(solo.approvalSettings()));
+  api.put("/approval-settings", async (c) => c.json(solo.setApprovalSettings(await c.req.json<Partial<ApprovalSettings>>())));
+  api.get("/approvals/:id", (c) => {
+    const approval = solo.approvals.get(c.req.param("id"));
+    return approval ? c.json(approval) : c.json({ error: "Approval not found" }, 404);
+  });
+  const decisionBody = async (c: HonoContext) =>
+    c.req.json<{ by?: string; reason?: string; via?: string }>().catch(() => ({}) as { by?: string; reason?: string; via?: string });
+  api.post("/approvals/:id/approve", async (c) => {
+    const body = await decisionBody(c);
+    return c.json(solo.decideApproval(c.req.param("id"), { approve: true, by: body.by, via: body.via === "tui" || body.via === "api" ? body.via : "dashboard" }));
+  });
+  api.post("/approvals/:id/deny", async (c) => {
+    const body = await decisionBody(c);
+    return c.json(
+      solo.decideApproval(c.req.param("id"), { approve: false, by: body.by, reason: body.reason, via: body.via === "tui" || body.via === "api" ? body.via : "dashboard" }),
+    );
   });
 
   app.route("/api", api);

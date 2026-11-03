@@ -41,6 +41,7 @@ soloagent is an open-source, self-hosted home for your AI agents. Give each agen
   - `delegate` — `ask_agent` hands a task to another agent through a durable child conversation
   - `schedule` — durable reminders and follow-ups that survive restarts
   - `workspace` — read / write / edit / bash, starting in a per-agent folder (powerful, not a sandbox; off by default)
+- **Approvals.** Agents can pause before risky tools (`bash`, `write`, `edit`, or every tool) until someone clicks **Approve** in the dashboard, the TUI (`/approve`, `/deny`), or right in the Slack, Discord, or Telegram thread. The wait is durable: it survives restarts, and an approved call runs once. On by default for agents with `workspace`.
 - **Steer mid-run.** Messages sent while an agent works join the running work at its next step instead of waiting for it to finish.
 - **A real GUI and a real TUI.** A fast dashboard (chat with streaming, thinking, and tool cards; agent editor; subscription logins; connector setup with guides; live task graph; usage and cost) and a full-screen terminal UI built on `pi-tui`.
 - **Try it with zero accounts.** A built-in demo model answers until you connect a provider.
@@ -133,6 +134,8 @@ Open **Connections** in the dashboard; each connector has a step-by-step guide.
 | **Telegram** | A bot token from @BotFather (`/newbot`). |
 | **Webhook** | A shared secret. `POST /api/hooks/<id>` with `x-solo-secret` and `{ "text", "thread", "user", "callback_url"? }`; the answer comes back as `{ "thread", "status", "answer" }`, or is POSTed to `callback_url` as `{ "thread", "text" }`. |
 
+For [approval](https://soloagent.dev/docs/#approvals) buttons, list who may press them under **Approvers** on the connector (platform user ids or display names). Slack needs **Interactivity** on; the bundled manifest enables it.
+
 In any chat: `@coder fix the build` or `coder: fix the build` picks an agent; otherwise the connector's agent (or the default) answers. Commands: `!agents`, `!reset` (or `!new`), `!stop`, `!help`.
 
 ## Terminal UI
@@ -148,7 +151,7 @@ soloagent agents | threads    list things                      (--json)
 soloagent token               print the local admin token
 ```
 
-Inside the TUI: <kbd>Enter</kbd> send (steers while busy) · <kbd>Shift</kbd>+<kbd>Enter</kbd> newline · <kbd>Esc</kbd> stop · <kbd>Ctrl</kbd>+<kbd>P</kbd> threads · <kbd>Ctrl</kbd>+<kbd>N</kbd> new · <kbd>Ctrl</kbd>+<kbd>B</kbd> sidebar · <kbd>Ctrl</kbd>+<kbd>T</kbd> thinking · <kbd>Ctrl</kbd>+<kbd>O</kbd> tool output · `/new @agent`, `/agent`, `/model`, `/login`, `/threads`, `/reset`, `/compact`, `/usage`, `/help`.
+Inside the TUI: <kbd>Enter</kbd> send (steers while busy) · <kbd>Shift</kbd>+<kbd>Enter</kbd> newline · <kbd>Esc</kbd> stop · <kbd>Ctrl</kbd>+<kbd>P</kbd> threads · <kbd>Ctrl</kbd>+<kbd>N</kbd> new · <kbd>Ctrl</kbd>+<kbd>B</kbd> sidebar · <kbd>Ctrl</kbd>+<kbd>T</kbd> thinking · <kbd>Ctrl</kbd>+<kbd>O</kbd> tool output · `/new @agent`, `/agent`, `/model`, `/login`, `/threads`, `/reset`, `/compact`, `/approve`, `/deny [reason]`, `/usage`, `/help`.
 
 ```bash
 git diff | soloagent ask - --agent reviewer
@@ -182,7 +185,7 @@ console.log(await sent.wait());
 await solo.close();
 ```
 
-REST routes live under `/api` with `Authorization: Bearer <token>` (only the WebSocket accepts `?token=`): `agents`, `threads` (`/messages`, `/ask`, `/stop`, `/reset`, `/compact`), `providers` (`/login`, `/key`), `connectors`, `schedules`, `usage`, `overview`, and the WebSocket at `/api/ws`. See the [docs](https://soloagent.dev/docs/).
+REST routes live under `/api` with `Authorization: Bearer <token>` (only the WebSocket accepts `?token=`): `agents`, `threads` (`/messages`, `/ask`, `/stop`, `/reset`, `/compact`), `providers` (`/login`, `/key`), `connectors`, `schedules`, `approvals` (`/approve`, `/deny`), `usage`, `overview`, and the WebSocket at `/api/ws`. See the [docs](https://soloagent.dev/docs/).
 
 ## Architecture
 
