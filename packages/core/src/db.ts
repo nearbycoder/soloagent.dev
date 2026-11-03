@@ -5,8 +5,14 @@ import { randomBytes } from "node:crypto";
  * soloagent's own metadata: agents, connectors, threads, encrypted credentials, memories, activity.
  * Conversations, runs, and tasks live in Pi Durable's storage next to it.
  */
-const MIGRATIONS: string[] = [
-  `CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+/**
+ * Named migrations, applied once each in array order. Add new ones at the end with a unique,
+ * descriptive id ("004_users", "005_approvals"…); ids never change once released.
+ */
+export const MIGRATIONS: { id: string; sql: string }[] = [
+  {
+    id: "001_init",
+    sql: `CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
    CREATE TABLE agents (
      id TEXT PRIMARY KEY, handle TEXT NOT NULL UNIQUE, data TEXT NOT NULL,
      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
@@ -31,6 +37,7 @@ const MIGRATIONS: string[] = [
    CREATE TABLE conversation_agents (conversation_id INTEGER PRIMARY KEY, agent_id TEXT NOT NULL);
    CREATE TABLE schedules (task_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, agent_id TEXT NOT NULL, text TEXT NOT NULL,
      at INTEGER NOT NULL, status TEXT NOT NULL);`,
+  },
 ];
 
 export class Db {
@@ -43,18 +50,24 @@ export class Db {
   }
 
   #migrate() {
-    this.sql.exec("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY)");
-    const row = this.sql.prepare("SELECT MAX(version) AS v FROM _migrations").get() as { v: number | null } | undefined;
-    const current = row?.v ?? 0;
-    for (let version = current + 1; version <= MIGRATIONS.length; version++) {
+    this.sql.exec("CREATE TABLE IF NOT EXISTS _schema_migrations (id TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)");
+    // Installs from 0.1.x tracked a single numbered migration; version 1 is "001_init".
+    const legacy = this.sql.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = '_migrations'").get();
+    if (legacy) {
+      const hasV1 = this.sql.prepare("SELECT 1 FROM _migrations WHERE version = 1").get();
+      if (hasV1) this.sql.prepare("INSERT OR IGNORE INTO _schema_migrations (id, applied_at) VALUES ('001_init', ?)").run(Date.now());
+    }
+    const applied = new Set((this.sql.prepare("SELECT id FROM _schema_migrations").all() as { id: string }[]).map((r) => r.id));
+    for (const migration of MIGRATIONS) {
+      if (applied.has(migration.id)) continue;
       this.sql.exec("BEGIN");
       try {
-        this.sql.exec(MIGRATIONS[version - 1]!);
-        this.sql.prepare("INSERT INTO _migrations (version) VALUES (?)").run(version);
+        this.sql.exec(migration.sql);
+        this.sql.prepare("INSERT INTO _schema_migrations (id, applied_at) VALUES (?, ?)").run(migration.id, Date.now());
         this.sql.exec("COMMIT");
       } catch (error) {
         this.sql.exec("ROLLBACK");
-        throw error;
+        throw new Error(`Migration ${migration.id} failed: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   }
