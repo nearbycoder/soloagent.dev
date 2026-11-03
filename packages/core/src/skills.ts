@@ -13,6 +13,7 @@ import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { int, num, obj, opt, str } from "@earendil-works/pi-schema";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { Agent, AgentSkill } from "@soloagent/client";
+import { automationTask, automationTools, type AutomationHost } from "./automations.ts";
 import { EVENT_ENTRY, MESSAGE_ENTRY, textOf, type EventEntryData, type MessageEntryData } from "./transcript.ts";
 
 /** What the skills need from the soloagent runtime. Kept narrow so skills stay testable. */
@@ -31,6 +32,8 @@ export interface SkillHost {
   answerText(conversationId: number, entryId: number, context: Context): Promise<string>;
   scheduleCreated(info: { taskId: string; conversationId: number; text: string; at: number }): void;
   scheduleFired(taskId: string): void;
+  /** Recurring automations (the `solo.automation` task and the schedule skill's recurring tools). */
+  automations(): AutomationHost;
   /** Called after every answered run; delivers replies to Slack, Discord, and friends. */
   runAnswered(conversationId: number, answerEntryId: number, context: Context): void;
   /** Every provider response, for the spend ledger. `key` is unique per response. */
@@ -274,10 +277,13 @@ export function createSkills(host: SkillHost) {
     abort: (_task, runtime, context) => runtime.commit(() => ({ status: "terminal", outcome: { status: "aborted" } }), context),
   });
 
+  const Automation = automationTask(() => host.automations());
+
   const Schedule = defineExtension({
     name: "solo.schedule",
-    tasks: [Reminder],
+    tasks: [Reminder, Automation],
     tools: [
+      ...automationTools(() => host.automations()),
       defineTool({
         name: "schedule_reminder",
         description:
@@ -318,7 +324,7 @@ export function createSkills(host: SkillHost) {
     workspace: CodingTools as unknown as Extension,
   };
 
-  return { Base, extensions, all: [Base, Memory, Web, Delegate, Schedule, CodingTools as unknown as Extension] };
+  return { Base, extensions, Automation, all: [Base, Memory, Web, Delegate, Schedule, CodingTools as unknown as Extension] };
 }
 
 export function htmlToText(html: string): string {

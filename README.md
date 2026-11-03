@@ -39,11 +39,12 @@ soloagent is an open-source, self-hosted home for your AI agents. Give each agen
   - `memory` — remember / recall / forget across every conversation
   - `web` — `web_fetch`, `web_search`
   - `delegate` — `ask_agent` hands a task to another agent through a durable child conversation
-  - `schedule` — durable reminders and follow-ups that survive restarts
+  - `schedule` — durable reminders, follow-ups, and recurring automations that survive restarts
   - `workspace` — read / write / edit / bash, starting in a per-agent folder (powerful, not a sandbox; off by default)
 - **Approvals.** Agents can pause before risky tools (`bash`, `write`, `edit`, or every tool) until someone clicks **Approve** in the dashboard, the TUI (`/approve`, `/deny`), or right in the Slack, Discord, or Telegram thread. The wait is durable: it survives restarts, and an approved call runs once. On by default for agents with `workspace`.
 - **Ready for teams.** Per-connector access lists (people, channels, agents), daily spend and message budgets per agent, per-person rate limits, and dashboard users with admin and member roles, invited by one-time link.
 - **Files and images.** Share screenshots, photos, logs, CSVs, and code from any chat app, the dashboard (paste, drop, or 📎), or `soloagent ask --file`. Images go to the model resized; text files are inlined; files are stored on your disk, content-addressed.
+- **Recurring automations.** "Every weekday at 9:00, post a standup summary in #eng." Cron or simple presets, any time zone (DST-aware), into an existing thread or a chat channel. Each one is a durable task; a run that came due while the server was down fires once on startup. Manage them on the **Automations** page, with `soloagent automations`, or by asking an agent.
 - **Steer mid-run.** Messages sent while an agent works join the running work at its next step instead of waiting for it to finish.
 - **A real GUI and a real TUI.** A fast dashboard (chat with streaming, thinking, and tool cards; agent editor; subscription logins; connector setup with guides; live task graph; usage and cost) and a full-screen terminal UI built on `pi-tui`.
 - **Try it with zero accounts.** A built-in demo model answers until you connect a provider.
@@ -176,6 +177,7 @@ soloagent serve               run the server in the foreground (--port, --data, 
 soloagent connect <url>       use a remote server              (--token)
 soloagent disconnect          go back to the local server
 soloagent agents | threads    list things                      (--json)
+soloagent automations         list recurring automations       (--json)
 soloagent token               print the local admin token
 soloagent backup | restore    back up or restore all data      (--out, --include-secret / --data, --force)
 soloagent agents export|import  move agents between servers    (--mode, --dry-run)
@@ -215,7 +217,7 @@ console.log(await sent.wait());
 await solo.close();
 ```
 
-REST routes live under `/api` with `Authorization: Bearer <token>` (only the WebSocket accepts `?token=`): `agents`, `threads` (`/messages`, `/ask`, `/stop`, `/reset`, `/compact`), `providers` (`/login`, `/key`), `connectors`, `schedules`, `approvals` (`/approve`, `/deny`), `usage`, `overview`, `backup`, `agents/export`, `agents/import`, `version` (no token needed), and the WebSocket at `/api/ws`. See the [docs](https://soloagent.dev/docs/).
+REST routes live under `/api` with `Authorization: Bearer <token>` (only the WebSocket accepts `?token=`): `agents`, `threads` (`/messages`, `/ask`, `/stop`, `/reset`, `/compact`), `providers` (`/login`, `/key`), `connectors`, `schedules`, `automations` (`/run`, `/preview`), `approvals` (`/approve`, `/deny`), `usage`, `overview`, `backup`, `agents/export`, `agents/import`, `version` (no token needed), and the WebSocket at `/api/ws`. See the [docs](https://soloagent.dev/docs/).
 
 ## Architecture
 

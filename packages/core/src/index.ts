@@ -31,3 +31,5 @@ export {
 } from "./backup.ts";
 export { exportAgents, importAgents, ImportError, type AgentHost } from "./portability.ts";
 export { UpdateChecker, updateCheckEnabled, type UpdateCheckerOptions } from "./updates.ts";
+export { Automations, channelTarget, type AutomationHost } from "./automations.ts";
+export { CronError, describeCron, isTimeZone, localTimeZone, nextRun, nextRuns, parseCron, parseSchedule, presetToCron } from "./cron.ts";

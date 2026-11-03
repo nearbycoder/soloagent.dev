@@ -5,7 +5,7 @@ import { Hono, type Context as HonoContext } from "hono";
 import { setCookie, deleteCookie } from "hono/cookie";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { backupFileName, CONNECTOR_KINDS, exportAgents, HttpError, importAgents, TeamError, UpdateChecker, VERSION, parseUploads, type SoloAgent } from "@soloagent/core";
-import type { AgentInput, ApprovalSettings, ApprovalStatus, ConnectorInput, Me, Role, Source } from "@soloagent/client";
+import type { AgentInput, ApprovalSettings, ApprovalStatus, AutomationInput, ConnectorInput, Me, Role, Source } from "@soloagent/client";
 import { actorOf, adminOnly, type AuthEnv, COOKIE, LoginThrottle, requestToken, requireAuth, tokenMatches } from "./auth.ts";
 
 export { requestToken, tokenMatches } from "./auth.ts";
@@ -343,6 +343,25 @@ export function createApp({ solo, webDir, updates: updateChecker }: AppOptions) 
     return c.json(
       solo.decideApproval(c.req.param("id"), { approve: false, by: decider(c, body.by), reason: body.reason, via: body.via === "tui" || body.via === "api" ? body.via : "dashboard" }),
     );
+  });
+
+  // Automations (recurring schedules)
+  api.get("/automations", (c) => c.json(solo.automations.list()));
+  api.get("/automations/preview", (c) => {
+    const cron = c.req.query("cron");
+    if (!cron?.trim()) throw new HttpError(400, "cron is required");
+    return c.json(solo.automations.preview(cron, c.req.query("tz"), Number(c.req.query("count") ?? 5)));
+  });
+  api.post("/automations", adminOnly, async (c) => c.json(await solo.automations.create(await c.req.json<AutomationInput>()), 201));
+  api.get("/automations/:id", (c) => {
+    const automation = solo.automations.get(c.req.param("id"));
+    return automation ? c.json(automation) : c.json({ error: "Automation not found" }, 404);
+  });
+  api.patch("/automations/:id", adminOnly, async (c) => c.json(await solo.automations.update(c.req.param("id"), await c.req.json<Partial<AutomationInput>>())));
+  api.post("/automations/:id/run", adminOnly, async (c) => c.json(await solo.automations.runNow(c.req.param("id"))));
+  api.delete("/automations/:id", adminOnly, async (c) => {
+    if (!(await solo.automations.delete(c.req.param("id")))) throw new HttpError(404, "Automation not found");
+    return c.json({ ok: true });
   });
 
   app.route("/api", api);

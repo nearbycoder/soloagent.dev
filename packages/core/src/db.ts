@@ -81,6 +81,14 @@ export const MIGRATIONS: { id: string; sql: string }[] = [
     id: "050_attachments",
     sql: `CREATE TABLE files (sha256 TEXT PRIMARY KEY, name TEXT NOT NULL, mime_type TEXT NOT NULL, size INTEGER NOT NULL, created_at INTEGER NOT NULL);`,
   },
+  {
+    id: "040_automations",
+    sql: `CREATE TABLE automations (
+     id TEXT PRIMARY KEY, name TEXT NOT NULL, agent_id TEXT NOT NULL, prompt TEXT NOT NULL,
+     enabled INTEGER NOT NULL DEFAULT 1, cron TEXT NOT NULL, timezone TEXT NOT NULL, target TEXT NOT NULL,
+     thread_id TEXT, task_id TEXT, last_run_at INTEGER, next_run_at INTEGER, last_status TEXT, last_error TEXT,
+     created_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);`,
+  },
 ];
 
 export class Db {

@@ -474,7 +474,77 @@ export type ServerEvent =
   | { type: "activity"; item: ActivityItem }
   | { type: "tasks"; tasks: TaskNode[] }
   // Approvals
-  | { type: "approval.updated"; approval: Approval };
+  | { type: "approval.updated"; approval: Approval }
+  | AutomationEvent;
+
+// ───────────────────────────── Recurring automations ─────────────────────────────
+
+/** A simple schedule, stored as the cron expression it stands for. Times are "HH:MM", 24-hour. */
+export type AutomationPreset =
+  | { kind: "minutes"; every: number }
+  | { kind: "hours"; every: number }
+  | { kind: "daily"; time: string }
+  | { kind: "weekdays"; time: string }
+  /** day: 0 (Sunday) to 6 (Saturday). */
+  | { kind: "weekly"; day: number; time: string };
+
+/**
+ * Where an automation's runs land: an existing thread (web or chat), or a chat channel. A channel automation
+ * keeps one thread of its own, so the agent remembers earlier runs, and each run's answer is posted as a new
+ * top-level message in the channel.
+ */
+export type AutomationTarget =
+  | { kind: "thread"; threadId: string }
+  | { kind: "channel"; connectorId: string; target: Record<string, string>; location: string | null };
+
+/** For a channel, give either the platform `target` or a `channel` id (Slack channel id, Discord channel id, Telegram chat id). */
+export type AutomationTargetInput =
+  | { kind: "thread"; threadId: string }
+  | { kind: "channel"; connectorId: string; target?: Record<string, string>; channel?: string; location?: string | null };
+
+export type AutomationStatus = "running" | "ok" | "failed";
+
+export type Automation = {
+  id: string;
+  name: string;
+  agentId: string;
+  prompt: string;
+  enabled: boolean;
+  /** 5-field cron expression. */
+  cron: string;
+  /** IANA time zone the cron expression is read in. */
+  timezone: string;
+  /** Human-readable schedule, e.g. "Weekdays at 09:00". */
+  scheduleText: string;
+  target: AutomationTarget;
+  /** The thread runs land in; for a channel, created on the first run. */
+  threadId: string | null;
+  lastRunAt: number | null;
+  nextRunAt: number | null;
+  lastStatus: AutomationStatus | null;
+  lastError: string | null;
+  createdBy: string | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
+/** Give `cron` (an expression or a phrase like "weekdays at 9:00") or `preset`. */
+export type AutomationInput = {
+  name: string;
+  prompt: string;
+  /** Default: the target thread's agent, else the connector's agent, else the default agent. */
+  agentId?: string;
+  enabled?: boolean;
+  cron?: string;
+  preset?: AutomationPreset;
+  /** Default: the server's time zone. */
+  timezone?: string;
+  target: AutomationTargetInput;
+};
+
+export type AutomationPreview = { cron: string; timezone: string; text: string; next: number[] };
+
+export type AutomationEvent = { type: "automation.updated"; automation: Automation } | { type: "automation.deleted"; automationId: string };
 
 /** Client → server WebSocket messages. */
 export type ClientEvent =

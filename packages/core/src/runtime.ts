@@ -58,6 +58,7 @@ import {
   type InboundAttachment,
 } from "./attachments.ts";
 import { createBackup, secretFingerprint, type SecretInfo } from "./backup.ts";
+import { Automations, type NextRunFn } from "./automations.ts";
 import { ConnectorManager } from "./connectors/manager.ts";
 import { chunk } from "./connectors/format.ts";
 import type { ChatDecisionInput, InboundMessage, PostHandle, ReplyTarget } from "./connectors/types.ts";
@@ -88,6 +89,8 @@ export type SoloAgentOptions = {
   log?: (message: string) => void;
   /** Let attachment URLs point at loopback and private networks. Default: SOLOAGENT_ALLOW_PRIVATE_FILE_URLS === "1". */
   allowPrivateFileUrls?: boolean;
+  /** Testing: when automations fire next, instead of their cron schedule. */
+  nextAutomationRun?: NextRunFn;
 };
 
 type ThreadRow = {
@@ -142,6 +145,7 @@ export class SoloAgent {
   readonly ledger: Ledger;
   /** Where the admin token comes from: SOLOAGENT_TOKEN / an option (rotate it there), or stored in settings. */
   readonly adminTokenSource: "env" | "option" | "stored";
+  readonly automations: Automations;
   readonly dataDir: string;
   #adminToken: string;
   #notices = new Map<string, number>();
@@ -174,6 +178,7 @@ export class SoloAgent {
     adminTokenSource: "env" | "option" | "stored";
     dataDir: string;
     log: (message: string) => void;
+    nextAutomationRun?: NextRunFn;
   }) {
     this.db = init.db;
     this.harness = init.harness;
@@ -190,6 +195,7 @@ export class SoloAgent {
     this.dataDir = init.dataDir;
     this.files = new FileStore(join(init.dataDir, "files"), init.db);
     this.#log = init.log;
+    this.automations = new Automations(this, init.skills.Automation, init.nextAutomationRun);
   }
 
   static async open(options: SoloAgentOptions): Promise<SoloAgent> {
@@ -274,6 +280,7 @@ export class SoloAgent {
           solo?.markBusy(row.thread_id);
         }
       },
+      automations: () => solo!.automations,
       runAnswered: (conversationId, answer, context) => void solo?.runAnswered(conversationId, answer, context).catch((error) => log(`deliver: ${String(error)}`)),
       responded: (conversationId, key, message) => {
         try {
@@ -316,7 +323,7 @@ export class SoloAgent {
       ctx,
     );
 
-    solo = new SoloAgent({ db, harness, agents, providers, connectors, approvals, skills, approvalExtensions, adminToken, adminTokenSource, dataDir, log });
+    solo = new SoloAgent({ db, harness, agents, providers, connectors, approvals, skills, approvalExtensions, adminToken, adminTokenSource, dataDir, log, nextAutomationRun: options.nextAutomationRun });
     if (options.allowPrivateFileUrls !== undefined) solo.#allowPrivateFileUrls = options.allowPrivateFileUrls;
     solo.#secret = { source: options.secret || process.env.SOLOAGENT_SECRET ? "env" : "file", fingerprint: secretFingerprint(secret), value: secret };
     harness.resume();

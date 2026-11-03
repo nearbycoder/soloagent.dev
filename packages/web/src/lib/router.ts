@@ -34,6 +34,7 @@ export type Route =
   | { page: "connections"; connectorId?: string }
   | { page: "activity" }
   | { page: "approvals" }
+  | { page: "automations"; automationId?: string }
   | { page: "usage" }
   | { page: "team" }
   | { page: "settings" };
@@ -57,6 +58,8 @@ export function parseRoute(path: string): Route {
       return { page: "activity" };
     case "approvals":
       return { page: "approvals" };
+    case "automations":
+      return { page: "automations", automationId: parts[1] };
     case "usage":
       return { page: "usage" };
     case "team":
