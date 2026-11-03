@@ -130,8 +130,8 @@ function SettingsSection() {
               <Field label="Timeout (hours)" htmlFor="approval-timeout" hint="Unanswered requests are denied after this.">
                 <Input id="approval-timeout" type="number" min={0.01} step="any" value={hours} onChange={(e) => setHours(e.target.value)} />
               </Field>
-              <Field label="More risky tools" htmlFor="approval-tools" hint="Besides bash, write, and edit. Tool names, comma-separated, e.g. forget, schedule_reminder.">
-                <Input id="approval-tools" value={tools} placeholder="forget, ask_agent" onChange={(e) => setTools(e.target.value)} className="font-mono" />
+              <Field label="More risky tools" htmlFor="approval-tools" hint="Besides bash, write, and edit. Tool names, comma-separated; end with * for a prefix, e.g. forget, mcp__github__*.">
+                <Input id="approval-tools" value={tools} placeholder="forget, mcp__github__*" onChange={(e) => setTools(e.target.value)} className="font-mono" />
               </Field>
             </div>
             <div>

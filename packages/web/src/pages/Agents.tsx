@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bot, Brain, Eye, MessageSquare, Pencil, Plus, ShieldAlert, Star, Trash, TriangleAlert } from "lucide-react";
-import { AGENT_SKILLS, APPROVAL_POLICIES, type Agent, type AgentBudget, type AgentInput, type AgentSkill, type AgentSpend, type ThinkingLevel } from "@soloagent/client";
-import { client } from "../api/client.ts";
+import { Bot, Brain, Check, Eraser, Eye, MessageSquare, Pencil, Plus, Search, ShieldAlert, Star, Trash, TriangleAlert, Wrench, X } from "lucide-react";
+import { AGENT_SKILLS, APPROVAL_POLICIES, type Agent, type AgentBudget, type AgentInput, type AgentSkill, type AgentSpend, type Memory, type ThinkingLevel } from "@soloagent/client";
+import { client, errorMessage } from "../api/client.ts";
+import { useMcpServers } from "../api/mcp.ts";
 import { loadProviders, local, useApp, useIsAdmin } from "../api/store.ts";
 import { AgentTransfer } from "../components/AgentTransfer.tsx";
 import { AgentAvatar, ProviderMark } from "../components/brand.tsx";
 import { findModel, ModelPicker } from "../components/ModelPicker.tsx";
 import { Drawer } from "../components/overlay.tsx";
-import { Badge, Button, Card, EmptyState, Field, Input, Page, PageHeader, Segmented, Skeleton, Switch, Textarea } from "../components/ui.tsx";
+import { Badge, Button, Card, Dot, EmptyState, Field, IconButton, Input, Page, PageHeader, Segmented, Skeleton, Spinner, Switch, Textarea } from "../components/ui.tsx";
 import { cn } from "../lib/cn.ts";
-import { contextWindow, cost, perMillion, slugify } from "../lib/format.ts";
-import { navigate } from "../lib/router.ts";
+import { contextWindow, cost, fullDate, perMillion, pluralize, shortTime, slugify } from "../lib/format.ts";
+import { linkHandler, navigate } from "../lib/router.ts";
 import { confirm, toast } from "../lib/toast.ts";
 
 export const GLYPHS = ["●", "◆", "✦", "▲", "■", "★", "⚡", "λ", "∞", "§", "☾", "☀", "✿", "⌘", "♪", "❖"];
@@ -24,10 +25,19 @@ export function Agents({ editId }: { editId?: string }) {
   const threads = useApp((s) => s.threads);
   const isAdmin = useIsAdmin();
   const spend = useSpendToday();
+  const [memoryCounts, setMemoryCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     void loadProviders();
   }, []);
+
+  // Refresh when the drawer opens or closes: the memory tab may have changed them.
+  useEffect(() => {
+    client
+      .memoryCounts()
+      .then(setMemoryCounts)
+      .catch(() => {});
+  }, [editId]);
 
   const editing = editId === "new" ? null : agents?.find((a) => a.id === editId);
   const drawerOpen = (editId === "new" && isAdmin) || !!editing;
@@ -75,6 +85,7 @@ export function Agents({ editId }: { editId?: string }) {
           {agents.map((agent) => {
             const found = findModel(providers, agent.model);
             const count = threads?.filter((t) => t.agentId === agent.id).length ?? 0;
+            const memories = memoryCounts[agent.id] ?? 0;
             return (
               <Card
                 key={agent.id}
@@ -128,7 +139,10 @@ export function Agents({ editId }: { editId?: string }) {
                 </div>
                 <SpendMeter spend={spend?.find((s) => s.agentId === agent.id)} budget={agent.budget} className="relative mt-3" />
                 <div className="relative mt-4 flex items-center justify-between border-t border-border pt-3">
-                  <span className="text-[12px] text-faint">{count === 1 ? "1 thread" : `${count} threads`}</span>
+                  <span className="text-[12px] text-faint">
+                    {count === 1 ? "1 thread" : `${count} threads`}
+                    {agent.skills.includes("memory") || memories > 0 ? ` · ${pluralize(memories, "memory", "memories")}` : ""}
+                  </span>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -184,6 +198,7 @@ function toDraft(agent: Agent | null, defaultModel: Agent["model"]): Draft {
     model: agent ? agent.model : defaultModel,
     thinkingLevel: agent?.thinkingLevel ?? "medium",
     skills: agent?.skills ?? ["memory", "web", "delegate", "schedule"],
+    mcpServers: agent?.mcpServers ?? [],
     maxTurns: agent?.maxTurns ?? 40,
     isDefault: agent?.isDefault ?? false,
     approvals: agent?.approvals ?? "off",
@@ -262,6 +277,7 @@ function AgentEditor({ agent, readOnly, spend, onClose }: { agent: Agent | null;
   const [handleTouched, setHandleTouched] = useState(!!agent);
   const [saving, setSaving] = useState(false);
   const [customGlyph, setCustomGlyph] = useState("");
+  const [tab, setTab] = useState<"settings" | "memory">("settings");
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => ({ ...d, [key]: value }));
 
   const handleError = useMemo(() => {
@@ -316,7 +332,7 @@ function AgentEditor({ agent, readOnly, spend, onClose }: { agent: Agent | null;
       title={agent ? (readOnly ? agent.name : `Edit ${agent.name}`) : "New agent"}
       description={agent ? `@${agent.handle}` : "Give it a personality, a model, and skills."}
       footer={
-        readOnly ? (
+        tab === "memory" ? undefined : readOnly ? (
           <div className="ml-auto flex items-center gap-3">
             <span className="text-[12.5px] text-subtle">Only admins can change agents.</span>
             <Button variant="ghost" onClick={onClose}>
@@ -347,6 +363,23 @@ function AgentEditor({ agent, readOnly, spend, onClose }: { agent: Agent | null;
         )
       }
     >
+      {agent && (
+        <div className="border-b border-border px-5 py-3">
+          <Segmented
+            value={tab}
+            onChange={setTab}
+            size="sm"
+            className="w-full max-w-xs"
+            options={[
+              { value: "settings", label: "Settings" },
+              { value: "memory", label: "Memory" },
+            ]}
+          />
+        </div>
+      )}
+      {agent && tab === "memory" ? (
+        <MemoryPanel agent={agent} readOnly={readOnly} />
+      ) : (
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -567,6 +600,10 @@ function AgentEditor({ agent, readOnly, spend, onClose }: { agent: Agent | null;
           {agent && <SpendMeter spend={spend} budget={draft.budget} className="rounded-lg border border-border bg-surface-2/40 px-3 py-2.5" />}
         </Section>
 
+        <Section title="Tools from MCP servers" description="Give this agent the tools of servers you connected in Tools.">
+          <McpServerPicker value={draft.mcpServers} onChange={(ids) => set("mcpServers", ids)} />
+        </Section>
+
         <Section title="Behavior">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Max turns" htmlFor="agent-turns" hint="Upper bound on tool rounds per run.">
@@ -585,7 +622,275 @@ function AgentEditor({ agent, readOnly, spend, onClose }: { agent: Agent | null;
         <button type="submit" hidden />
         </fieldset>
       </form>
+      )}
     </Drawer>
+  );
+}
+
+function McpServerPicker({ value, onChange }: { value: string[]; onChange: (ids: string[]) => void }) {
+  const servers = useMcpServers();
+  if (!servers) return <Skeleton className="h-14 rounded-xl" />;
+  // Selected ids whose server was deleted stay visible so they can be removed.
+  const missing = value.filter((id) => !servers.some((s) => s.id === id));
+  if (servers.length === 0 && missing.length === 0) {
+    return (
+      <div className="flex items-center gap-3 rounded-xl border border-dashed border-border px-4 py-3 text-[12.5px] text-subtle">
+        <Wrench className="size-4 shrink-0 text-faint" />
+        <span className="flex-1">No MCP servers yet. Connect GitHub, Linear, a database, or any MCP server first.</span>
+        <a href="/tools/new" onClick={linkHandler("/tools/new")} className="shrink-0 font-medium text-accent-text hover:underline">
+          Add a server
+        </a>
+      </div>
+    );
+  }
+  const toggle = (id: string, on: boolean) => onChange(on ? [...value, id] : value.filter((v) => v !== id));
+  return (
+    <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+      {servers.map((server) => {
+        const on = value.includes(server.id);
+        const tone = !server.enabled ? "neutral" : server.status === "connected" ? "success" : server.status === "error" ? "danger" : "warning";
+        return (
+          <label key={server.id} className="flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-2/40">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <Dot tone={tone} />
+                <span className="text-[13.5px] font-medium text-fg">{server.name}</span>
+                <span className="font-mono text-[11.5px] text-faint">{server.id}</span>
+              </div>
+              <p className="mt-0.5 text-[12.5px] leading-relaxed text-subtle">
+                {!server.enabled
+                  ? "Disabled"
+                  : server.status === "error"
+                    ? "Not connected right now"
+                    : server.tools.length
+                      ? `${pluralize(server.tools.length, "tool")}${server.deferred ? ", loaded on demand" : ""}: ${server.tools
+                          .slice(0, 4)
+                          .map((t) => t.name)
+                          .join(", ")}${server.tools.length > 4 ? ", …" : ""}`
+                      : "Connecting…"}
+              </p>
+            </div>
+            <Switch checked={on} onChange={(v) => toggle(server.id, v)} label={`Tools from ${server.name}`} />
+          </label>
+        );
+      })}
+      {missing.map((id) => (
+        <div key={id} className="flex items-center gap-3 px-4 py-3">
+          <span className="min-w-0 flex-1 text-[12.5px] text-subtle">
+            <span className="font-mono">{id}</span> was deleted
+          </span>
+          <Button size="xs" variant="ghost" onClick={() => toggle(id, false)}>
+            Remove
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MemoryPanel({ agent, readOnly }: { agent: Agent; readOnly: boolean }) {
+  const [query, setQuery] = useState("");
+  const [memories, setMemories] = useState<Memory[] | null>(null);
+  const [total, setTotal] = useState<number | null>(null);
+  const [draft, setDraft] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<{ id: number; text: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = async (q: string) => {
+    try {
+      const list = await client.memories(agent.id, { q: q.trim() || undefined });
+      setMemories(list);
+      if (!q.trim()) setTotal(list.length);
+      setError(null);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => void load(query), query ? 200 : 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, agent.id]);
+
+  const add = async () => {
+    if (!draft.trim()) return;
+    setAdding(true);
+    try {
+      await client.addMemory(agent.id, draft);
+      setDraft("");
+      setQuery("");
+      await load("");
+    } catch (e) {
+      toast.error(e, "Could not save the memory");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    try {
+      const updated = await client.updateMemory(agent.id, editing.id, editing.text);
+      setMemories((list) => list?.map((m) => (m.id === updated.id ? updated : m)) ?? list);
+      setEditing(null);
+    } catch (e) {
+      toast.error(e, "Could not save the memory");
+    }
+  };
+
+  const remove = async (memory: Memory) => {
+    try {
+      await client.deleteMemory(agent.id, memory.id);
+      setMemories((list) => list?.filter((m) => m.id !== memory.id) ?? list);
+      setTotal((t) => (t === null ? t : Math.max(0, t - 1)));
+      toast.success("Memory deleted");
+    } catch (e) {
+      toast.error(e, "Could not delete the memory");
+    }
+  };
+
+  const clearAll = async () => {
+    const ok = await confirm({
+      title: `Delete all of ${agent.name}'s memories?`,
+      body: `${pluralize(total ?? 0, "memory", "memories")} will be deleted. ${agent.name} forgets everything it saved about people, preferences, and decisions. This can't be undone.`,
+      confirmLabel: "Delete all",
+      tone: "danger",
+    });
+    if (!ok) return;
+    try {
+      const { deleted } = await client.clearMemories(agent.id);
+      setMemories([]);
+      setTotal(0);
+      setQuery("");
+      toast.success(`Deleted ${pluralize(deleted, "memory", "memories")}`);
+    } catch (e) {
+      toast.error(e, "Could not delete the memories");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-5 px-5 py-6">
+      <div>
+        <p className="text-[12.5px] leading-relaxed text-subtle">
+          Long-term notes {agent.name} keeps across every conversation. It saves them with the <span className="font-mono">remember</span> tool, and the newest 40 are in its prompt.
+          {!agent.skills.includes("memory") && <span className="text-warning"> The Memory skill is off, so this agent doesn't read or write them right now.</span>}
+        </p>
+      </div>
+
+      {!readOnly && (
+      <div className="flex flex-col gap-2">
+        <Textarea
+          value={draft}
+          rows={2}
+          placeholder="Add a memory, e.g. Ann prefers short answers and works in CET."
+          aria-label="New memory"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              void add();
+            }
+          }}
+          className="text-[13px]"
+        />
+        <div className="flex items-center justify-end gap-2">
+          <span className="mr-auto text-[11.5px] text-faint">⌘↵ to add</span>
+          <Button size="sm" variant="primary" loading={adding} disabled={!draft.trim()} icon={<Plus className="size-3.5" />} onClick={add}>
+            Add memory
+          </Button>
+        </div>
+      </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-faint" />
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search memories" aria-label="Search memories" className="h-8 pl-8 text-[13px]" />
+        </div>
+        {!readOnly && (
+          <Button size="sm" variant="ghost" className="text-danger hover:bg-danger-soft hover:text-danger" icon={<Eraser className="size-3.5" />} disabled={!total} onClick={clearAll}>
+            Clear all
+          </Button>
+        )}
+      </div>
+
+      {error ? (
+        <p className="rounded-lg bg-danger-soft px-3 py-2 text-[12.5px] text-danger">{error}</p>
+      ) : !memories ? (
+        <div className="grid place-items-center py-10">
+          <Spinner />
+        </div>
+      ) : memories.length === 0 ? (
+        <EmptyState
+          icon={<Brain />}
+          title={query ? "No matching memories" : "No memories yet"}
+          description={query ? "Try other words." : `When ${agent.name} learns something worth keeping, it shows up here. You can add one yourself too.`}
+          className="py-10"
+        />
+      ) : (
+        <div className="flex flex-col gap-1">
+          <p className="mb-1 text-[12px] text-faint">{query ? `${pluralize(memories.length, "match", "matches")}` : pluralize(total ?? memories.length, "memory", "memories")}</p>
+          <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+            {memories.map((memory) => (
+              <li key={memory.id} className="group px-4 py-3">
+                {editing?.id === memory.id ? (
+                  <div className="flex flex-col gap-2">
+                    <Textarea
+                      value={editing.text}
+                      rows={3}
+                      data-autofocus
+                      aria-label="Edit memory"
+                      autoFocus
+                      onChange={(e) => setEditing({ id: memory.id, text: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          e.stopPropagation();
+                          setEditing(null);
+                        }
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                          e.preventDefault();
+                          void saveEdit();
+                        }
+                      }}
+                      className="text-[13px]"
+                    />
+                    <div className="flex justify-end gap-1.5">
+                      <Button size="xs" variant="ghost" icon={<X className="size-3" />} onClick={() => setEditing(null)}>
+                        Cancel
+                      </Button>
+                      <Button size="xs" variant="primary" icon={<Check className="size-3" />} disabled={!editing.text.trim()} onClick={saveEdit}>
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-fg">{memory.text}</p>
+                      <p className="mt-1 text-[11.5px] text-faint" title={fullDate(memory.createdAt)}>
+                        #{memory.id} · saved {shortTime(memory.createdAt)}
+                      </p>
+                    </div>
+                    {!readOnly && (
+                    <div className="flex shrink-0 gap-0.5 opacity-60 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                      <IconButton label="Edit memory" size="sm" onClick={() => setEditing({ id: memory.id, text: memory.text })}>
+                        <Pencil className="size-3.5" />
+                      </IconButton>
+                      <IconButton label="Delete memory" size="sm" onClick={() => void remove(memory)} className="hover:text-danger">
+                        <Trash className="size-3.5" />
+                      </IconButton>
+                    </div>
+                    )}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 

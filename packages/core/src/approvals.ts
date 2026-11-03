@@ -16,7 +16,7 @@ import { type Db, newId } from "./db.ts";
 /** Tools the "risky" policy always asks about. `web_fetch` is GET-only, so it is not on the list. */
 export const RISKY_TOOLS: readonly string[] = ["bash", "write", "edit"];
 /** Tools even the "all" policy never asks about. */
-export const READ_ONLY_TOOLS: readonly string[] = ["read", "recall", "web_search"];
+export const READ_ONLY_TOOLS: readonly string[] = ["read", "recall", "web_search", "tool_search"];
 export const DEFAULT_APPROVAL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 const SETTINGS_KEY = "approval_settings";
 /** setTimeout's limit; longer waits re-arm. */
@@ -34,7 +34,12 @@ export function isApprovalPolicy(value: unknown): value is ApprovalPolicy {
 export function needsApproval(policy: ApprovalPolicy, tool: string, riskyTools: readonly string[] = []): boolean {
   if (policy === "off") return false;
   if (policy === "all") return !READ_ONLY_TOOLS.includes(tool);
-  return RISKY_TOOLS.includes(tool) || riskyTools.includes(tool);
+  return RISKY_TOOLS.includes(tool) || riskyTools.some((pattern) => toolMatches(pattern, tool));
+}
+
+/** An exact tool name, or a prefix ending in `*`: `mcp__github__*` covers every tool of that MCP server. */
+function toolMatches(pattern: string, tool: string): boolean {
+  return pattern.endsWith("*") ? tool.startsWith(pattern.slice(0, -1)) : pattern === tool;
 }
 
 /** Whether a chat user may decide: matched by platform user id or display name (case-insensitive, `@` optional). */

@@ -89,6 +89,13 @@ export const MIGRATIONS: { id: string; sql: string }[] = [
      thread_id TEXT, task_id TEXT, last_run_at INTEGER, next_run_at INTEGER, last_status TEXT, last_error TEXT,
      created_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);`,
   },
+  {
+    // MCP servers whose tools agents can use. `secrets` holds the sealed env values and headers.
+    id: "030_mcp",
+    sql: `CREATE TABLE mcp_servers (
+     id TEXT PRIMARY KEY, data TEXT NOT NULL, secrets TEXT,
+     created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);`,
+  },
 ];
 
 export class Db {

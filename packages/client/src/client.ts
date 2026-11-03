@@ -23,6 +23,10 @@ import type {
   ConnectorInput,
   ConnectorKindInfo,
   LoginFlowState,
+  McpServer,
+  McpServerInput,
+  McpTestResult,
+  Memory,
   Message,
   Overview,
   ProviderInfo,
@@ -165,6 +169,53 @@ export class SoloClient {
       throw new SoloApiError(response.status, data?.error ?? `${response.status} ${response.statusText}`);
     }
     return response;
+  }
+
+  // Memories: an agent's long-term notes
+  memories(agentId: string, query: { q?: string; limit?: number } = {}) {
+    const params = new URLSearchParams();
+    if (query.q) params.set("q", query.q);
+    if (query.limit) params.set("limit", String(query.limit));
+    const qs = params.toString();
+    return this.request<Memory[]>("GET", `/agents/${encodeURIComponent(agentId)}/memories${qs ? `?${qs}` : ""}`);
+  }
+  addMemory(agentId: string, text: string) {
+    return this.request<Memory>("POST", `/agents/${encodeURIComponent(agentId)}/memories`, { text });
+  }
+  updateMemory(agentId: string, memoryId: number, text: string) {
+    return this.request<Memory>("PATCH", `/agents/${encodeURIComponent(agentId)}/memories/${memoryId}`, { text });
+  }
+  deleteMemory(agentId: string, memoryId: number) {
+    return this.request<{ ok: true }>("DELETE", `/agents/${encodeURIComponent(agentId)}/memories/${memoryId}`);
+  }
+  /** Delete every memory of an agent. */
+  clearMemories(agentId: string) {
+    return this.request<{ ok: true; deleted: number }>("DELETE", `/agents/${encodeURIComponent(agentId)}/memories?confirm=all`);
+  }
+  /** Memory count per agent id. */
+  memoryCounts() {
+    return this.request<Record<string, number>>("GET", "/memories/counts");
+  }
+
+  // MCP servers 
+  mcpServers() {
+    return this.request<McpServer[]>("GET", "/mcp-servers");
+  }
+  mcpServer(id: string) {
+    return this.request<McpServer>("GET", `/mcp-servers/${encodeURIComponent(id)}`);
+  }
+  createMcpServer(input: McpServerInput) {
+    return this.request<McpServer>("POST", "/mcp-servers", input);
+  }
+  updateMcpServer(id: string, input: McpServerInput) {
+    return this.request<McpServer>("PATCH", `/mcp-servers/${encodeURIComponent(id)}`, input);
+  }
+  deleteMcpServer(id: string) {
+    return this.request<{ ok: true }>("DELETE", `/mcp-servers/${encodeURIComponent(id)}`);
+  }
+  /** Connect if needed and list the server's tools live. */
+  testMcpServer(id: string) {
+    return this.request<McpTestResult>("POST", `/mcp-servers/${encodeURIComponent(id)}/test`);
   }
 
   // Providers & subscriptions

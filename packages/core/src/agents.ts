@@ -66,6 +66,7 @@ export class AgentStore {
       model: input.model ?? null,
       thinkingLevel: input.thinkingLevel ?? "medium",
       skills,
+      mcpServers: cleanServerIds(input.mcpServers ?? []),
       maxTurns: clampTurns(input.maxTurns ?? 40),
       isDefault: input.isDefault ?? count === 0,
       approvals: isApprovalPolicy(input.approvals) ? input.approvals : defaultApprovalPolicy(skills),
@@ -91,6 +92,7 @@ export class AgentStore {
       ...stripUndefined(input),
       handle: input.handle !== undefined ? this.#uniqueHandle(toHandle(input.handle), current.id) : current.handle,
       skills,
+      mcpServers: input.mcpServers ? cleanServerIds(input.mcpServers) : (current.mcpServers ?? []),
       approvals: isApprovalPolicy(input.approvals)
         ? input.approvals
         : gainedWorkspace && current.approvals === "off"
@@ -158,11 +160,17 @@ function fromRow(row: Row): Agent {
     // Teams fields: rows written before 0.2 have neither.
     budget: cleanBudget(data.budget ?? NO_BUDGET),
     chatAccess: data.chatAccess === true,
+    mcpServers: data.mcpServers ?? [],
     id: row.id,
     handle: row.handle,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+/** MCP server ids: slugs, deduplicated. */
+function cleanServerIds(ids: readonly string[]): string[] {
+  if (!Array.isArray(ids)) throw new Error("mcpServers must be a list of server ids");
+  return [...new Set(ids.filter((id) => typeof id === "string" && /^[a-z0-9-]{1,32}$/.test(id)))];
 }
 
 function cleanSkills(skills: readonly string[]): AgentSkill[] {

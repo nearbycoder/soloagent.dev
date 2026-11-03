@@ -5,7 +5,7 @@ import { Hono, type Context as HonoContext } from "hono";
 import { setCookie, deleteCookie } from "hono/cookie";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { backupFileName, CONNECTOR_KINDS, exportAgents, HttpError, importAgents, TeamError, UpdateChecker, VERSION, parseUploads, type SoloAgent } from "@soloagent/core";
-import type { AgentInput, ApprovalSettings, ApprovalStatus, AutomationInput, ConnectorInput, Me, Role, Source } from "@soloagent/client";
+import type { AgentInput, ApprovalSettings, ApprovalStatus, AutomationInput, ConnectorInput, McpServerInput, Me, Role, Source } from "@soloagent/client";
 import { actorOf, adminOnly, type AuthEnv, COOKIE, LoginThrottle, requestToken, requireAuth, tokenMatches } from "./auth.ts";
 
 export { requestToken, tokenMatches } from "./auth.ts";
@@ -193,6 +193,59 @@ export function createApp({ solo, webDir, updates: updateChecker }: AppOptions) 
   api.patch("/agents/:id", adminOnly, async (c) => c.json(solo.updateAgent(c.req.param("id"), await c.req.json<Partial<AgentInput>>())));
   api.delete("/agents/:id", adminOnly, (c) => {
     solo.agents.delete(c.req.param("id"));
+    return c.json({ ok: true });
+  });
+
+  // Memories: everyone reads; admins edit (agents still remember and forget on their own)
+  const memoryAgent = (c: HonoContext) => {
+    const agent = solo.agents.get(c.req.param("id") ?? "");
+    if (!agent) throw new HttpError(404, "Agent not found");
+    return agent;
+  };
+  const memoryId = (c: HonoContext) => {
+    const id = Number(c.req.param("memoryId"));
+    if (!Number.isInteger(id) || id <= 0) throw new HttpError(404, "Memory not found");
+    return id;
+  };
+  api.get("/memories/counts", (c) => c.json(solo.memories.counts()));
+  api.get("/agents/:id/memories", (c) => c.json(solo.memories.list(memoryAgent(c).id, { q: c.req.query("q"), limit: Number(c.req.query("limit") ?? 500) || 500 })));
+  api.post("/agents/:id/memories", adminOnly, async (c) => {
+    const agent = memoryAgent(c);
+    const { text } = await c.req.json<{ text?: string }>().catch(() => ({ text: undefined }));
+    return c.json(solo.memories.add(agent.id, text ?? ""), 201);
+  });
+  api.patch("/agents/:id/memories/:memoryId", adminOnly, async (c) => {
+    const agent = memoryAgent(c);
+    const { text } = await c.req.json<{ text?: string }>().catch(() => ({ text: undefined }));
+    return c.json(solo.memories.update(agent.id, memoryId(c), text ?? ""));
+  });
+  api.delete("/agents/:id/memories/:memoryId", adminOnly, (c) => {
+    const agent = memoryAgent(c);
+    if (!solo.memories.delete(agent.id, memoryId(c))) throw new HttpError(404, "Memory not found");
+    return c.json({ ok: true });
+  });
+  // Clearing every memory needs ?confirm=all, so a stray DELETE can't wipe them.
+  api.delete("/agents/:id/memories", adminOnly, (c) => {
+    const agent = memoryAgent(c);
+    if (c.req.query("confirm") !== "all") throw new HttpError(400, "Add ?confirm=all to delete every memory of this agent");
+    return c.json({ ok: true, deleted: solo.memories.clear(agent.id) });
+  });
+
+  // MCP servers: everyone reads (secrets are masked); admins change them
+  api.get("/mcp-servers", (c) => c.json(solo.mcp.list()));
+  api.post("/mcp-servers", adminOnly, async (c) => {
+    const input = await c.req.json<McpServerInput>();
+    if (input.id && solo.mcp.get(input.id)) throw new HttpError(409, `An MCP server with id "${input.id}" already exists`);
+    return c.json(solo.mcp.create(input), 201);
+  });
+  api.get("/mcp-servers/:id", (c) => {
+    const server = solo.mcp.get(c.req.param("id"));
+    return server ? c.json(server) : c.json({ error: "MCP server not found" }, 404);
+  });
+  api.patch("/mcp-servers/:id", adminOnly, async (c) => c.json(solo.mcp.update(c.req.param("id"), await c.req.json<McpServerInput>())));
+  api.post("/mcp-servers/:id/test", adminOnly, async (c) => c.json(await solo.mcp.test(c.req.param("id"))));
+  api.delete("/mcp-servers/:id", adminOnly, async (c) => {
+    await solo.mcp.delete(c.req.param("id"));
     return c.json({ ok: true });
   });
 

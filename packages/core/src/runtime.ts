@@ -64,6 +64,8 @@ import { chunk } from "./connectors/format.ts";
 import type { ChatDecisionInput, InboundMessage, PostHandle, ReplyTarget } from "./connectors/types.ts";
 import { SealedCredentialStore } from "./credentials.ts";
 import { Db, newId } from "./db.ts";
+import { McpManager } from "./mcp.ts";
+import { MemoryStore } from "./memories.ts";
 import { ProviderHub } from "./providers.ts";
 import { Sealer } from "./secrets.ts";
 import { demoProvider } from "./demo.ts";
@@ -146,6 +148,8 @@ export class SoloAgent {
   /** Where the admin token comes from: SOLOAGENT_TOKEN / an option (rotate it there), or stored in settings. */
   readonly adminTokenSource: "env" | "option" | "stored";
   readonly automations: Automations;
+  readonly mcp: McpManager;
+  readonly memories: MemoryStore;
   readonly dataDir: string;
   #adminToken: string;
   #notices = new Map<string, number>();
@@ -172,6 +176,7 @@ export class SoloAgent {
     providers: ProviderHub;
     connectors: ConnectorManager;
     approvals: ApprovalStore;
+    mcp: McpManager;
     skills: ReturnType<typeof createSkills>;
     approvalExtensions: ReturnType<typeof createApprovalExtensions>;
     adminToken: string;
@@ -186,6 +191,8 @@ export class SoloAgent {
     this.providers = init.providers;
     this.connectors = init.connectors;
     this.approvals = init.approvals;
+    this.mcp = init.mcp;
+    this.memories = new MemoryStore(init.db);
     this.#skills = init.skills;
     this.#approvalExtensions = init.approvalExtensions;
     this.#adminToken = init.adminToken;
@@ -303,6 +310,13 @@ export class SoloAgent {
     const registry = createRegistry();
     for (const extension of skills.all) registry.install(extension);
     for (const extension of Object.values(approvalExtensions)) registry.install(extension);
+    const mcp = new McpManager(db, sealer, registry, {
+      changed: (server, deleted) => emit(deleted ? { type: "mcp.deleted", serverId: server.id } : { type: "mcp.updated", server }),
+      log: (message, error) => {
+        log(message);
+        if (error) solo?.activity({ type: "error", text: message });
+      },
+    }, { version: VERSION });
 
     const storage = await openNodeSqliteStorage(join(dataDir, "durable.sqlite"));
     const harness = await Harness.open(
@@ -323,7 +337,7 @@ export class SoloAgent {
       ctx,
     );
 
-    solo = new SoloAgent({ db, harness, agents, providers, connectors, approvals, skills, approvalExtensions, adminToken, adminTokenSource, dataDir, log, nextAutomationRun: options.nextAutomationRun });
+    solo = new SoloAgent({ db, harness, agents, providers, connectors, approvals, mcp, skills, approvalExtensions, adminToken, adminTokenSource, dataDir, log, nextAutomationRun: options.nextAutomationRun });
     if (options.allowPrivateFileUrls !== undefined) solo.#allowPrivateFileUrls = options.allowPrivateFileUrls;
     solo.#secret = { source: options.secret || process.env.SOLOAGENT_SECRET ? "env" : "file", fingerprint: secretFingerprint(secret), value: secret };
     harness.resume();
@@ -331,6 +345,7 @@ export class SoloAgent {
     if (agents.list().length === 0) solo.seed();
     await solo.autoAssignModels();
     if (options.connectors !== false) void connectors.startAll();
+    void mcp.startAll();
     return solo;
   }
 
@@ -357,6 +372,7 @@ export class SoloAgent {
 
   async close() {
     await this.connectors.stopAll();
+    await this.mcp.stopAll();
     for (const watcher of this.#watchers.values()) await watcher.stop();
     await this.#taskWatch?.stop();
     await this.harness.close(ctx);
@@ -446,6 +462,7 @@ export class SoloAgent {
       extensions: [
         this.#skills.Base,
         ...skills.map((s) => this.#skills.extensions[s]),
+        ...this.mcp.extensionsFor(agent.mcpServers ?? []),
         // Approvals: a beforeTool gate; agents with approvals off run exactly as before.
         ...(agent.approvals === "risky" || agent.approvals === "all" ? [this.#approvalExtensions[agent.approvals]] : []),
       ],

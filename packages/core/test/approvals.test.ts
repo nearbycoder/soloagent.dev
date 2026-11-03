@@ -41,6 +41,10 @@ const pending = (solo: SoloAgent) => () => solo.listApprovals({ status: "pending
 test("policy helpers", () => {
   assert.equal(needsApproval("off", "bash"), false);
   assert.equal(needsApproval("risky", "bash"), true);
+  assert.equal(needsApproval("risky", "mcp__github__create_issue", ["mcp__github__*"]), true);
+  assert.equal(needsApproval("risky", "mcp__linear__list", ["mcp__github__*"]), false);
+  assert.equal(needsApproval("all", "mcp__linear__list"), true);
+  assert.equal(needsApproval("all", "tool_search"), false);
   assert.equal(needsApproval("risky", "read"), false);
   assert.equal(needsApproval("risky", "web_fetch"), false);
   assert.equal(needsApproval("risky", "forget", ["forget"]), true);

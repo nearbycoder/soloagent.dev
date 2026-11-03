@@ -45,6 +45,8 @@ soloagent is an open-source, self-hosted home for your AI agents. Give each agen
 - **Ready for teams.** Per-connector access lists (people, channels, agents), daily spend and message budgets per agent, per-person rate limits, and dashboard users with admin and member roles, invited by one-time link.
 - **Files and images.** Share screenshots, photos, logs, CSVs, and code from any chat app, the dashboard (paste, drop, or 📎), or `soloagent ask --file`. Images go to the model resized; text files are inlined; files are stored on your disk, content-addressed.
 - **Recurring automations.** "Every weekday at 9:00, post a standup summary in #eng." Cron or simple presets, any time zone (DST-aware), into an existing thread or a chat channel. Each one is a durable task; a run that came due while the server was down fires once on startup. Manage them on the **Automations** page, with `soloagent automations`, or by asking an agent.
+- **Tools from MCP servers.** Connect any [Model Context Protocol](https://modelcontextprotocol.io) server — GitHub, Linear, Postgres, Sentry — over stdio or HTTP, and pick which agents get its tools. Large tool sets load on demand through `tool_search`.
+- **Editable memory.** See, search, edit, and clear what each agent remembers from its Memory tab.
 - **Steer mid-run.** Messages sent while an agent works join the running work at its next step instead of waiting for it to finish.
 - **A real GUI and a real TUI.** A fast dashboard (chat with streaming, thinking, and tool cards; agent editor; subscription logins; connector setup with guides; live task graph; usage and cost) and a full-screen terminal UI built on `pi-tui`.
 - **Try it with zero accounts.** A built-in demo model answers until you connect a provider.
@@ -166,6 +168,18 @@ In any chat: `@coder fix the build` or `coder: fix the build` picks an agent; ot
 - **Users and roles.** Invite people from **Team** with a one-time link (7 days). Members chat, view agents, and see usage; admins also manage providers, connectors, agents, and the team. The admin token stays the superuser for the CLI and API, and can be rotated from Settings unless it comes from `SOLOAGENT_TOKEN`.
 
 Details: [soloagent.dev/docs#teams](https://soloagent.dev/docs/#teams).
+
+## Tools (MCP)
+
+Open **Tools** in the dashboard and add a server: a command to run over stdio (with env vars for tokens) or a remote Streamable HTTP URL (with headers). Then turn it on for an agent under **Tools from MCP servers**. Its tools appear as `mcp__<server>__<tool>`.
+
+```bash
+curl -X POST http://localhost:7420/api/mcp-servers -H "authorization: Bearer $SOLOAGENT_TOKEN" \
+  -H 'content-type: application/json' -d '{"id": "github", "transport": "http",
+  "url": "https://api.githubcopilot.com/mcp/", "headers": {"Authorization": "Bearer github_pat_…"}}'
+```
+
+Env values and headers are sealed at rest and masked in the API. soloagent reconnects dropped servers with backoff, and a broken server only shows an error. stdio servers run as the soloagent user with a minimal environment, so only add ones you trust. Details and examples: [soloagent.dev/docs/#mcp](https://soloagent.dev/docs/#mcp).
 
 ## Terminal UI
 

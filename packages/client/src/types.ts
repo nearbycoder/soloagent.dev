@@ -45,6 +45,8 @@ export type Agent = {
   model: ModelRef | null;
   thinkingLevel: ThinkingLevel;
   skills: AgentSkill[];
+  /** MCP workstream: ids of the MCP servers whose tools this agent gets. */
+  mcpServers: string[];
   /** Upper bound on tool rounds per run. */
   maxTurns: number;
   /** Default agent answers anything not addressed to a specific agent. */
@@ -302,7 +304,7 @@ export type Schedule = {
 
 /**
  * Which of an agent's tool calls wait for a human: none, the risky ones (`bash`, `write`, `edit`, plus the
- * names in `ApprovalSettings.riskyTools`), or all but read-only ones (`read`, `recall`, `web_search`).
+ * names in `ApprovalSettings.riskyTools`), or all but read-only ones (`read`, `recall`, `web_search`, `tool_search`).
  */
 export type ApprovalPolicy = "off" | "risky" | "all";
 
@@ -340,7 +342,7 @@ export type Approval = {
 export type ApprovalSettings = {
   /** How long a request waits before it is auto-denied. Default 24 hours. */
   timeoutMs: number;
-  /** Extra tool names the "risky" policy asks about, e.g. "forget" or an MCP tool. */
+  /** Extra tool names the "risky" policy asks about, e.g. "forget". A trailing `*` matches a prefix: "mcp__github__*". */
   riskyTools: string[];
 };
 // ───────────────────────────── Teams ─────────────────────────────
@@ -457,6 +459,72 @@ export type BackupManifest = {
   databases: string[];
 };
 
+// ───────────── MCP servers and the memory editor (workstream: mcp) ─────────────
+
+export type McpTransportKind = "stdio" | "http";
+
+export type McpServerStatus = "stopped" | "connecting" | "connected" | "error";
+
+export type McpToolInfo = {
+  /** The tool's name on the MCP server. */
+  name: string;
+  /** The name agents call it by: `mcp__<server>__<tool>`. */
+  toolName: string;
+  title?: string;
+  description: string;
+};
+
+/** A Model Context Protocol server whose tools agents can use. */
+export type McpServer = {
+  /** Slug, e.g. "github". Tools are named `mcp__<id>__<tool>`. */
+  id: string;
+  name: string;
+  transport: McpTransportKind;
+  /** stdio: the program to run and its arguments. */
+  command: string;
+  args: string[];
+  /** stdio: environment variables. Values are always returned masked ("••••••••"). */
+  env: Record<string, string>;
+  /** http: the Streamable HTTP endpoint. */
+  url: string;
+  /** http: request headers. Values are always returned masked ("••••••••"). */
+  headers: Record<string, string>;
+  enabled: boolean;
+  status: McpServerStatus;
+  statusDetail?: string;
+  /** Tools from the last successful listing. */
+  tools: McpToolInfo[];
+  /** Large tool sets are loaded on demand through `tool_search` instead of being offered upfront. */
+  deferred: boolean;
+  /** The server's own name and version, once connected. */
+  serverInfo?: string;
+  connectedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+};
+
+/** Create or update an MCP server. On update, a masked value ("••••••••") keeps the saved one. */
+export type McpServerInput = {
+  id?: string;
+  name?: string;
+  transport?: McpTransportKind;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+  enabled?: boolean;
+};
+
+export type McpTestResult = { ok: boolean; error?: string; tools: McpToolInfo[]; server: McpServer };
+
+export type McpServerEvent = { type: "mcp.updated"; server: McpServer } | { type: "mcp.deleted"; serverId: string };
+
+/** One long-term memory of an agent. */
+export type Memory = { id: number; agentId: string; text: string; createdAt: number };
+
+// ───────────── end workstream: mcp ─────────────
+
 /** Server → client WebSocket events. */
 export type ServerEvent =
   | { type: "hello"; version: string }
@@ -469,6 +537,7 @@ export type ServerEvent =
   | { type: "agent.deleted"; agentId: string }
   | { type: "connector.updated"; connector: Connector }
   | { type: "connector.deleted"; connectorId: string }
+  | McpServerEvent
   | { type: "providers.changed" }
   | { type: "login.updated"; flow: LoginFlowState }
   | { type: "activity"; item: ActivityItem }

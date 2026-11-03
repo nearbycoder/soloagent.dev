@@ -296,6 +296,8 @@ test("members can chat and read, but only admins manage; the admin token stays t
     assert.equal((await call("GET", "/agents", { cookie })).status, 200);
     assert.equal((await call("GET", "/usage", { cookie })).status, 200);
     assert.equal((await call("GET", "/spend/today", { cookie })).status, 200);
+    assert.equal((await call("GET", "/mcp-servers", { cookie })).status, 200);
+    assert.equal((await call("GET", `/agents/${soloAgentId}/memories`, { cookie })).status, 200);
     const thread = await call("POST", "/threads", { cookie, body: {} });
     assert.equal(thread.status, 201);
     answer("hi mia");
@@ -315,6 +317,9 @@ test("members can chat and read, but only admins manage; the admin token stays t
       ["GET", "/users", undefined],
       ["POST", "/invites", { role: "admin" }],
       ["POST", "/admin-token/rotate", undefined],
+      ["POST", "/mcp-servers", { id: "gh", transport: "http", url: "https://example.com/mcp" }],
+      ["POST", `/agents/${soloAgentId}/memories`, { text: "x" }],
+      ["DELETE", `/agents/${soloAgentId}/memories?confirm=all`, undefined],
     ] as const) {
       const response = await call(method, path, { cookie, body });
       assert.equal(response.status, 403, `${method} ${path}`);

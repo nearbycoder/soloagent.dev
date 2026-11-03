@@ -17,6 +17,8 @@ const BROADCAST = new Set<ServerEvent["type"]>([
   "agent.deleted",
   "connector.updated",
   "connector.deleted",
+  "mcp.updated",
+  "mcp.deleted",
   "providers.changed",
   "login.updated",
   "activity",

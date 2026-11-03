@@ -18,6 +18,7 @@ import {
   SquarePen,
   Sun,
   Users,
+  Wrench,
   X,
 } from "lucide-react";
 import { useApp, useIsAdmin, type ConnectionStatus } from "../api/store.ts";
@@ -34,6 +35,7 @@ import { Chat } from "../pages/chat/Chat.tsx";
 const Agents = lazy(() => import("../pages/Agents.tsx").then((m) => ({ default: m.Agents })));
 const Providers = lazy(() => import("../pages/Providers.tsx").then((m) => ({ default: m.Providers })));
 const Connections = lazy(() => import("../pages/Connections.tsx").then((m) => ({ default: m.Connections })));
+const Tools = lazy(() => import("../pages/Tools.tsx").then((m) => ({ default: m.Tools })));
 const ActivityPage = lazy(() => import("../pages/Activity.tsx").then((m) => ({ default: m.ActivityPage })));
 const ApprovalsPage = lazy(() => import("../pages/Approvals.tsx").then((m) => ({ default: m.ApprovalsPage })));
 const Automations = lazy(() => import("../pages/Automations.tsx").then((m) => ({ default: m.Automations })));
@@ -48,6 +50,7 @@ export const NAV: { page: Route["page"]; path: string; label: string; icon: Reac
   { page: "agents", path: "/agents", label: "Agents", icon: <Bot /> },
   { page: "providers", path: "/providers", label: "Providers", icon: <KeyRound />, adminOnly: true },
   { page: "connections", path: "/connections", label: "Connections", icon: <Plug />, adminOnly: true },
+  { page: "tools", path: "/tools", label: "Tools", icon: <Wrench />, adminOnly: true },
   { page: "activity", path: "/activity", label: "Activity", icon: <Activity /> },
   { page: "approvals", path: "/approvals", label: "Approvals", icon: <ShieldCheck /> },
   { page: "automations", path: "/automations", label: "Automations", icon: <Repeat /> },
@@ -185,6 +188,8 @@ function PageFor({ route, onSignOut }: { route: Route; onSignOut: () => void }) 
       return <Providers />;
     case "connections":
       return <Connections editId={route.connectorId} />;
+    case "tools":
+      return <Tools editId={route.serverId} />;
     case "activity":
       return <ActivityPage />;
     case "approvals":
