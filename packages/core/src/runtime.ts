@@ -37,6 +37,7 @@ import type {
   UsageSummary,
 } from "@soloagent/client";
 import { AgentStore } from "./agents.ts";
+import { createBackup, secretFingerprint, type SecretInfo } from "./backup.ts";
 import { ConnectorManager } from "./connectors/manager.ts";
 import { chunk } from "./connectors/format.ts";
 import type { InboundMessage, PostHandle, ReplyTarget } from "./connectors/types.ts";
@@ -117,6 +118,7 @@ export class SoloAgent {
   #taskWatch: WatchHandle<import("@earendil-works/pi-durable").TaskGraph> | undefined;
   #taskSubscribers = 0;
   #tasks: TaskNode[] = [];
+  #secret: SecretInfo & { value: string } = { source: "file", fingerprint: "", value: "" };
 
   private constructor(init: {
     db: Db;
@@ -247,6 +249,7 @@ export class SoloAgent {
     );
 
     solo = new SoloAgent({ db, harness, agents, providers, connectors, skills, adminToken, dataDir, log });
+    solo.#secret = { source: options.secret || process.env.SOLOAGENT_SECRET ? "env" : "file", fingerprint: secretFingerprint(secret), value: secret };
     harness.resume();
     if (agents.list().length === 0) solo.seed();
     await solo.autoAssignModels();
@@ -264,6 +267,16 @@ export class SoloAgent {
     await this.#taskWatch?.stop();
     await this.harness.close(ctx);
     this.db.close();
+  }
+
+  /** Which secret seals credentials: SOLOAGENT_SECRET (or one passed in code) or the generated `.secret` file. */
+  get secretInfo(): SecretInfo {
+    return { source: this.#secret.source, fingerprint: this.#secret.fingerprint };
+  }
+
+  /** A consistent `.tar.gz` of the whole data dir, safe to take while running. See backup.ts. */
+  backup(options: { includeSecret?: boolean } = {}) {
+    return createBackup(this.dataDir, { version: VERSION, secret: this.#secret, includeSecret: options.includeSecret, log: this.#log });
   }
 
   // ───────────────────────────── agents ─────────────────────────────

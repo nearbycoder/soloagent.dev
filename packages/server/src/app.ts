@@ -1,16 +1,19 @@
 import { timingSafeEqual } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { Readable } from "node:stream";
 import { Hono, type Context as HonoContext } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { CONNECTOR_KINDS, HttpError, VERSION, type SoloAgent } from "@soloagent/core";
+import { backupFileName, CONNECTOR_KINDS, exportAgents, HttpError, importAgents, UpdateChecker, VERSION, type SoloAgent } from "@soloagent/core";
 import type { AgentInput, ConnectorInput, Source } from "@soloagent/client";
 
 export type AppOptions = {
   solo: SoloAgent;
   /** Built web GUI (packages/web/dist). Served at / when present. */
   webDir?: string;
+  /** Upgrade notices. Default: a checker that only reports the cached result (no network). */
+  updates?: UpdateChecker;
 };
 
 const COOKIE = "solo_session";
@@ -29,8 +32,9 @@ export function requestToken(c: HonoContext): string | undefined {
   return getCookie(c, COOKIE) ?? undefined;
 }
 
-export function createApp({ solo, webDir }: AppOptions) {
+export function createApp({ solo, webDir, updates: updateChecker }: AppOptions) {
   const app = new Hono();
+  const updates = updateChecker ?? new UpdateChecker({ current: VERSION, settings: solo.db, enabled: false });
 
   app.onError((error, c) => {
     const status = error instanceof HttpError ? error.status : /not found/i.test(error.message) ? 404 : 400;
@@ -56,6 +60,9 @@ export function createApp({ solo, webDir }: AppOptions) {
     return c.json({ ok: true });
   });
 
+  // Public: the running version and whether a newer release exists.
+  api.get("/version", (c) => c.json(updates.info()));
+
   api.post("/hooks/:id", async (c) => {
     const body = await c.req.json<{ text?: string; thread?: string; user?: string; callback_url?: string }>().catch(() => ({}));
     const result = await solo.receiveWebhook(c.req.param("id"), c.req.header("x-solo-secret") ?? c.req.query("secret"), body);
@@ -74,7 +81,38 @@ export function createApp({ solo, webDir }: AppOptions) {
   api.get("/me", (c) => c.json({ ok: true, version: VERSION }));
 
   // Overview
-  api.get("/overview", async (c) => c.json(await solo.overview()));
+  api.get("/overview", async (c) => c.json({ ...(await solo.overview()), update: updates.info() }));
+
+  // Backups and agent export/import (admin-only once roles land)
+  api.get("/backup", (c) => {
+    const includeSecret = /^(1|true|yes)$/i.test(c.req.query("includeSecret") ?? "");
+    const archive = solo.backup({ includeSecret });
+    // A client that disconnects mid-download cancels the backup and its temp files.
+    c.req.raw.signal.addEventListener("abort", () => archive.destroy(), { once: true });
+    return new Response(Readable.toWeb(archive) as ReadableStream, {
+      headers: {
+        "content-type": "application/gzip",
+        "content-disposition": `attachment; filename="${backupFileName()}"`,
+        "cache-control": "no-store",
+      },
+    });
+  });
+  api.get("/agents/export", (c) => {
+    c.header("content-disposition", `attachment; filename="soloagent-agents-${new Date().toISOString().slice(0, 10)}.json"`);
+    return c.json(exportAgents(solo, VERSION));
+  });
+  api.post("/agents/import", async (c) => {
+    const body = await c.req.json<{ agents?: unknown; mode?: unknown }>().catch(() => {
+      throw new HttpError(400, "Expected a JSON body with an agents array");
+    });
+    const dryRun = /^(1|true|yes)$/i.test(c.req.query("dryRun") ?? "");
+    const result = importAgents(solo, body, { dryRun });
+    if (!dryRun) {
+      const changed = result.items.filter((i) => i.action === "create" || i.action === "update").length;
+      if (changed) solo.activity({ type: "agent", text: `Imported ${changed === 1 ? "1 agent" : `${changed} agents`}` });
+    }
+    return c.json(result);
+  });
   api.get("/usage", async (c) => c.json(await solo.usage()));
 
   // Agents

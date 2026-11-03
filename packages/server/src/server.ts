@@ -1,10 +1,10 @@
 import type { IncomingMessage, Server } from "node:http";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { serve } from "@hono/node-server";
 import { WebSocketServer, type WebSocket } from "ws";
-import { SoloAgent, VERSION, type SoloAgentOptions } from "@soloagent/core";
+import { parseDuration, scheduleBackups, SERVER_LOCK, SoloAgent, UpdateChecker, updateCheckEnabled, VERSION, type SoloAgentOptions } from "@soloagent/core";
 import type { ClientEvent, ServerEvent } from "@soloagent/client";
 import { createApp, tokenMatches } from "./app.ts";
 
@@ -33,6 +33,8 @@ export type StartOptions = SoloAgentOptions & {
   /** Directory of the built web GUI. Default: packages/web/dist next to this package. */
   webDir?: string;
   quiet?: boolean;
+  /** Check GitHub for new releases. Default: SOLOAGENT_UPDATE_CHECK !== "0" (and never under node --test). */
+  updateCheck?: boolean;
 };
 
 export type RunningServer = { solo: SoloAgent; url: string; port: number; close: () => Promise<void> };
@@ -45,7 +47,14 @@ export const DEFAULT_WEB_DIR =
 
 export async function startServer(options: StartOptions): Promise<RunningServer> {
   const solo = await SoloAgent.open(options);
-  const app = createApp({ solo, webDir: options.webDir ?? DEFAULT_WEB_DIR });
+  const log = options.log ?? ((message: string) => console.log(`[solo] ${message}`));
+  const updates = new UpdateChecker({
+    current: VERSION,
+    settings: solo.db,
+    enabled: options.updateCheck ?? (updateCheckEnabled() && !process.env.NODE_TEST_CONTEXT),
+    log,
+  });
+  const app = createApp({ solo, webDir: options.webDir ?? DEFAULT_WEB_DIR, updates });
   const port = options.port ?? 7420;
   const host = options.host ?? "0.0.0.0";
 
@@ -69,16 +78,45 @@ export async function startServer(options: StartOptions): Promise<RunningServer>
   });
 
   const url = `http://${host === "0.0.0.0" ? "localhost" : host}:${actualPort}`;
+
+  // Background work that never blocks startup: release checks and scheduled backups.
+  const stopUpdates = updates.start();
+  const stopBackups = startScheduledBackups(solo, log);
+  // Lets `soloagent restore` refuse to run underneath this server.
+  const lock = join(solo.dataDir, SERVER_LOCK);
+  try {
+    writeFileSync(lock, `${JSON.stringify({ pid: process.pid, port: actualPort, url, startedAt: Date.now() })}\n`);
+  } catch {
+    // read-only data dirs still run
+  }
+
   return {
     solo,
     url,
     port: actualPort,
     close: async () => {
+      stopUpdates();
+      stopBackups();
+      rmSync(lock, { force: true });
       for (const client of wss.clients) client.close();
       await new Promise<void>((r) => server.close(() => r()));
       await solo.close();
     },
   };
+}
+
+/** SOLOAGENT_BACKUP_INTERVAL ("24h", "6h"…) and SOLOAGENT_BACKUP_KEEP (default 7). */
+function startScheduledBackups(solo: SoloAgent, log: (message: string) => void): () => void {
+  const raw = process.env.SOLOAGENT_BACKUP_INTERVAL;
+  if (!raw || raw === "0") return () => {};
+  const intervalMs = parseDuration(raw);
+  if (!intervalMs || intervalMs < 60_000) {
+    log(`SOLOAGENT_BACKUP_INTERVAL="${raw}" is not a duration like 24h or 6h (minimum 1m); scheduled backups are off`);
+    return () => {};
+  }
+  const keep = Math.max(1, Math.floor(Number(process.env.SOLOAGENT_BACKUP_KEEP ?? 7)) || 7);
+  log(`scheduled backups every ${raw}, keeping ${keep}, in ${join(solo.dataDir, "backups")}`);
+  return scheduleBackups(solo.dataDir, { version: VERSION, secret: solo.secretInfo, intervalMs, keep, log });
 }
 
 function attach(solo: SoloAgent, ws: WebSocket) {

@@ -3,6 +3,7 @@ import { Bot, Brain, MessageSquare, Pencil, Plus, ShieldAlert, Star, Trash } fro
 import { AGENT_SKILLS, type Agent, type AgentInput, type AgentSkill, type ThinkingLevel } from "@soloagent/client";
 import { client } from "../api/client.ts";
 import { loadProviders, local, useApp } from "../api/store.ts";
+import { AgentTransfer } from "../components/AgentTransfer.tsx";
 import { AgentAvatar, ProviderMark } from "../components/brand.tsx";
 import { findModel, ModelPicker } from "../components/ModelPicker.tsx";
 import { Drawer } from "../components/overlay.tsx";
@@ -35,9 +36,12 @@ export function Agents({ editId }: { editId?: string }) {
         title="Agents"
         description="Each agent has its own instructions, model, and skills. Mention them by @handle anywhere they're connected."
         actions={
-          <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => navigate("/agents/new")}>
-            New agent
-          </Button>
+          <>
+            <AgentTransfer />
+            <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => navigate("/agents/new")}>
+              New agent
+            </Button>
+          </>
         }
       />
 
