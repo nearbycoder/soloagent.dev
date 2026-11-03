@@ -16,8 +16,12 @@ export class ProviderHub {
   #onFlow: (flow: LoginFlowState) => void;
   #credentials: SealedCredentialStore;
 
-  constructor(credentials: SealedCredentialStore, onFlow: (flow: LoginFlowState) => void) {
+  #deviceId: string;
+
+  /** `deviceId` identifies this installation to providers that ask for one (Sign in with ChatGPT). */
+  constructor(credentials: SealedCredentialStore, onFlow: (flow: LoginFlowState) => void, deviceId: string) {
     this.#credentials = credentials;
+    this.#deviceId = deviceId;
     this.models = builtinModels({ credentials });
     this.#onFlow = onFlow;
   }
@@ -88,7 +92,7 @@ export class ProviderHub {
     for (const flow of this.#flows.values()) if (flow.state.providerId === providerId && flow.active) flow.cancel();
     const flow = new LoginFlow(providerId, type, (state) => this.#onFlow(state));
     this.#flows.set(flow.state.id, flow);
-    flow.run(this.models);
+    flow.run(this.models, this.#deviceId);
     return flow.snapshot();
   }
 
@@ -135,7 +139,7 @@ class LoginFlow {
     this.#emit(this.snapshot());
   }
 
-  run(models: MutableModels) {
+  run(models: MutableModels, deviceId: string) {
     models
       .login(this.state.providerId, this.state.type, {
         signal: this.#abort.signal,
@@ -163,7 +167,7 @@ class LoginFlow {
               break;
           }
         },
-      })
+      }, { getDeviceId: () => deviceId, agentName: "soloagent" })
       .then(
         () => this.#update({ status: "done", prompt: undefined, log: [...this.state.log, { at: Date.now(), message: "Signed in." }] }),
         (error: unknown) => {

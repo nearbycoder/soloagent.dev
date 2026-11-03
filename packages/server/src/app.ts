@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { Hono, type Context as HonoContext } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
@@ -25,7 +25,8 @@ export function tokenMatches(expected: string, given: string | undefined): boole
 export function requestToken(c: HonoContext): string | undefined {
   const header = c.req.header("authorization");
   if (header?.startsWith("Bearer ")) return header.slice(7).trim();
-  return getCookie(c, COOKIE) ?? c.req.query("token") ?? undefined;
+  // Query-string tokens are accepted only on the WebSocket upgrade (see server.ts), never on REST.
+  return getCookie(c, COOKIE) ?? undefined;
 }
 
 export function createApp({ solo, webDir }: AppOptions) {
@@ -182,10 +183,17 @@ export function createApp({ solo, webDir }: AppOptions) {
 
   // Web GUI
   if (webDir && existsSync(join(webDir, "index.html"))) {
-    const index = readFileSync(join(webDir, "index.html"), "utf8");
+    // Re-read on change so a rebuilt GUI never points at stale asset names.
+    let index = { mtime: 0, html: "" };
+    const indexHtml = () => {
+      const path = join(webDir, "index.html");
+      const mtime = statSync(path).mtimeMs;
+      if (mtime !== index.mtime) index = { mtime, html: readFileSync(path, "utf8") };
+      return index.html;
+    };
     app.use("/assets/*", serveStatic({ root: webDir, onFound: (_path, c) => void c.header("cache-control", "public, max-age=31536000, immutable") }));
     app.use("*", serveStatic({ root: webDir }));
-    app.get("*", (c) => c.html(index));
+    app.get("*", (c) => c.html(indexHtml()));
   } else {
     app.get("/", (c) =>
       c.html(

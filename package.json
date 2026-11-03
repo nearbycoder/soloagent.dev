@@ -22,10 +22,12 @@
     "start": "node packages/server/src/main.ts",
     "tui": "node packages/cli/src/main.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && npm run typecheck -w @soloagent/web",
-    "test": "node --test 'packages/*/test/**/*.test.ts'"
+    "test": "node --test 'packages/*/test/**/*.test.ts'",
+    "build:npm": "npm run build -w @soloagent/web && node scripts/build-npm.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
     "typescript": "^7.0.2"
   }
 }

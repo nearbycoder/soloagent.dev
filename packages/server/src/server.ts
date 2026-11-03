@@ -1,6 +1,7 @@
 import type { IncomingMessage, Server } from "node:http";
 import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { existsSync } from "node:fs";
 import { serve } from "@hono/node-server";
 import { WebSocketServer, type WebSocket } from "ws";
 import { SoloAgent, VERSION, type SoloAgentOptions } from "@soloagent/core";
@@ -30,7 +31,11 @@ export type StartOptions = SoloAgentOptions & {
 
 export type RunningServer = { solo: SoloAgent; url: string; port: number; close: () => Promise<void> };
 
-export const DEFAULT_WEB_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../web/dist");
+const here = dirname(fileURLToPath(import.meta.url));
+/** The built web GUI: SOLOAGENT_WEB_DIR, the monorepo's packages/web/dist, or `web/` beside the published bundle. */
+export const DEFAULT_WEB_DIR =
+  [process.env.SOLOAGENT_WEB_DIR, resolve(here, "../../web/dist"), resolve(here, "web")].find((dir): dir is string => !!dir && existsSync(join(dir, "index.html"))) ??
+  resolve(here, "../../web/dist");
 
 export async function startServer(options: StartOptions): Promise<RunningServer> {
   const solo = await SoloAgent.open(options);

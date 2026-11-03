@@ -92,3 +92,36 @@ test("webhook connector routes @handles and answers synchronously", async () => 
     await cleanup();
   }
 });
+
+test("a scheduled reminder survives a restart and fires afterwards", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "solo-test-"));
+  const openAt = async () => {
+    const faux = fauxProvider({ provider: "faux", models: [{ id: "faux-1", reasoning: false }] });
+    const solo = await SoloAgent.open({ dataDir: dir, secret: "test", adminToken: "t", connectors: false, demo: false, providers: [faux.provider], log: () => {} });
+    return { solo, faux };
+  };
+  try {
+    const first = await openAt();
+    const agent = first.solo.agents.list()[0]!;
+    first.solo.agents.update(agent.id, { model: { provider: "faux", modelId: "faux-1" } });
+    const at = new Date(Date.now() + 6_500).toISOString();
+    first.faux.setResponses([
+      fauxAssistantMessage([fauxToolCall("schedule_reminder", { message: "stretch", at })], { stopReason: "toolUse" }),
+      fauxAssistantMessage([fauxText("Reminder set.")]),
+    ]);
+    const thread = await first.solo.createThread({ source: "web" });
+    await (await first.solo.send(thread.id, { text: "remind me to stretch", author: { name: "ann", source: "web" } })).wait();
+    assert.equal(first.solo.schedules()[0]?.status, "sleeping");
+    await first.solo.close(); // the process "dies" while the reminder sleeps
+
+    const second = await openAt();
+    second.faux.setResponses([fauxAssistantMessage([fauxText("⏰ Time to stretch, ann!")])]);
+    const deadline = Date.now() + 15_000;
+    while (second.solo.thread(thread.id)?.preview !== "⏰ Time to stretch, ann!" && Date.now() < deadline) await new Promise((r) => setTimeout(r, 200));
+    assert.equal(second.solo.thread(thread.id)?.preview, "⏰ Time to stretch, ann!");
+    assert.equal(second.solo.schedules()[0]?.status, "done");
+    await second.solo.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

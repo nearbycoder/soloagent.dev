@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>soloagent — All your agents. One control plane.</title>
+  <meta name="description" content="soloagent is an open-source control plane for AI agents. Run durable agents on your Claude, ChatGPT, Copilot or any API key, and talk to them from Slack, Discord, Telegram, webhooks, the web, or your terminal.">
+  <link rel="canonical" href="https://soloagent.dev/">
+  <meta name="theme-color" content="#07070b" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#fbfbfd" media="(prefers-color-scheme: light)">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="soloagent">
+  <meta property="og:url" content="https://soloagent.dev/">
+  <meta property="og:title" content="soloagent — All your agents. One control plane.">
+  <meta property="og:description" content="Open-source, self-hosted control plane for durable AI agents. Bring any subscription or key. Answer in Slack, Discord, Telegram, webhooks, web, and terminal.">
+  <meta property="og:image" content="https://soloagent.dev/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="soloagent — All your agents. One control plane.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="soloagent — All your agents. One control plane.">
+  <meta name="twitter:description" content="Open-source, self-hosted control plane for durable AI agents. Bring any subscription or key.">
+  <meta name="twitter:image" content="https://soloagent.dev/og.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css">
+  <link rel="stylesheet" href="/css/home.css">
+  <script>document.documentElement.classList.replace("no-js", "js");</script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "soloagent",
+    "url": "https://soloagent.dev/",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Linux, macOS, Windows (Node 22+ or Docker)",
+    "license": "https://opensource.org/licenses/MIT",
+    "description": "An open-source control plane for durable AI agents. Bring any subscription or API key; talk to your agents from Slack, Discord, Telegram, webhooks, the web, or the terminal.",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "codeRepository": "https://github.com/nearbycoder/soloagent.dev"
+  }
+  </script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="noise" aria-hidden="true"></div>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="soloagent home">
+      <img class="brand-mark" src="/icon.svg" alt="" width="28" height="28">
+      <span>soloagent</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a class="opt" href="#durable">Features</a>
+      <a class="opt" href="#how">How it works</a>
+      <a class="opt" href="#quickstart">Quickstart</a>
+      <a href="/docs/">Docs</a>
+    </nav>
+    <div class="nav-right">
+      <a class="btn btn-sm" href="https://github.com/nearbycoder/soloagent.dev" rel="noopener">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>
+        <span>GitHub</span>
+      </a>
+      <a class="btn btn-sm btn-primary btn-deploy-sm" href="/deploy">Deploy</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="glow" style="width:620px;height:420px;left:50%;top:-180px;transform:translateX(-70%);background:#7c3aed" aria-hidden="true"></div>
+  <div class="glow" style="width:420px;height:320px;left:50%;top:-80px;transform:translateX(20%);background:#0891b2;opacity:.35" aria-hidden="true"></div>
+
+  <div class="wrap hero-inner">
+    <a class="pill" href="https://github.com/nearbycoder/soloagent.dev" rel="noopener">
+      <span class="pill-tag">MIT</span>
+      <span>Open source · built on Pi Durable</span>
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg>
+    </a>
+    <h1 class="h-display">All your agents.<br><span class="grad">One control plane.</span></h1>
+    <p class="lede hero-lede">
+      Run durable AI agents on the subscriptions you already pay for, and talk to them from Slack, Discord, Telegram, webhooks, the web, or your terminal. Every step is saved before it's shown, so runs survive crashes, restarts, and deploys.
+    </p>
+    <div class="hero-ctas">
+      <a class="btn btn-primary" href="/deploy">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3m0 0 4.5 4.5M12 3 7.5 7.5"/><path d="M4 14v4a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-4"/></svg>
+        Deploy on Railway
+      </a>
+      <button class="btn btn-code" type="button" data-copy="npx soloagent" aria-label="Copy command: npx soloagent">
+        <span><span class="prompt">$</span> npx soloagent</span>
+        <span class="copy-ico" aria-hidden="true">
+          <svg class="i-copy" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>
+        </span>
+      </button>
+      <a class="btn" href="https://github.com/nearbycoder/soloagent.dev" rel="noopener">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>
+        Star on GitHub
+      </a>
+    </div>
+    <p class="hero-note">Self-host on Railway, Docker, or Node 22+ · Try it with the built-in demo model, no account needed</p>
+  </div>
+
+  <!-- Animated product demo -->
+  <div class="wrap demo-wrap">
+    <div class="demo" id="demo" role="img" aria-label="Animated demo: in a team chat, Maya asks @coder why the build is failing. The coder agent runs a git command, delegates a question to the @scout agent, streams its answer, then schedules a reminder. A side panel shows each step being committed to SQLite before it appears.">
+      <div class="demo-chrome" aria-hidden="true">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="demo-title"><b>#eng</b> · acme workspace</span>
+        <button class="demo-replay" type="button" id="demo-replay" tabindex="-1">↻ replay</button>
+      </div>
+      <div class="demo-body" aria-hidden="true">
+        <aside class="demo-side">
+          <div class="ds-ws">acme</div>
+          <div class="ds-label">Channels</div>
+          <div class="ds-item"># general</div>
+          <div class="ds-item active"># eng</div>
+          <div class="ds-item"># ops</div>
+          <div class="ds-label">Agents</div>
+          <div class="ds-item"><span class="ds-av" style="--c:#8b5cf6">⌘</span>coder</div>
+          <div class="ds-item"><span class="ds-av" style="--c:#06b6d4">◎</span>scout</div>
+          <div class="ds-item"><span class="ds-av" style="--c:#f59e0b">✎</span>scribe</div>
+        </aside>
+        <div class="demo-chat">
+          <div class="demo-head"><b># eng</b><span>Thread · 3 agents in this channel</span></div>
+          <div class="demo-msgs" id="demo-msgs"></div>
+          <div class="demo-input"><span>Message #eng</span><kbd>@</kbd></div>
+        </div>
+        <aside class="demo-log">
+          <div class="dl-head"><span class="dl-dot"></span>Durable log <span class="dl-db">sqlite</span></div>
+          <ol id="demo-log"></ol>
+          <div class="dl-foot">Committed before shown. Kill the process and it resumes here.</div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TRUST STRIP ============ -->
+<section class="strip">
+  <div class="wrap strip-inner">
+    <span class="strip-label">Answers in</span>
+    <span class="strip-items">
+      <span>Slack</span><span>Discord</span><span>Telegram</span><span>Webhooks</span><span>Web</span><span>Terminal</span>
+    </span>
+  </div>
+</section>
+
+<!-- ============ DURABLE ============ -->
+<section class="section" id="durable">
+  <div class="wrap split">
+    <div class="reveal">
+      <span class="eyebrow">Durable by default</span>
+      <h2 class="h-section">Crash it. Redeploy it.<br>It picks up where it stopped.</h2>
+      <p class="lede">Agents run on <b>Pi Durable</b>. Every model turn and every tool call is committed to SQLite <em>before</em> you see it. When the process dies, the run resumes from the last committed step instead of starting over or silently vanishing.</p>
+      <ul class="ticks">
+        <li><b>Commit before show.</b> What you see in chat is always something that's already on disk.</li>
+        <li><b>Resume, don't restart.</b> Completed steps aren't run again after a crash, restart, or deploy.</li>
+        <li><b>Sleep for days.</b> Scheduled reminders wait in storage and still fire after restarts.</li>
+        <li><b>Durable delegation.</b> When one agent asks another, the child conversation is durable too.</li>
+      </ul>
+    </div>
+
+    <div class="card durable-diagram reveal" aria-label="Diagram of a durable run">
+      <div class="dd-head">
+        <span class="mono">run · @coder</span>
+        <span class="dd-legend"><span class="tag v">commit</span><span class="dd-arrow">→</span><span class="tag c">show</span></span>
+      </div>
+      <ol class="dd-steps">
+        <li><span class="dd-n">1</span><span class="dd-l">Model turn <small>plans: check git log</small></span><span class="dd-s"><i class="ok v">✓</i><i class="ok c">✓</i></span></li>
+        <li><span class="dd-n">2</span><span class="dd-l">Tool call <code>bash</code> <small>git log --oneline -3</small></span><span class="dd-s"><i class="ok v">✓</i><i class="ok c">✓</i></span></li>
+        <li class="dd-crash"><span class="dd-n">⚡</span><span class="dd-l">Process killed <small>deploy, OOM, laptop lid</small></span></li>
+        <li class="dd-resume"><span class="dd-n">↻</span><span class="dd-l">Restart <small>replays the log, skips steps 1–2</small></span></li>
+        <li><span class="dd-n">3</span><span class="dd-l">Tool result <small>3 commits, newest bumps a dependency</small></span><span class="dd-s"><i class="ok v">✓</i><i class="ok c">✓</i></span></li>
+        <li><span class="dd-n">4</span><span class="dd-l">Model turn <small>streams the answer to the thread</small></span><span class="dd-s"><i class="ok v">✓</i><i class="ok c">✓</i></span></li>
+      </ol>
+      <div class="dd-foot"><span class="mono">solo.db</span> SQLite · one file in your data dir</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PROVIDERS ============ -->
+<section class="section" id="providers">
+  <div class="wrap">
+    <div class="center reveal">
+      <span class="eyebrow">Bring any subscription</span>
+      <h2 class="h-section">Use the plans you already pay for.</h2>
+      <p class="lede center-lede">Sign in with a subscription through OAuth, or paste an API key for any of 30+ providers. Each agent can run on a different one.</p>
+    </div>
+
+    <div class="providers card reveal">
+      <div class="prov-row">
+        <div class="prov-label"><span class="tag v">OAuth</span><span>Sign in with a subscription</span></div>
+        <div class="chips">
+          <span class="chip oauth chip-dot">Claude Pro / Max</span>
+          <span class="chip oauth chip-dot">ChatGPT</span>
+          <span class="chip oauth chip-dot">GitHub Copilot</span>
+          <span class="chip oauth chip-dot">SuperGrok / X Premium</span>
+          <span class="chip oauth chip-dot">OpenRouter</span>
+          <span class="chip more">and others</span>
+        </div>
+      </div>
+      <div class="prov-row">
+        <div class="prov-label"><span class="tag c">API key</span><span>30+ providers</span></div>
+        <div class="chips">
+          <span class="chip">Anthropic</span><span class="chip">OpenAI</span><span class="chip">Google Gemini</span><span class="chip">Mistral</span><span class="chip">Groq</span><span class="chip">DeepSeek</span><span class="chip">xAI</span><span class="chip">OpenRouter</span><span class="chip">Vercel AI Gateway</span><span class="chip">Amazon Bedrock</span><span class="chip">Azure</span><span class="chip">Together</span><span class="chip">Fireworks</span><span class="chip">Cerebras</span><span class="chip">Hugging Face</span><span class="chip more">+ more</span>
+        </div>
+      </div>
+      <div class="prov-facts">
+        <div><b>Per-agent models.</b> Your coder runs on Claude, your researcher on ChatGPT, your triage bot on something cheap.</div>
+        <div><b>Sealed at rest.</b> Tokens and keys are encrypted with AES-256-GCM using your own secret.</div>
+        <div><b>Demo model built in.</b> Try the whole thing before you connect an account.</div>
+      </div>
+    </div>
+    <p class="fineprint reveal">Product names are trademarks of their respective owners and are listed for identification only. Subscription sign-in is subject to each provider's terms.</p>
+  </div>
+</section>
+
+<!-- ============ CHANNELS ============ -->
+<section class="section" id="channels">
+  <div class="wrap">
+    <div class="center reveal">
+      <span class="eyebrow">Everywhere</span>
+      <h2 class="h-section">Meet your team where they already chat.</h2>
+      <p class="lede center-lede">The same agents, with the same memory, answer in every channel. Replies stream live into chat apps by editing a placeholder message as tokens arrive.</p>
+    </div>
+
+    <div class="chan-grid">
+      <article class="card chan reveal">
+        <div class="chan-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M9 3 7 21M17 3l-2 18M4 8.5h16M3 15.5h16"/></svg></div>
+        <h3>Slack</h3>
+        <p>Socket Mode, so no public URL is needed. @mention an agent in a channel and the reply streams into the thread. DMs work too.</p>
+      </article>
+      <article class="card chan reveal">
+        <div class="chan-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-7l-4 3v-3H6a2 2 0 0 1-2-2z"/><path d="M9 10.5h.01M15 10.5h.01" stroke-width="2.6" stroke-linecap="round"/></svg></div>
+        <h3>Discord</h3>
+        <p>Answers mentions, replies, and DMs with the same streaming edits.</p>
+      </article>
+      <article class="card chan reveal">
+        <div class="chan-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M21 4 3 11l6 2.5L11.5 20 15 15l4.5 3.5z"/><path d="m9 13.5 7-5"/></svg></div>
+        <h3>Telegram</h3>
+        <p>DMs, groups, and forum topics. Create a bot with @BotFather and paste the token.</p>
+      </article>
+      <article class="card chan reveal">
+        <div class="chan-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></div>
+        <h3>Webhooks</h3>
+        <p>POST a message and get the answer back in the response, or have it delivered to a <code>callback_url</code>.</p>
+      </article>
+      <article class="card chan reveal">
+        <div class="chan-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 9h18"/><path d="M6 6.5h.01M8.5 6.5h.01" stroke-width="2.4" stroke-linecap="round"/></svg></div>
+        <h3>Web dashboard</h3>
+        <p>Chat with live streaming, thinking, and tool cards. Manage agents, logins, connections, and usage.</p>
+      </article>
+      <article class="card chan reveal">
+        <div class="chan-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="m7 9.5 3 2.5-3 2.5M12.5 15h4.5"/></svg></div>
+        <h3>Terminal</h3>
+        <p><code>npx soloagent</code> opens a full-screen TUI. <code>soloagent ask</code> fits in scripts and pipes.</p>
+      </article>
+    </div>
+
+    <div class="routing card reveal">
+      <div class="routing-text">
+        <h3>Routing that reads like chat</h3>
+        <p>Start a message with <code>@coder</code> or <code>coder:</code> to pick an agent. Otherwise the connector's bound agent, or your default agent, answers. Send another message while an agent is working and it <b>steers</b> the run in progress instead of queuing behind it.</p>
+      </div>
+      <div class="routing-cmds">
+        <div class="rc-line"><span class="rc-user">you</span><span><b class="rc-at">@coder</b> fix the build</span></div>
+        <div class="rc-line"><span class="rc-user">you</span><span><b class="rc-at">scout:</b> what changed in the 4.0 release?</span></div>
+        <div class="rc-line"><span class="rc-user">you</span><span>actually, only look at the CLI package <span class="tag c">steer</span></span></div>
+        <div class="rc-chips"><code>!agents</code><code>!reset</code><code>!stop</code><code>!help</code></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TEAMWORK ============ -->
+<section class="section" id="agents">
+  <div class="wrap split split-rev">
+    <div class="reveal">
+      <span class="eyebrow">Agents that work together</span>
+      <h2 class="h-section">A small team, not a single chatbot.</h2>
+      <p class="lede">Each agent has a name, an @handle, a glyph and color, its own instructions, model, and thinking level. Turn on the skills it needs.</p>
+      <div class="skills">
+        <div class="skill"><span class="skill-ico">⇄</span><div><b>Delegate</b><p><code>ask_agent</code> hands a task to another agent through a durable child conversation.</p></div></div>
+        <div class="skill"><span class="skill-ico">◷</span><div><b>Schedule</b><p>Durable reminders sleep in storage and fire even after restarts.</p></div></div>
+        <div class="skill"><span class="skill-ico">◈</span><div><b>Memory</b><p>Long-term, per agent: <code>remember</code>, <code>recall</code>, <code>forget</code>.</p></div></div>
+        <div class="skill"><span class="skill-ico">◍</span><div><b>Web</b><p><code>web_fetch</code> and <code>web_search</code>.</p></div></div>
+        <div class="skill"><span class="skill-ico">▤</span><div><b>Workspace</b> <span class="tag warn">powerful</span><p>Read, write, edit, and run bash in a private folder.</p></div></div>
+      </div>
+    </div>
+
+    <div class="agent-stack reveal" aria-hidden="true">
+      <div class="card agent-card">
+        <div class="ac-top">
+          <span class="ac-av" style="--c:#8b5cf6">⌘</span>
+          <div><b>Coder</b><span class="mono">@coder</span></div>
+          <span class="tag v ac-default">default</span>
+        </div>
+        <div class="ac-field"><label>Instructions</label><div class="ac-box">You maintain the acme monorepo. Prefer small, reviewed changes. Ask @scout before guessing about upstream releases.</div></div>
+        <div class="ac-row">
+          <div class="ac-field"><label>Model</label><div class="ac-select">Claude Pro / Max <span>▾</span></div></div>
+          <div class="ac-field"><label>Thinking</label><div class="ac-seg"><span>off</span><span>low</span><span class="on">med</span><span>high</span></div></div>
+        </div>
+        <div class="ac-field"><label>Skills</label>
+          <div class="ac-skills">
+            <span class="sw on">Memory</span><span class="sw on">Web</span><span class="sw on">Delegate</span><span class="sw on">Schedule</span><span class="sw on warn">Workspace</span>
+          </div>
+        </div>
+      </div>
+      <div class="card agent-mini a1"><span class="ac-av" style="--c:#06b6d4">◎</span><div><b>Scout</b><span class="mono">@scout · ChatGPT</span></div></div>
+      <div class="card agent-mini a2"><span class="ac-av" style="--c:#f59e0b">✎</span><div><b>Scribe</b><span class="mono">@scribe · Gemini</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ GUI + TUI ============ -->
+<section class="section" id="interfaces">
+  <div class="wrap">
+    <div class="center reveal">
+      <span class="eyebrow">GUI + TUI</span>
+      <h2 class="h-section">A dashboard for the team.<br>A terminal for you.</h2>
+      <p class="lede center-lede">Both talk to the same server over the same API. Watch live durable task graphs and schedules, track usage and cost per model and agent, or stay on the keyboard.</p>
+    </div>
+
+    <div class="ui-pair">
+      <figure class="mock-gui card reveal" aria-label="Illustration of the web dashboard">
+        <div class="mw-chrome" aria-hidden="true"><span class="dots"><i></i><i></i><i></i></span><span class="mw-url">solo.up.railway.app/chat</span></div>
+        <div class="gui" aria-hidden="true">
+          <nav class="gui-nav">
+            <div class="gui-brand"><img src="/icon.svg" alt="" width="18" height="18">soloagent</div>
+            <span>Overview</span><span class="on">Chat</span><span>Agents</span><span>Providers</span><span>Connections</span><span>Tasks</span><span>Usage</span>
+          </nav>
+          <div class="gui-main">
+            <div class="gui-head"><span class="ac-av sm" style="--c:#8b5cf6">⌘</span><b>coder</b><span class="tag">Claude Pro / Max</span><span class="tag v">thinking · med</span></div>
+            <div class="gui-msgs">
+              <div class="g-user">Summarize what shipped this week</div>
+              <div class="g-think"><span>▸ Thinking</span><i>4.2s</i></div>
+              <div class="g-tool"><span class="g-tool-n">web_fetch</span><span class="g-tool-a">changelog.acme.dev/week-44</span><span class="ok-c">✓</span></div>
+              <div class="g-tool"><span class="g-tool-n">ask_agent</span><span class="g-tool-a">@scribe · draft release notes</span><span class="ok-c">✓</span></div>
+              <div class="g-ans"><p>Three releases went out this week:</p><span class="bar w90"></span><span class="bar w70"></span><span class="bar w80"></span></div>
+            </div>
+            <div class="gui-compose">Message @coder…<span class="gui-send">↵</span></div>
+          </div>
+          <aside class="gui-side">
+            <div class="gs-label">Usage · 7d</div>
+            <div class="gs-big">$4.18</div>
+            <div class="gs-bars"><i style="height:40%"></i><i style="height:65%"></i><i style="height:30%"></i><i style="height:80%"></i><i style="height:55%"></i><i style="height:90%"></i><i style="height:45%"></i></div>
+            <div class="gs-label">Tasks</div>
+            <div class="gs-task"><span class="pulse"></span>coder · run</div>
+            <div class="gs-task sub"><span class="ok-c">✓</span>scribe · child</div>
+            <div class="gs-task"><span class="clock">◷</span>reminder · Fri</div>
+          </aside>
+        </div>
+        <figcaption>Web dashboard</figcaption>
+      </figure>
+
+      <figure class="mock-tui card reveal" aria-label="Illustration of the terminal UI">
+        <div class="mw-chrome" aria-hidden="true"><span class="dots"><i></i><i></i><i></i></span><span class="mw-url">~ npx soloagent</span></div>
+        <div class="tui" aria-hidden="true">
+          <div class="tui-top"><span class="tv">✦ soloagent</span><span>@coder</span><span class="tm">local · :7420</span></div>
+          <div class="tui-body">
+            <div class="tui-side">
+              <div class="tm">threads</div>
+              <div class="sel">▸ build is red</div>
+              <div>  weekly notes</div>
+              <div>  standup</div>
+              <div>  reminders</div>
+            </div>
+            <div class="tui-chat">
+              <div><span class="tc">you</span> why is main failing?</div>
+              <div class="tm">  ∴ thinking (ctrl+t to show)</div>
+              <div><span class="ta">⚙ bash</span> <span class="tm">git log --oneline -3</span> <span class="tg">✓</span></div>
+              <div><span class="ta">⇄ ask_agent</span> <span class="tm">@scout</span> <span class="tg">✓</span></div>
+              <div><span class="tv">coder</span> #482 bumped parser to 4.0, which</div>
+              <div>  dropped the default export. One-line</div>
+              <div>  fix in build.ts<span class="caret">▍</span></div>
+            </div>
+          </div>
+          <div class="tui-input"><span class="tv">›</span> /agent scout</div>
+          <div class="tui-status"><span><b>enter</b> send</span><span><b>esc</b> stop</span><span><b>^b</b> sidebar</span><span><b>^p</b> threads</span><span><b>^t</b> thinking</span></div>
+        </div>
+        <figcaption>Terminal UI</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HOW IT WORKS ============ -->
+<section class="section" id="how">
+  <div class="wrap">
+    <div class="center reveal">
+      <span class="eyebrow">How it works</span>
+      <h2 class="h-section">One service between your chats and your models.</h2>
+    </div>
+
+    <div class="arch reveal">
+      <div class="arch-col">
+        <div class="arch-title">Chat apps</div>
+        <div class="arch-list"><span>Slack</span><span>Discord</span><span>Telegram</span><span>Webhooks</span><span>Web dashboard</span><span>Terminal UI</span></div>
+      </div>
+      <div class="arch-link" aria-hidden="true"><i></i></div>
+      <div class="arch-core">
+        <div class="arch-core-title"><img src="/icon.svg" alt="" width="22" height="22"> soloagent</div>
+        <div class="arch-layers">
+          <div class="layer"><b>Router</b><span>@handle, bound agent, default · steering · !commands</span></div>
+          <div class="layer"><b>Agents</b><span>instructions · model · thinking · skills</span></div>
+          <div class="layer v"><b>Pi Durable harness</b><span>model turns and tool calls as durable steps</span></div>
+          <div class="layer c"><b>SQLite</b><span>threads, memory, schedules, sealed credentials</span></div>
+        </div>
+      </div>
+      <div class="arch-link" aria-hidden="true"><i></i></div>
+      <div class="arch-col">
+        <div class="arch-title">Model providers</div>
+        <div class="arch-list"><span>Subscriptions via OAuth</span><span>API keys for 30+ providers</span><span>Built-in demo model</span></div>
+        <div class="arch-sub mono">via @earendil-works/pi-ai</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ OPEN SOURCE ============ -->
+<section class="section" id="open-source">
+  <div class="wrap split">
+    <div class="reveal">
+      <span class="eyebrow">Open source &amp; self-hosted</span>
+      <h2 class="h-section">Your keys. Your data.<br>Your server.</h2>
+      <p class="lede">soloagent is MIT licensed and runs as a single service. Everything lives in one data directory you own.</p>
+      <ul class="ticks">
+        <li><b>One service on Railway</b> with a volume at <code>/data</code>. Or Docker, or any machine with Node 22+.</li>
+        <li><b>Credentials sealed</b> with AES-256-GCM using your <code>SOLOAGENT_SECRET</code>.</li>
+        <li><b>A typed SDK.</b> <code>@soloagent/client</code> speaks the same REST + WebSocket API as the GUI and TUI.</li>
+        <li><b>Or embed the core</b> directly as a library with <code>SoloAgent.open()</code>.</li>
+      </ul>
+      <div class="os-ctas">
+        <a class="btn btn-primary" href="/deploy">Deploy on Railway</a>
+        <a class="btn" href="/docs/#api">Read the API docs</a>
+      </div>
+    </div>
+    <div class="code reveal">
+      <div class="code-head"><span>example.ts</span><button class="copy" type="button" data-copy-target="sdk-snippet">copy</button></div>
+<pre id="sdk-snippet"><code><span class="t-k">import</span> { SoloClient } <span class="t-k">from</span> <span class="t-s">"@soloagent/client"</span>;
+
+<span class="t-k">const</span> solo = <span class="t-k">new</span> <span class="t-f">SoloClient</span>({
+  baseUrl: <span class="t-s">"https://solo.example.com"</span>,
+  token: process.env.<span class="t-v">SOLOAGENT_TOKEN</span>,
+});
+
+<span class="t-k">const</span> thread = <span class="t-k">await</span> solo.<span class="t-f">createThread</span>({ agentId: <span class="t-s">"coder"</span> });
+<span class="t-k">const</span> { answer } = <span class="t-k">await</span> solo.<span class="t-f">ask</span>(thread.id, <span class="t-s">"Summarize today's deploys"</span>);
+
+<span class="t-c">// Or stream every token as it lands</span>
+<span class="t-k">const</span> live = solo.<span class="t-f">connect</span>();
+live.<span class="t-f">subscribe</span>(thread.id);
+live.<span class="t-f">on</span>((event) =&gt; { <span class="t-k">if</span> (event.type === <span class="t-s">"thread.live"</span>) <span class="t-f">render</span>(event.live); });</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ============ QUICKSTART ============ -->
+<section class="section" id="quickstart">
+  <div class="wrap">
+    <div class="center reveal">
+      <span class="eyebrow">Quickstart</span>
+      <h2 class="h-section">Running in under a minute.</h2>
+    </div>
+    <div class="qs-grid">
+      <div class="qs card reveal">
+        <div class="qs-n">01</div>
+        <h3>Try it locally</h3>
+        <p>Opens the terminal UI with an embedded server. The demo model works with no account.</p>
+        <div class="code code-float"><button class="copy" type="button">copy</button><pre><code><span class="cmd">npx soloagent</span></code></pre></div>
+      </div>
+      <div class="qs card reveal">
+        <div class="qs-n">02</div>
+        <h3>Connect a model</h3>
+        <p>Sign in with a subscription from the TUI, the CLI, or the dashboard. API keys work too.</p>
+        <div class="code code-float"><button class="copy" type="button">copy</button><pre><code><span class="cmd">soloagent login anthropic</span></code></pre></div>
+      </div>
+      <div class="qs card reveal">
+        <div class="qs-n">03</div>
+        <h3>Deploy for the team</h3>
+        <p>One click to Railway, then point your terminal at it and add Slack, Discord, or Telegram.</p>
+        <div class="code code-float"><button class="copy" type="button">copy</button><pre><code><span class="cmd">soloagent connect https://your-app.up.railway.app --token $SOLOAGENT_TOKEN</span></code></pre></div>
+      </div>
+    </div>
+    <p class="center qs-more"><a class="btn" href="/docs/#getting-started">Full getting-started guide →</a></p>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section class="section" id="faq">
+  <div class="wrap faq-wrap">
+    <div class="reveal">
+      <span class="eyebrow">FAQ</span>
+      <h2 class="h-section">Questions, answered.</h2>
+      <p class="lede">Something else? <a href="https://github.com/nearbycoder/soloagent.dev/issues" rel="noopener">Open an issue</a> on GitHub.</p>
+    </div>
+    <div class="faq reveal">
+      <details>
+        <summary>What does it cost?</summary>
+        <p>soloagent is free and MIT licensed. You pay for your own hosting (one small service) and whatever model subscriptions or API usage you connect. The dashboard tracks usage and cost per model and per agent.</p>
+      </details>
+      <details>
+        <summary>Can I really use my Claude or ChatGPT subscription?</summary>
+        <p>Yes. Claude Pro/Max, ChatGPT, GitHub Copilot, SuperGrok/X Premium, OpenRouter, and others can sign in through OAuth from the dashboard or the terminal. If you prefer, use an API key instead. Review your provider's terms for how your plan may be used.</p>
+      </details>
+      <details>
+        <summary>What happens if the server restarts mid-answer?</summary>
+        <p>Nothing is lost. Each model turn and tool call is committed to SQLite before it's shown, so on restart the run resumes from the last committed step. Scheduled reminders keep sleeping in storage and fire on time.</p>
+      </details>
+      <details>
+        <summary>Do I need a public URL for Slack?</summary>
+        <p>No. The Slack connector uses Socket Mode, so the server opens the connection outward. You only need a public URL for inbound webhooks and to reach the dashboard from elsewhere.</p>
+      </details>
+      <details>
+        <summary>Where is my data stored?</summary>
+        <p>In a single data directory on your server: a SQLite database holding threads, agent memory, schedules, and credentials. Credentials are sealed with AES-256-GCM using <code>SOLOAGENT_SECRET</code>.</p>
+      </details>
+      <details>
+        <summary>What is Pi?</summary>
+        <p>Pi is Earendil's agent toolkit. soloagent uses <code>@earendil-works/pi-ai</code> to talk to model providers and <code>@earendil-works/pi-durable</code> for durable execution.</p>
+      </details>
+      <details>
+        <summary>Can I build on top of it?</summary>
+        <p>Yes. Use the HTTP and WebSocket API, the typed <code>@soloagent/client</code> SDK, or embed the core with <code>SoloAgent.open({ dataDir })</code>.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CTA ============ -->
+<section class="final-cta">
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="wrap center reveal">
+    <img class="cta-mark" src="/icon.svg" alt="" width="56" height="56">
+    <h2 class="h-section">Give your agents a home.</h2>
+    <p class="lede center-lede">Deploy once. Talk to every agent from anywhere.</p>
+    <div class="hero-ctas">
+      <a class="btn btn-primary" href="/deploy">Deploy on Railway</a>
+      <button class="btn btn-code" type="button" data-copy="npx soloagent" aria-label="Copy command: npx soloagent">
+        <span><span class="prompt">$</span> npx soloagent</span>
+        <span class="copy-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></span>
+      </button>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <a class="brand" href="/"><img class="brand-mark" src="/icon.svg" alt="" width="28" height="28"><span>soloagent</span></a>
+        <p class="blurb">An open-source control plane for durable AI agents. Built on Pi by Earendil.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul><li><a href="#durable">Durability</a></li><li><a href="#providers">Providers</a></li><li><a href="#channels">Connectors</a></li><li><a href="#interfaces">GUI + TUI</a></li></ul>
+      </div>
+      <div>
+        <h4>Docs</h4>
+        <ul><li><a href="/docs/#getting-started">Getting started</a></li><li><a href="/docs/#railway">Deploy on Railway</a></li><li><a href="/docs/#connectors">Connectors</a></li><li><a href="/docs/#api">HTTP API &amp; SDK</a></li></ul>
+      </div>
+      <div>
+        <h4>Project</h4>
+        <ul><li><a href="https://github.com/nearbycoder/soloagent.dev" rel="noopener">GitHub</a></li><li><a href="https://github.com/nearbycoder/soloagent.dev/issues" rel="noopener">Issues</a></li><li><a href="https://github.com/nearbycoder/soloagent.dev/blob/main/LICENSE" rel="noopener">MIT License</a></li><li><a href="/deploy">Deploy</a></li></ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 soloagent contributors · MIT</span>
+      <span>Made for people who run a lot of agents.</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/js/site.js" defer></script>
+<script src="/js/demo.js" defer></script>
+</body>
+</html>

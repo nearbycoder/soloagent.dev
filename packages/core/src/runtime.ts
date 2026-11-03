@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { join, resolve } from "node:path";
 import { EventEmitter } from "node:events";
 import { BACKGROUND_CONTEXT, type Context } from "@earendil-works/chord/context";
@@ -155,6 +155,11 @@ export class SoloAgent {
     let solo: SoloAgent | undefined;
     const emit = (event: ServerEvent) => solo?.emit(event);
 
+    let deviceId = db.setting("device_id");
+    if (!deviceId) {
+      deviceId = randomUUID();
+      db.setSetting("device_id", deviceId);
+    }
     const credentials = new SealedCredentialStore(db, sealer, () => {
       emit({ type: "providers.changed" });
       void solo?.autoAssignModels();
@@ -162,7 +167,7 @@ export class SoloAgent {
     const providers = new ProviderHub(credentials, (flow) => {
       emit({ type: "login.updated", flow });
       if (flow.status === "done") solo?.activity({ type: "provider", text: `Signed in to ${providers.models.getProvider(flow.providerId)?.name ?? flow.providerId}` });
-    });
+        }, deviceId);
     const demo = options.demo ?? process.env.SOLOAGENT_DEMO !== "0";
     if (demo) providers.models.setProvider(demoProvider());
     for (const provider of options.providers ?? []) providers.models.setProvider(provider);
