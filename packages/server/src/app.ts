@@ -5,7 +5,7 @@ import { Hono, type Context as HonoContext } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { CONNECTOR_KINDS, HttpError, VERSION, type SoloAgent } from "@soloagent/core";
-import type { AgentInput, ConnectorInput, Source } from "@soloagent/client";
+import type { AgentInput, ConnectorInput, McpServerInput, Source } from "@soloagent/client";
 
 export type AppOptions = {
   solo: SoloAgent;
@@ -87,6 +87,59 @@ export function createApp({ solo, webDir }: AppOptions) {
   api.patch("/agents/:id", async (c) => c.json(solo.updateAgent(c.req.param("id"), await c.req.json<Partial<AgentInput>>())));
   api.delete("/agents/:id", (c) => {
     solo.agents.delete(c.req.param("id"));
+    return c.json({ ok: true });
+  });
+
+  // Memories (workstream: mcp)
+  const memoryAgent = (c: HonoContext) => {
+    const agent = solo.agents.get(c.req.param("id") ?? "");
+    if (!agent) throw new HttpError(404, "Agent not found");
+    return agent;
+  };
+  const memoryId = (c: HonoContext) => {
+    const id = Number(c.req.param("memoryId"));
+    if (!Number.isInteger(id) || id <= 0) throw new HttpError(404, "Memory not found");
+    return id;
+  };
+  api.get("/memories/counts", (c) => c.json(solo.memories.counts()));
+  api.get("/agents/:id/memories", (c) => c.json(solo.memories.list(memoryAgent(c).id, { q: c.req.query("q"), limit: Number(c.req.query("limit") ?? 500) || 500 })));
+  api.post("/agents/:id/memories", async (c) => {
+    const agent = memoryAgent(c);
+    const { text } = await c.req.json<{ text?: string }>().catch(() => ({ text: undefined }));
+    return c.json(solo.memories.add(agent.id, text ?? ""), 201);
+  });
+  api.patch("/agents/:id/memories/:memoryId", async (c) => {
+    const agent = memoryAgent(c);
+    const { text } = await c.req.json<{ text?: string }>().catch(() => ({ text: undefined }));
+    return c.json(solo.memories.update(agent.id, memoryId(c), text ?? ""));
+  });
+  api.delete("/agents/:id/memories/:memoryId", (c) => {
+    const agent = memoryAgent(c);
+    if (!solo.memories.delete(agent.id, memoryId(c))) throw new HttpError(404, "Memory not found");
+    return c.json({ ok: true });
+  });
+  // Clearing every memory needs ?confirm=all, so a stray DELETE can't wipe them.
+  api.delete("/agents/:id/memories", (c) => {
+    const agent = memoryAgent(c);
+    if (c.req.query("confirm") !== "all") throw new HttpError(400, "Add ?confirm=all to delete every memory of this agent");
+    return c.json({ ok: true, deleted: solo.memories.clear(agent.id) });
+  });
+
+  // MCP servers (workstream: mcp)
+  api.get("/mcp-servers", (c) => c.json(solo.mcp.list()));
+  api.post("/mcp-servers", async (c) => {
+    const input = await c.req.json<McpServerInput>();
+    if (input.id && solo.mcp.get(input.id)) throw new HttpError(409, `An MCP server with id "${input.id}" already exists`);
+    return c.json(solo.mcp.create(input), 201);
+  });
+  api.get("/mcp-servers/:id", (c) => {
+    const server = solo.mcp.get(c.req.param("id"));
+    return server ? c.json(server) : c.json({ error: "MCP server not found" }, 404);
+  });
+  api.patch("/mcp-servers/:id", async (c) => c.json(solo.mcp.update(c.req.param("id"), await c.req.json<McpServerInput>())));
+  api.post("/mcp-servers/:id/test", async (c) => c.json(await solo.mcp.test(c.req.param("id"))));
+  api.delete("/mcp-servers/:id", async (c) => {
+    await solo.mcp.delete(c.req.param("id"));
     return c.json({ ok: true });
   });
 

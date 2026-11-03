@@ -63,6 +63,7 @@ export class AgentStore {
       model: input.model ?? null,
       thinkingLevel: input.thinkingLevel ?? "medium",
       skills: cleanSkills(input.skills ?? ["memory", "web", "delegate", "schedule"]),
+      mcpServers: cleanServerIds(input.mcpServers ?? []),
       maxTurns: clampTurns(input.maxTurns ?? 40),
       isDefault: input.isDefault ?? count === 0,
       createdAt: now,
@@ -82,6 +83,7 @@ export class AgentStore {
       ...stripUndefined(input),
       handle: input.handle !== undefined ? this.#uniqueHandle(toHandle(input.handle), current.id) : current.handle,
       skills: input.skills ? cleanSkills(input.skills) : current.skills,
+      mcpServers: input.mcpServers ? cleanServerIds(input.mcpServers) : current.mcpServers,
       maxTurns: input.maxTurns !== undefined ? clampTurns(input.maxTurns) : current.maxTurns,
       id: current.id,
       createdAt: current.createdAt,
@@ -134,7 +136,14 @@ export class AgentStore {
 }
 
 function fromRow(row: Row): Agent {
-  return { ...(JSON.parse(row.data) as Omit<Agent, "id" | "handle" | "createdAt" | "updatedAt">), id: row.id, handle: row.handle, createdAt: row.created_at, updatedAt: row.updated_at };
+  const data = JSON.parse(row.data) as Omit<Agent, "id" | "handle" | "createdAt" | "updatedAt">;
+  return { ...data, mcpServers: data.mcpServers ?? [], id: row.id, handle: row.handle, createdAt: row.created_at, updatedAt: row.updated_at };
+}
+
+/** MCP server ids: slugs, deduplicated. */
+function cleanServerIds(ids: readonly string[]): string[] {
+  if (!Array.isArray(ids)) throw new Error("mcpServers must be a list of server ids");
+  return [...new Set(ids.filter((id) => typeof id === "string" && /^[a-z0-9-]{1,32}$/.test(id)))];
 }
 
 function cleanSkills(skills: readonly string[]): AgentSkill[] {

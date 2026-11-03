@@ -73,6 +73,8 @@
       <a class="sub" href="#configuration">Configuration</a>
       <a href="#providers">Providers &amp; subscriptions</a>
       <a href="#agents">Agents &amp; skills</a>
+      <a class="sub" href="#memory">Memory</a>
+      <a href="#mcp">Tools (MCP)</a>
       <a href="#connectors">Connectors</a>
       <a class="sub" href="#slack">Slack</a>
       <a class="sub" href="#discord">Discord</a>
@@ -99,6 +101,8 @@
       <a class="sub" href="#configuration">Configuration</a>
       <a href="#providers">Providers &amp; subscriptions</a>
       <a href="#agents">Agents &amp; skills</a>
+      <a class="sub" href="#memory">Memory</a>
+      <a href="#mcp">Tools (MCP)</a>
       <a href="#connectors">Connectors</a>
       <a class="sub" href="#slack">Slack</a>
       <a class="sub" href="#discord">Discord</a>
@@ -294,6 +298,69 @@
         <div class="skill-card"><b>Delegate</b><p>Hand a sub-task to another agent and wait for its answer. The hand-off runs as a durable child conversation, which can't delegate further.</p><div class="tools"><code>ask_agent</code></div></div>
         <div class="skill-card"><b>Schedule</b><p>Durable reminders and follow-ups. They sleep in storage and fire even after restarts.</p><div class="tools"><code>schedule_reminder</code></div></div>
         <div class="skill-card warn"><b>Workspace <span class="tag warn">powerful</span></b><p>Read, write, and edit files and run shell commands on the server, starting in a per-agent workspace folder. It is not a sandbox: commands run with the server's permissions. Only enable it for agents that trusted people can reach.</p><div class="tools"><code>read</code><code>write</code><code>edit</code><code>bash</code></div></div>
+      </div>
+      <p>Agents can also get tools from MCP servers you connect. See <a href="#mcp">Tools (MCP)</a>.</p>
+
+      <h3 id="memory">Memory</h3>
+      <p>With the Memory skill, an agent saves durable notes with <code>remember</code>, searches them with <code>recall</code>, and deletes them with <code>forget</code>. The newest 40 are part of its prompt in every conversation. To see and correct what an agent remembers, open the agent and choose the <b>Memory</b> tab: search, add, edit, or delete notes, or clear them all. Agent cards show how many memories each agent has.</p>
+      <p>The same is available over the API at <code>/api/agents/:id/memories</code> (see <a href="#api">Routes</a>). Clearing every memory needs <code>?confirm=all</code>, so a stray request can't wipe them.</p>
+    </section>
+
+    <!-- ========== TOOLS (MCP) ========== -->
+    <section id="mcp">
+      <h2><a href="#mcp">Tools (MCP)</a></h2>
+      <p>Connect <a href="https://modelcontextprotocol.io" rel="noopener">Model Context Protocol</a> servers (GitHub, Linear, Postgres, Sentry, a filesystem, anything that speaks MCP) and give their tools to the agents you choose. Add servers under <b>Tools</b> in the dashboard, then turn them on per agent under <b>Tools from MCP servers</b> in the agent editor.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Field</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>ID</td><td>A short slug such as <code>github</code>. Tools are named <code>mcp__&lt;id&gt;__&lt;tool&gt;</code>, e.g. <code>mcp__github__create_issue</code>. It can't be changed later.</td></tr>
+            <tr><td>Transport</td><td><b>stdio</b> runs a command on the soloagent server and talks over its stdin and stdout. <b>HTTP</b> connects to a remote server's Streamable HTTP endpoint. The older HTTP+SSE transport isn't supported.</td></tr>
+            <tr><td>Command, arguments, env</td><td>stdio only. The program, its arguments (one per line in the dashboard), and environment variables such as API tokens.</td></tr>
+            <tr><td>URL, headers</td><td>HTTP only. The endpoint and request headers, usually <code>Authorization: Bearer …</code>.</td></tr>
+            <tr><td>Enabled</td><td>Turn off to disconnect without losing settings.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Examples</h3>
+      <p>GitHub's official server over stdio. It ships as a Docker image, so Docker must be available where soloagent runs. It reads a <a href="https://github.com/settings/personal-access-tokens/new" rel="noopener">personal access token</a> from its environment:</p>
+      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">curl -X POST https://solo.example.com/api/mcp-servers \</span>
+  -H <span class="t-s">"authorization: Bearer $SOLOAGENT_TOKEN"</span> -H <span class="t-s">"content-type: application/json"</span> \
+  -d <span class="t-s">'{
+    "id": "github",
+    "name": "GitHub",
+    "command": "docker",
+    "args": ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+             "ghcr.io/github/github-mcp-server"],
+    "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "github_pat_…" }
+  }'</span></code></pre></div>
+      <p>Servers published to npm run with <code>npx</code>, which is also available in the soloagent Docker image. The reference filesystem server, limited to one folder:</p>
+      <div class="code"><div class="code-head"><span>json</span><button class="copy" type="button">copy</button></div><pre><code>{
+  <span class="t-s">"id"</span>: <span class="t-s">"files"</span>,
+  <span class="t-s">"command"</span>: <span class="t-s">"npx"</span>,
+  <span class="t-s">"args"</span>: [<span class="t-s">"-y"</span>, <span class="t-s">"@modelcontextprotocol/server-filesystem"</span>, <span class="t-s">"/data/shared"</span>]
+}</code></pre></div>
+      <p>A remote server over HTTP, here GitHub's hosted one:</p>
+      <div class="code"><div class="code-head"><span>json</span><button class="copy" type="button">copy</button></div><pre><code>{
+  <span class="t-s">"id"</span>: <span class="t-s">"github"</span>,
+  <span class="t-s">"transport"</span>: <span class="t-s">"http"</span>,
+  <span class="t-s">"url"</span>: <span class="t-s">"https://api.githubcopilot.com/mcp/"</span>,
+  <span class="t-s">"headers"</span>: { <span class="t-s">"Authorization"</span>: <span class="t-s">"Bearer github_pat_…"</span> }
+}</code></pre></div>
+      <p>Then give the tools to an agent in its editor, or with <code>PATCH /api/agents/:id</code> and <code>{ "mcpServers": ["github"] }</code>.</p>
+
+      <h3>How it works</h3>
+      <ul>
+        <li><b>Connections.</b> soloagent connects to every enabled server at startup and whenever you change one. If a server fails or drops, it shows <b>Error</b> with the reason and reconnects with backoff, from 2 seconds up to 5 minutes. A broken server never affects the rest of soloagent.</li>
+        <li><b>Test.</b> The <b>Test</b> button, or <code>POST /api/mcp-servers/:id/test</code>, connects if needed and lists the server's tools live.</li>
+        <li><b>Tool changes.</b> Tools appear for agents as soon as the server connects, and follow the server when its tool list changes. No restart or agent edit needed.</li>
+        <li><b>Large servers.</b> When a server has more than 15 tools, they aren't offered to the model up front. The agent gets a <code>tool_search</code> tool instead, searches for what it needs, and the matches are loaded for the rest of the conversation.</li>
+        <li><b>Results.</b> Text and images from tool results go to the model. A result the server marks as an error is reported to the agent as one.</li>
+        <li><b>Not replayed.</b> MCP calls can change things, so a call cut off by a crash or restart doesn't run again. The agent is told it was interrupted and can decide what to do.</li>
+      </ul>
+      <div class="callout">
+        <b>stdio servers run on your server.</b> They run as the same operating system user as soloagent, with its file and network access. They get <code>PATH</code>, <code>HOME</code>, locale, proxy, and Docker settings plus the variables you set, but never soloagent's own environment, such as <code>SOLOAGENT_TOKEN</code> or <code>SOLOAGENT_SECRET</code>. Only add servers you trust, and remember that anyone who can talk to an agent can use its tools.
       </div>
     </section>
 
@@ -499,6 +566,12 @@ settings:
             <tr><td><span class="verb post">POST</span></td><td><code>/api/providers/:id/login</code></td><td>Start a login flow: <code>{ type: "oauth" }</code> (the default) or <code>{ type: "api_key" }</code>.</td></tr>
             <tr><td><span class="verb put">PUT</span></td><td><code>/api/providers/:id/key</code></td><td>Save an API key: <code>{ key }</code>.</td></tr>
             <tr><td><span class="verb get">GET</span><span class="verb post">POST</span></td><td><code>/api/connectors</code></td><td>List or create connectors. Create takes <code>{ kind, name, agentId, config }</code>; a webhook's <code>config</code> is <code>{ secret }</code>.</td></tr>
+            <tr><td><span class="verb get">GET</span><span class="verb post">POST</span></td><td><code>/api/mcp-servers</code></td><td>List or create MCP servers. Create takes <code>{ id, name, transport, command, args, env }</code> or <code>{ id, name, transport: "http", url, headers }</code>. Env values and headers come back masked as <code>••••••••</code>; sending the mask back keeps the saved value.</td></tr>
+            <tr><td><span class="verb get">GET</span><span class="verb patch">PATCH</span><span class="verb delete">DELETE</span></td><td><code>/api/mcp-servers/:id</code></td><td>Read, update, or delete an MCP server. Updates reconnect it.</td></tr>
+            <tr><td><span class="verb post">POST</span></td><td><code>/api/mcp-servers/:id/test</code></td><td>Connect if needed and list its tools live: <code>{ ok, error?, tools, server }</code>.</td></tr>
+            <tr><td><span class="verb get">GET</span><span class="verb post">POST</span></td><td><code>/api/agents/:id/memories</code></td><td>List an agent's memories, newest first (<code>?q=</code> searches), or add one: <code>{ text }</code>.</td></tr>
+            <tr><td><span class="verb patch">PATCH</span><span class="verb delete">DELETE</span></td><td><code>/api/agents/:id/memories/:memoryId</code></td><td>Edit a memory's <code>{ text }</code>, or delete it.</td></tr>
+            <tr><td><span class="verb delete">DELETE</span></td><td><code>/api/agents/:id/memories?confirm=all</code></td><td>Delete every memory of an agent. Returns <code>{ deleted }</code>.</td></tr>
             <tr><td><span class="verb post">POST</span></td><td><code>/api/hooks/:id</code></td><td>Inbound webhook. Authenticated by <code>x-solo-secret</code>, not the admin token.</td></tr>
             <tr><td><span class="verb ws">WS</span></td><td><code>/api/ws</code></td><td>Live events. Pass the token as <code>?token=</code>.</td></tr>
           </tbody>
@@ -506,7 +579,7 @@ settings:
       </div>
 
       <h3>WebSocket events</h3>
-      <p>Connect to <code>/api/ws</code> and send <code>{ "type": "subscribe", "threadId": "…" }</code> to receive a thread's <code>thread.snapshot</code>, <code>thread.messages</code>, and <code>thread.live</code> events (streaming text, thinking, and tool calls). Send <code>{ "type": "tasks.subscribe" }</code> for the live durable task graph. Server-wide events such as <code>thread.updated</code>, <code>agent.updated</code>, and <code>connector.updated</code> arrive without subscribing.</p>
+      <p>Connect to <code>/api/ws</code> and send <code>{ "type": "subscribe", "threadId": "…" }</code> to receive a thread's <code>thread.snapshot</code>, <code>thread.messages</code>, and <code>thread.live</code> events (streaming text, thinking, and tool calls). Send <code>{ "type": "tasks.subscribe" }</code> for the live durable task graph. Server-wide events such as <code>thread.updated</code>, <code>agent.updated</code>, <code>connector.updated</code>, and <code>mcp.updated</code> arrive without subscribing.</p>
 
       <h3>TypeScript SDK</h3>
       <p><code>@soloagent/client</code>, in <code>packages/client</code>, is a typed client for the REST API and WebSocket with no dependencies. It runs in Node 22.19+ and in browsers. It isn't on npm yet, so use it from a clone of the repository.</p>
@@ -566,9 +639,10 @@ stream.<span class="t-f">close</span>();</code></pre></div>
       <h2><a href="#security">Security</a></h2>
       <ul>
         <li><b>One admin token.</b> The dashboard, TUI, API, and WebSocket all require the admin token: <code>SOLOAGENT_TOKEN</code>, or the one generated on first boot. Treat it like a password. The dashboard keeps it in an HTTP-only session cookie.</li>
-        <li><b>Sealed credentials.</b> Provider keys, OAuth tokens, connector tokens, and webhook secrets are encrypted at rest with AES-256-GCM, using a key derived from <code>SOLOAGENT_SECRET</code> or the secret generated in the data directory.</li>
+        <li><b>Sealed credentials.</b> Provider keys, OAuth tokens, connector tokens, webhook secrets, and MCP server env values and headers are encrypted at rest with AES-256-GCM, using a key derived from <code>SOLOAGENT_SECRET</code> or the secret generated in the data directory.</li>
         <li><b>Webhook secrets.</b> Each webhook connector has its own shared secret, sent in <code>x-solo-secret</code>. It grants only that connector's access.</li>
         <li><b>Workspace is powerful.</b> The Workspace skill can run shell commands on your server with the server's permissions; its folder is a starting point, not a sandbox. Only enable it for agents that trusted people can reach, and remember that anyone who can message a connector can talk to any agent through it with <code>@handle</code>.</li>
+        <li><b>MCP servers run with your server's access.</b> A stdio MCP server is a program running as the soloagent user, and an agent with its tools can do whatever those tools allow. See <a href="#mcp">Tools (MCP)</a>.</li>
         <li><b>Your data stays with you.</b> Threads, memory, schedules, and credentials live in your data directory. Model calls go directly from your server to the providers you connect.</li>
       </ul>
       <p>Found a vulnerability? Please report it privately through <a href="https://github.com/nearbycoder/soloagent.dev/security" rel="noopener">GitHub security advisories</a>.</p>

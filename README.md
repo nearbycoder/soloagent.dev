@@ -41,6 +41,8 @@ soloagent is an open-source, self-hosted home for your AI agents. Give each agen
   - `delegate` — `ask_agent` hands a task to another agent through a durable child conversation
   - `schedule` — durable reminders and follow-ups that survive restarts
   - `workspace` — read / write / edit / bash, starting in a per-agent folder (powerful, not a sandbox; off by default)
+- **Tools from MCP servers.** Connect any [Model Context Protocol](https://modelcontextprotocol.io) server — GitHub, Linear, Postgres, Sentry — over stdio or HTTP, and pick which agents get its tools. Large tool sets load on demand through `tool_search`.
+- **Editable memory.** See, search, edit, and clear what each agent remembers from its Memory tab.
 - **Steer mid-run.** Messages sent while an agent works join the running work at its next step instead of waiting for it to finish.
 - **A real GUI and a real TUI.** A fast dashboard (chat with streaming, thinking, and tool cards; agent editor; subscription logins; connector setup with guides; live task graph; usage and cost) and a full-screen terminal UI built on `pi-tui`.
 - **Try it with zero accounts.** A built-in demo model answers until you connect a provider.
@@ -123,6 +125,18 @@ Open **Connections** in the dashboard; each connector has a step-by-step guide.
 | **Webhook** | A shared secret. `POST /api/hooks/<id>` with `x-solo-secret` and `{ "text", "thread", "user", "callback_url"? }`; the answer comes back as `{ "thread", "status", "answer" }`, or is POSTed to `callback_url` as `{ "thread", "text" }`. |
 
 In any chat: `@coder fix the build` or `coder: fix the build` picks an agent; otherwise the connector's agent (or the default) answers. Commands: `!agents`, `!reset` (or `!new`), `!stop`, `!help`.
+
+## Tools (MCP)
+
+Open **Tools** in the dashboard and add a server: a command to run over stdio (with env vars for tokens) or a remote Streamable HTTP URL (with headers). Then turn it on for an agent under **Tools from MCP servers**. Its tools appear as `mcp__<server>__<tool>`.
+
+```bash
+curl -X POST http://localhost:7420/api/mcp-servers -H "authorization: Bearer $SOLOAGENT_TOKEN" \
+  -H 'content-type: application/json' -d '{"id": "github", "transport": "http",
+  "url": "https://api.githubcopilot.com/mcp/", "headers": {"Authorization": "Bearer github_pat_…"}}'
+```
+
+Env values and headers are sealed at rest and masked in the API. soloagent reconnects dropped servers with backoff, and a broken server only shows an error. stdio servers run as the soloagent user with a minimal environment, so only add ones you trust. Details and examples: [soloagent.dev/docs/#mcp](https://soloagent.dev/docs/#mcp).
 
 ## Terminal UI
 

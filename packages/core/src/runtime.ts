@@ -42,6 +42,8 @@ import { chunk } from "./connectors/format.ts";
 import type { InboundMessage, PostHandle, ReplyTarget } from "./connectors/types.ts";
 import { SealedCredentialStore } from "./credentials.ts";
 import { Db, newId } from "./db.ts";
+import { McpManager } from "./mcp.ts";
+import { MemoryStore } from "./memories.ts";
 import { ProviderHub } from "./providers.ts";
 import { Sealer } from "./secrets.ts";
 import { demoProvider } from "./demo.ts";
@@ -106,6 +108,8 @@ export class SoloAgent {
   readonly agents: AgentStore;
   readonly providers: ProviderHub;
   readonly connectors: ConnectorManager;
+  readonly mcp: McpManager;
+  readonly memories: MemoryStore;
   readonly adminToken: string;
   readonly dataDir: string;
   readonly startedAt = Date.now();
@@ -124,6 +128,7 @@ export class SoloAgent {
     agents: AgentStore;
     providers: ProviderHub;
     connectors: ConnectorManager;
+    mcp: McpManager;
     skills: ReturnType<typeof createSkills>;
     adminToken: string;
     dataDir: string;
@@ -134,6 +139,8 @@ export class SoloAgent {
     this.agents = init.agents;
     this.providers = init.providers;
     this.connectors = init.connectors;
+    this.mcp = init.mcp;
+    this.memories = new MemoryStore(init.db);
     this.#skills = init.skills;
     this.adminToken = init.adminToken;
     this.dataDir = init.dataDir;
@@ -226,6 +233,13 @@ export class SoloAgent {
     const skills = createSkills(host);
     const registry = createRegistry();
     for (const extension of skills.all) registry.install(extension);
+    const mcp = new McpManager(db, sealer, registry, {
+      changed: (server, deleted) => emit(deleted ? { type: "mcp.deleted", serverId: server.id } : { type: "mcp.updated", server }),
+      log: (message, error) => {
+        log(message);
+        if (error) solo?.activity({ type: "error", text: message });
+      },
+    }, { version: VERSION });
 
     const storage = await openNodeSqliteStorage(join(dataDir, "durable.sqlite"));
     const harness = await Harness.open(
@@ -246,11 +260,12 @@ export class SoloAgent {
       ctx,
     );
 
-    solo = new SoloAgent({ db, harness, agents, providers, connectors, skills, adminToken, dataDir, log });
+    solo = new SoloAgent({ db, harness, agents, providers, connectors, mcp, skills, adminToken, dataDir, log });
     harness.resume();
     if (agents.list().length === 0) solo.seed();
     await solo.autoAssignModels();
     if (options.connectors !== false) void connectors.startAll();
+    void mcp.startAll();
     return solo;
   }
 
@@ -260,6 +275,7 @@ export class SoloAgent {
 
   async close() {
     await this.connectors.stopAll();
+    await this.mcp.stopAll();
     for (const watcher of this.#watchers.values()) await watcher.stop();
     await this.#taskWatch?.stop();
     await this.harness.close(ctx);
@@ -336,7 +352,7 @@ export class SoloAgent {
     return {
       model: agent.model,
       thinkingLevel: agent.thinkingLevel as AgentChange["thinkingLevel"],
-      extensions: [this.#skills.Base, ...skills.map((s) => this.#skills.extensions[s])],
+      extensions: [this.#skills.Base, ...skills.map((s) => this.#skills.extensions[s]), ...this.mcp.extensionsFor(agent.mcpServers ?? [])],
       tools: null,
       instructions: agent.instructions || null,
       maxTurns: agent.maxTurns,
