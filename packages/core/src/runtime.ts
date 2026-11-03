@@ -73,7 +73,7 @@ import { createSkills, type SkillHost } from "./skills.ts";
 import { Ledger, listAllows, TeamStore } from "./team.ts";
 import { EVENT_ENTRY, MESSAGE_ENTRY, type EventEntryData, type MessageEntryData, textOf, toLive, toMessages, usageOf } from "./transcript.ts";
 
-export const VERSION = "0.1.1";
+export const VERSION = "0.2.0";
 
 export type SoloAgentOptions = {
   /** Directory for databases and agent workspaces. */

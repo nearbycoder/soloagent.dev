@@ -6,6 +6,31 @@ All notable changes to soloagent are documented here. The format follows [Keep a
 
 - _Nothing yet. Add entries under Added / Changed / Fixed / Removed / Security as you go._
 
+## [0.2.0] - 2026-11-03
+
+### Added
+
+- **Tool approvals.** Per-agent policy (off, risky tools, every tool). Waiting tool calls are durable and survive restarts. Approve or deny in the dashboard, the TUI (`/approve`, `/deny`), or with buttons in Slack, Discord, and Telegram, limited to the people you name. Unanswered requests are denied after a timeout. The risky list accepts prefixes such as `mcp__github__*`.
+- **Teams.** Dashboard users with admin and member roles, invited by one-time link. The admin token can be rotated from Settings. Per-connector access lists for people, channels, and agents. Daily spend and message budgets per agent, per-person hourly rate limits, and a `429` from the API when a limit is hit. Agents with the workspace skill are unreachable from chat apps unless you allow it.
+- **MCP servers.** Connect any Model Context Protocol server over stdio or Streamable HTTP from the new **Tools** page, and pick which agents get its tools. Env values and headers are sealed at rest. Large tool sets load on demand through `tool_search`. Dropped servers reconnect with backoff.
+- **Memory editor.** A Memory tab per agent: search, add, edit, delete, and clear everything it remembers.
+- **Recurring automations.** Cron or simple presets in any time zone, DST-aware, posting into a thread or a chat channel. Each one is a durable task.
+- **Files and images.** Share screenshots, photos, logs, and code from chat apps, the dashboard (paste, drop, or the paperclip), or `soloagent ask --file`. Images reach the model resized and text files are inlined.
+- **Backups and export.** `soloagent backup` and `soloagent restore`, scheduled backups (`SOLOAGENT_BACKUP_INTERVAL`, `SOLOAGENT_BACKUP_KEEP`), a backup download in Settings, and agent export/import by handle with a dry run.
+- **Upgrade notices** in the dashboard, the TUI, and `soloagent --version`. Turn them off with `SOLOAGENT_UPDATE_CHECK=0`.
+- **Distribution.** Homebrew (`brew install nearbycoder/soloagent/soloagent`), npm publishing from tagged releases (when the repo has an `NPM_TOKEN`), and a Railway template guide.
+- **Repo hygiene.** CONTRIBUTING, SECURITY, a code of conduct, issue and PR templates, and Dependabot.
+- **Tests.** Connector integration tests against fake Slack (Web API and Socket Mode) and Telegram servers, Discord driver tests, and Playwright end-to-end tests of the dashboard in CI.
+
+### Fixed
+
+- A fast answer in Slack, Discord, or Telegram no longer arrives as a second message under a "thinking…" placeholder that never updates.
+
+### Security
+
+- Removing a user, signing out, or rotating the admin token closes that credential's open WebSockets right away. A role change makes the dashboard reconnect with the new permissions.
+- Writes to MCP servers, memories, automations, approval settings, backups, and agent import are admin-only.
+
 ## [0.1.1] - 2026-11-02
 
 ### Fixed
@@ -50,6 +75,7 @@ First public release.
 
 - Connectors whose sealed tokens can't be decrypted (because `SOLOAGENT_SECRET` changed) are marked as needing new tokens instead of crashing the server on boot.
 
-[Unreleased]: https://github.com/nearbycoder/soloagent.dev/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/nearbycoder/soloagent.dev/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/nearbycoder/soloagent.dev/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/nearbycoder/soloagent.dev/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/nearbycoder/soloagent.dev/releases/tag/v0.1.0

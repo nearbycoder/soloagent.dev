@@ -1,7 +1,7 @@
 {
   "name": "soloagent",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "One control plane for all of your AI agents. Durable agents on Pi, talking through Slack, Discord, Telegram, the web, and your terminal.",
   "type": "module",
   "license": "MIT",
