@@ -5,7 +5,7 @@
 //   node scripts/bump-version.mjs 0.2.0            # or 0.2.0-rc.1
 //   node scripts/bump-version.mjs 0.2.0 --dry-run  # print what would change
 //
-// Touches: package.json, packages/*/package.json, package-lock.json (workspace versions),
+// Touches: package.json, packages/*/package.json, e2e/package.json, package-lock.json (workspace versions),
 // packages/core/src/runtime.ts (VERSION), and CHANGELOG.md. Then review, commit, and tag
 // (see docs/releasing.md).
 import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
@@ -44,17 +44,23 @@ function update(rel, fn) {
 const setPkgVersion = (text) => text.replace(/^(\s{2}"version":\s*")[^"]*(")/m, `$1${version}$2`);
 
 const current = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
-const workspaces = readdirSync(join(root, "packages")).filter((d) => existsSync(join(root, "packages", d, "package.json")));
+// Workspace dirs: packages/* plus e2e/.
+const workspaces = [
+  ...readdirSync(join(root, "packages"))
+    .filter((d) => existsSync(join(root, "packages", d, "package.json")))
+    .map((d) => `packages/${d}`),
+  ...(existsSync(join(root, "e2e", "package.json")) ? ["e2e"] : []),
+];
 
 update("package.json", setPkgVersion);
-for (const ws of workspaces) update(`packages/${ws}/package.json`, setPkgVersion);
+for (const ws of workspaces) update(`${ws}/package.json`, setPkgVersion);
 
 update("package-lock.json", (text) => {
   const lock = JSON.parse(text);
   lock.version = version;
   if (lock.packages?.[""]) lock.packages[""].version = version;
   for (const ws of workspaces) {
-    if (lock.packages?.[`packages/${ws}`]) lock.packages[`packages/${ws}`].version = version;
+    if (lock.packages?.[ws]) lock.packages[ws].version = version;
   }
   return `${JSON.stringify(lock, null, 2)}\n`;
 });
