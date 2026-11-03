@@ -23,7 +23,8 @@
     "tui": "node packages/cli/src/main.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && npm run typecheck -w @soloagent/web",
     "test": "node --test 'packages/*/test/**/*.test.ts'",
-    "build:npm": "npm run build -w @soloagent/web && node scripts/build-npm.mjs"
+    "build:npm": "npm run build -w @soloagent/web && node scripts/build-npm.mjs",
+    "deploy:site": "node scripts/stamp-site.mjs && cd site && vercel deploy --prod --yes"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
