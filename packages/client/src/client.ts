@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AttachmentUpload,
   AgentInput,
   ClientEvent,
   Connector,
@@ -41,6 +42,8 @@ export type SendOptions = {
   source?: "web" | "tui" | "api";
   /** While a run is going: steer it (default) or queue as a follow-up. */
   whenBusy?: "steer" | "followUp";
+  /** Files and images, as base64 (`data_base64`) or URLs. Up to 10 files of 20 MB each. */
+  attachments?: AttachmentUpload[];
 };
 
 type Listener = (event: ServerEvent) => void;
@@ -191,6 +194,10 @@ export class SoloClient {
       `/threads/${encodeURIComponent(id)}/ask`,
       { text, ...options },
     );
+  }
+  /** URL of a shared file, for `<img src>` and downloads (same-origin cookie or a Bearer token). */
+  fileUrl(sha256: string) {
+    return `${this.baseUrl}/api/files/${encodeURIComponent(sha256)}`;
   }
   updateThread(id: string, input: { title?: string; agentId?: string }) {
     return this.request<Thread>("PATCH", `/threads/${encodeURIComponent(id)}`, input);

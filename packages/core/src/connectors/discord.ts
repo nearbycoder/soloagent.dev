@@ -54,6 +54,10 @@ export const discordDriver: DriverFactory = (config, host): ConnectorDriver => {
           text,
           target: { channelId: message.channelId, replyTo: message.id },
           isDirect,
+          // Attachments are on Discord's public CDN; the runtime downloads them.
+          ...(message.attachments.size
+            ? { attachments: [...message.attachments.values()].map((a) => ({ name: a.name, mimeType: a.contentType ?? "", size: a.size, url: a.url })) }
+            : {}),
         });
       });
 

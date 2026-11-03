@@ -8,6 +8,7 @@ import { MenuLabel, MenuSeparator, Popover } from "../../components/overlay.tsx"
 import { EmptyState, IconButton, Skeleton } from "../../components/ui.tsx";
 import { cn } from "../../lib/cn.ts";
 import { plainPreview, shortTime } from "../../lib/format.ts";
+import { toUploads } from "../../lib/files.ts";
 import { linkHandler, navigate, type Route } from "../../lib/router.ts";
 import { toast } from "../../lib/toast.ts";
 import { Composer } from "./Composer.tsx";
@@ -238,7 +239,7 @@ function NewChat({ agentId }: { agentId?: string }) {
   const agent = agents?.find((a) => a.id === (picked ?? agentId)) ?? fallback;
   const [sending, setSending] = useState(false);
 
-  const start = async (text: string) => {
+  const start = async (text: string, files: File[] = []) => {
     if (!agent) return false;
     setSending(true);
     let threadId: string | undefined;
@@ -246,7 +247,7 @@ function NewChat({ agentId }: { agentId?: string }) {
       const thread = await client.createThread({ agentId: agent.id, source: "web" });
       threadId = thread.id;
       local.thread(thread);
-      await client.send(thread.id, text, { source: "web" });
+      await client.send(thread.id, text, { source: "web", ...(files.length ? { attachments: await toUploads(files) } : {}) });
       navigate(`/chat/${thread.id}`, { replace: true });
       return true;
     } catch (error) {
@@ -331,7 +332,7 @@ function NewChat({ agentId }: { agentId?: string }) {
         agent={agent}
         busy={false}
         disabled={!agent || sending}
-        onSend={(text) => start(text)}
+        onSend={(text, _mode, files) => start(text, files)}
         onSwitchAgent={(id) => setPicked(id)}
         autoFocus
       />

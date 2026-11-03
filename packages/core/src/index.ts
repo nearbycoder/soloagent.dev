@@ -1,4 +1,4 @@
-export { SoloAgent, HttpError, VERSION, pickModel, type SoloAgentOptions, type InboundMessage, type ReplyTarget } from "./runtime.ts";
+export { SoloAgent, HttpError, VERSION, pickModel, parseUploads, type SoloAgentOptions, type InboundMessage, type ReplyTarget } from "./runtime.ts";
 export { CONNECTOR_KINDS, SLACK_MANIFEST } from "./connectors/kinds.ts";
 export { SECRET_MASK } from "./connectors/manager.ts";
 export type { ConnectorDriver, ConnectorHost, DriverFactory } from "./connectors/types.ts";
@@ -6,3 +6,4 @@ export { chunk, toSlack, toTelegramHtml } from "./connectors/format.ts";
 export { createSkills, htmlToText, type SkillHost } from "./skills.ts";
 export { toMessages, toLive, MESSAGE_ENTRY, EVENT_ENTRY } from "./transcript.ts";
 export { DEFAULT_INSTRUCTIONS, toHandle } from "./agents.ts";
+export { ATTACHMENT_LIMITS, FileStore, attachmentContent, download, kindOf, normalizeMime, type AttachmentFile, type InboundAttachment } from "./attachments.ts";

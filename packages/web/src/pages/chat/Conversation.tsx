@@ -9,6 +9,7 @@ import { Button, EmptyState, IconButton, Skeleton } from "../../components/ui.ts
 import { copyText } from "../../lib/clipboard.ts";
 import { cn } from "../../lib/cn.ts";
 import { dayLabel } from "../../lib/format.ts";
+import { toUploads } from "../../lib/files.ts";
 import { linkHandler, navigate } from "../../lib/router.ts";
 import { confirm, toast } from "../../lib/toast.ts";
 import { Composer } from "./Composer.tsx";
@@ -79,10 +80,10 @@ export function Conversation({ threadId }: { threadId: string }) {
     }
   };
 
-  const send = async (text: string, mode: "steer" | "followUp") => {
+  const send = async (text: string, mode: "steer" | "followUp", files: File[]) => {
     atBottom.current = true;
     try {
-      await client.send(threadId, text, { source: "web", whenBusy: mode });
+      await client.send(threadId, text, { source: "web", whenBusy: mode, ...(files.length ? { attachments: await toUploads(files) } : {}) });
       requestAnimationFrame(() => scrollToBottom(true));
       return true;
     } catch (error) {

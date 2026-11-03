@@ -18,6 +18,7 @@ export const COMMANDS: CommandSpec[] = [
   { name: "threads", description: "browse conversations from every channel (ctrl+p)" },
   { name: "model", args: "[provider/model]", description: "change the current agent's model" },
   { name: "title", args: "<text>", description: "rename this thread" },
+  { name: "attach", args: "<path>|clear", description: "attach a file or image to your next message" },
   { name: "reset", description: "give the agent a fresh context in this thread" },
   { name: "stop", description: "stop the current run (esc)" },
   { name: "compact", description: "summarize older messages to free up context" },

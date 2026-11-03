@@ -17,6 +17,7 @@ import {
   type WatchHandle,
 } from "@earendil-works/pi-durable";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
+import { DEFAULT_IMAGE_LIMITS } from "@earendil-works/pi-durable/tools";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import type {
   ActivityItem,
@@ -37,6 +38,19 @@ import type {
   UsageSummary,
 } from "@soloagent/client";
 import { AgentStore } from "./agents.ts";
+import {
+  ATTACHMENT_LIMITS,
+  DownloadError,
+  FileStore,
+  attachmentContent,
+  download,
+  expandImageMarkers,
+  externalizeImages,
+  formatBytes,
+  safeName,
+  stripMarkers,
+  type InboundAttachment,
+} from "./attachments.ts";
 import { ConnectorManager } from "./connectors/manager.ts";
 import { chunk } from "./connectors/format.ts";
 import type { InboundMessage, PostHandle, ReplyTarget } from "./connectors/types.ts";
@@ -64,6 +78,8 @@ export type SoloAgentOptions = {
   /** Register the built-in demo model so a fresh install works without any account. Default: SOLOAGENT_DEMO !== "0". */
   demo?: boolean;
   log?: (message: string) => void;
+  /** Let attachment URLs point at loopback and private networks. Default: SOLOAGENT_ALLOW_PRIVATE_FILE_URLS === "1". */
+  allowPrivateFileUrls?: boolean;
 };
 
 type ThreadRow = {
@@ -108,7 +124,11 @@ export class SoloAgent {
   readonly connectors: ConnectorManager;
   readonly adminToken: string;
   readonly dataDir: string;
+  /** Files and images people shared, under `<dataDir>/files`. */
+  readonly files: FileStore;
   readonly startedAt = Date.now();
+  #allowPrivateFileUrls = process.env.SOLOAGENT_ALLOW_PRIVATE_FILE_URLS === "1";
+  #images: Promise<import("@earendil-works/pi-durable/tools").ImageProcessor | undefined> | undefined;
   #skills: ReturnType<typeof createSkills>;
   #watchers = new Map<string, ThreadWatcher>();
   #busy = new Set<string>();
@@ -137,6 +157,7 @@ export class SoloAgent {
     this.#skills = init.skills;
     this.adminToken = init.adminToken;
     this.dataDir = init.dataDir;
+    this.files = new FileStore(join(init.dataDir, "files"), init.db);
     this.#log = init.log;
   }
 
@@ -221,6 +242,7 @@ export class SoloAgent {
         }
       },
       runAnswered: (conversationId, answer, context) => void solo?.runAnswered(conversationId, answer, context).catch((error) => log(`deliver: ${String(error)}`)),
+      expandFiles: async (messages) => (solo ? expandImageMarkers(messages, solo.files) : messages),
     };
 
     const skills = createSkills(host);
@@ -247,6 +269,7 @@ export class SoloAgent {
     );
 
     solo = new SoloAgent({ db, harness, agents, providers, connectors, skills, adminToken, dataDir, log });
+    if (options.allowPrivateFileUrls !== undefined) solo.#allowPrivateFileUrls = options.allowPrivateFileUrls;
     harness.resume();
     if (agents.list().length === 0) solo.seed();
     await solo.autoAssignModels();
@@ -472,7 +495,7 @@ export class SoloAgent {
    */
   async send(
     threadId: string,
-    input: { text: string; author: Author; whenBusy?: "steer" | "followUp"; requestId?: string },
+    input: { text: string; author: Author; whenBusy?: "steer" | "followUp"; requestId?: string; attachments?: InboundAttachment[] },
   ): Promise<{ submissionId: string; wait: () => Promise<{ status: "done" | "unanswered"; answer?: string; reason?: string }> }> {
     const row = this.#row(threadId);
     if (!row) throw new Error("Thread not found");
@@ -484,23 +507,28 @@ export class SoloAgent {
       await conversation.configure(this.agentChange(agent), ctx);
       this.db.run("UPDATE threads SET agent_version = ? WHERE id = ?", this.agents.version(agent), threadId);
     }
-    const text = input.text.trim();
+    const text = stripMarkers(input.text).trim();
     const at = Date.now();
-    const content = row.source === "web" || row.source === "tui" || row.source === "api" ? text : `[${input.author.name}]: ${text}`;
+    const self = row.source === "web" || row.source === "tui" || row.source === "api";
+    const head = self ? text : text ? `[${input.author.name}]: ${text}` : `[${input.author.name}] shared:`;
+    const files = input.attachments?.length ? await this.#attach(input.attachments, agent, head) : undefined;
+    if (!text && !files) throw new HttpError(400, "text or attachments are required");
+    const summary = text || files!.refs.map((f) => f.name).join(", ") || "(attachments)";
     const submission = await conversation.submit(
       {
         type: "input",
-        content,
+        content: files?.content ?? head,
         whenBusy: input.whenBusy ?? "steer",
         requestId: input.requestId,
-        entry: { kind: MESSAGE_ENTRY, data: { author: input.author, text, at } satisfies MessageEntryData },
+        entry: { kind: MESSAGE_ENTRY, data: { author: input.author, text, at, ...(files?.refs.length ? { attachments: files.refs } : {}) } satisfies MessageEntryData },
       },
       ctx,
     );
-    const title = row.message_count === 0 && row.title === "New conversation" ? text.replace(/\s+/g, " ").slice(0, 60) : row.title;
-    this.db.run("UPDATE threads SET message_count = message_count + 1, preview = ?, title = ?, updated_at = ? WHERE id = ?", text.slice(0, 140), title, at, threadId);
+    const title = row.message_count === 0 && row.title === "New conversation" ? summary.replace(/\s+/g, " ").slice(0, 60) : row.title;
+    this.db.run("UPDATE threads SET message_count = message_count + 1, preview = ?, title = ?, updated_at = ? WHERE id = ?", summary.slice(0, 140), title, at, threadId);
     this.markBusy(threadId);
-    this.activity({ type: "message", text: `${input.author.name} → @${agent.handle}: ${text.slice(0, 100)}`, agentId: agent.id, threadId });
+    const fileNote = files?.refs.length ? ` (+${files.refs.length} file${files.refs.length === 1 ? "" : "s"})` : "";
+    this.activity({ type: "message", text: `${input.author.name} → @${agent.handle}: ${summary.slice(0, 100)}${fileNote}`, agentId: agent.id, threadId });
     return {
       submissionId: String(submission.id),
       wait: async () => {
@@ -512,6 +540,73 @@ export class SoloAgent {
         return { status: "unanswered", reason: settled.reason ?? "unanswered" };
       },
     };
+  }
+
+  /**
+   * Store shared files and build the model content for them: the message text, then each file's image block,
+   * fenced text, or note. Image blocks become markers that point at stored files (see `externalizeImages`).
+   */
+  async #attach(list: InboundAttachment[], agent: Agent, head: string) {
+    const max = ATTACHMENT_LIMITS.maxFileBytes;
+    const notes: string[] = [];
+    const loaded = await Promise.all(
+      list.map(async (attachment, index) => {
+        const name = safeName(attachment.name);
+        if (index >= ATTACHMENT_LIMITS.maxFiles) {
+          notes.push(`[attached: ${name}: left out, at most ${ATTACHMENT_LIMITS.maxFiles} files per message]`);
+          return undefined;
+        }
+        try {
+          if (attachment.size > max || (attachment.data && attachment.data.byteLength > max)) throw new DownloadError(`larger than the ${formatBytes(max)} limit`);
+          const bytes = attachment.data ?? (attachment.url ? await download(attachment.url, { allowPrivate: this.#allowPrivateFileUrls }) : undefined);
+          if (!bytes) throw new DownloadError("no file data");
+          return { ref: this.files.put(bytes, { name, mimeType: attachment.mimeType }), bytes };
+        } catch (error) {
+          notes.push(`[attached: ${name}: could not be read (${error instanceof DownloadError ? error.message : "failed"})]`);
+          return undefined;
+        }
+      }),
+    );
+    const stored = loaded.filter((f) => f !== undefined);
+    const images = stored.some((f) => f.ref.mimeType.startsWith("image/")) ? await this.#imageProcessor() : undefined;
+    const resize = agent.model ? this.providers.models.getModel(agent.model.provider, agent.model.modelId)?.inputLimits?.images?.resize : undefined;
+    const workspace = agent.skills.includes("workspace") ? join(this.dataDir, "workspaces", agent.handle, "attachments") : undefined;
+    const blocks = await attachmentContent(
+      stored.map((f) => ({ name: f.ref.name, mimeType: f.ref.mimeType, bytes: f.bytes, sha256: f.ref.sha256 })),
+      {
+        images,
+        limits: resize ? { ...DEFAULT_IMAGE_LIMITS, ...Object.fromEntries(Object.entries(resize).filter(([key]) => key !== "jpegQuality")) } : undefined,
+        savedAs: workspace
+          ? (file) => {
+              const name = `${(file.sha256 ?? "").slice(0, 8)}-${safeName(file.name)}`;
+              try {
+                mkdirSync(workspace, { recursive: true });
+                if (!existsSync(join(workspace, name))) writeFileSync(join(workspace, name), file.bytes);
+                return `attachments/${name}`;
+              } catch {
+                return undefined;
+              }
+            }
+          : undefined,
+      },
+    );
+    const content = externalizeImages(
+      [...(head ? [{ type: "text" as const, text: head }] : []), ...blocks, ...notes.map((text) => ({ type: "text" as const, text }))],
+      this.files,
+      () => "image",
+    );
+    return { refs: stored.map((f) => f.ref), content };
+  }
+
+  #imageProcessor() {
+    this.#images ??= import("@earendil-works/pi-durable/images/node").then(
+      (m) => m.createNodePhotonImages(),
+      (error) => {
+        this.#log(`images: the Photon image processor is unavailable, images pass through unresized (${String(error)})`);
+        return undefined;
+      },
+    );
+    return this.#images;
   }
 
   async stop(threadId: string) {
@@ -652,7 +747,7 @@ export class SoloAgent {
       await reply("⏹ Stopped.");
       return { status: "done" as const, answer: "stopped" };
     }
-    if (!text) {
+    if (!text && !message.attachments?.length) {
       await reply(`${agent.avatar} @${agent.handle} here — what can I do?`);
       return { status: "done" as const, answer: "" };
     }
@@ -679,13 +774,13 @@ export class SoloAgent {
       }
     }
 
-    const sent = await this.send(row.id, { text, author: message.author });
+    const sent = await this.send(row.id, { text, author: message.author, attachments: message.attachments });
     if (options.wait) return sent.wait();
     return { status: "done" as const };
   }
 
   /** `POST /api/hooks/:id`. */
-  async receiveWebhook(connectorId: string, secret: string | undefined, body: { text?: string; thread?: string; user?: string; callback_url?: string }) {
+  async receiveWebhook(connectorId: string, secret: string | undefined, body: { text?: string; thread?: string; user?: string; callback_url?: string; attachments?: unknown }) {
     const connector = this.connectors.get(connectorId);
     if (!connector || connector.kind !== "webhook") throw new HttpError(404, "Unknown webhook");
     if (!connector.enabled) throw new HttpError(409, "This webhook is disabled");
@@ -693,16 +788,19 @@ export class SoloAgent {
     const given = Buffer.from(secret ?? "");
     const wanted = Buffer.from(expected ?? "");
     if (!expected || given.length !== wanted.length || !timingSafeEqual(given, wanted)) throw new HttpError(401, "Bad secret");
-    if (!body.text?.trim()) throw new HttpError(400, "text is required");
+    const attachments = parseUploads(body.attachments);
+    const text = typeof body.text === "string" ? body.text : "";
+    if (!text.trim() && !attachments.length) throw new HttpError(400, "text is required");
     const thread = body.thread?.trim() || newId("once");
     const message: InboundMessage = {
       externalKey: thread,
       location: `webhook ${thread}`,
-      title: `${connector.name} · ${body.text.slice(0, 40)}`,
+      title: `${connector.name} · ${(text.trim() || attachments.map((a) => a.name).join(", ")).slice(0, 40)}`,
       author: { name: body.user?.trim() || "webhook", source: "webhook" },
-      text: body.text,
+      text,
       target: body.callback_url ? { callbackUrl: body.callback_url, thread } : { thread },
       isDirect: true,
+      ...(attachments.length ? { attachments } : {}),
     };
     if (body.callback_url) {
       void this.handleInbound(connector, message).catch((error) => this.#log(`webhook: ${String(error)}`));
@@ -1018,6 +1116,29 @@ export class HttpError extends Error {
     super(message);
     this.status = status;
   }
+}
+
+/**
+ * Validate uploaded attachments from a JSON body: `[{ name, mimeType?, data_base64 } | { name, mimeType?, url }]`.
+ * Used by the message routes and webhooks.
+ */
+export function parseUploads(value: unknown): InboundAttachment[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new HttpError(400, "attachments must be an array");
+  if (value.length > ATTACHMENT_LIMITS.maxFiles) throw new HttpError(400, `At most ${ATTACHMENT_LIMITS.maxFiles} attachments per message`);
+  return value.map((item: unknown, index) => {
+    const upload = (item ?? {}) as { name?: unknown; mimeType?: unknown; data_base64?: unknown; url?: unknown };
+    const name = typeof upload.name === "string" && upload.name.trim() ? upload.name : `file-${index + 1}`;
+    const mimeType = typeof upload.mimeType === "string" ? upload.mimeType : "";
+    if (typeof upload.data_base64 === "string") {
+      const b64 = upload.data_base64.replace(/^data:[^,]*,/, "");
+      if (Math.floor((b64.length * 3) / 4) > ATTACHMENT_LIMITS.maxFileBytes + 3) throw new HttpError(413, `${safeName(name)} is larger than the ${formatBytes(ATTACHMENT_LIMITS.maxFileBytes)} limit`);
+      const data = Buffer.from(b64, "base64");
+      return { name, mimeType, size: data.byteLength, data };
+    }
+    if (typeof upload.url === "string" && /^https?:\/\//i.test(upload.url)) return { name, mimeType, size: 0, url: upload.url };
+    throw new HttpError(400, `Attachment ${index + 1} needs data_base64 or an http(s) url`);
+  });
 }
 
 function persistentSecret(path: string): string {

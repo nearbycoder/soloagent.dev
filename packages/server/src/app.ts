@@ -1,10 +1,11 @@
 import { timingSafeEqual } from "node:crypto";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
+import { Readable } from "node:stream";
 import { join } from "node:path";
 import { Hono, type Context as HonoContext } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { CONNECTOR_KINDS, HttpError, VERSION, type SoloAgent } from "@soloagent/core";
+import { CONNECTOR_KINDS, HttpError, VERSION, parseUploads, type SoloAgent } from "@soloagent/core";
 import type { AgentInput, ConnectorInput, Source } from "@soloagent/client";
 
 export type AppOptions = {
@@ -14,6 +15,8 @@ export type AppOptions = {
 };
 
 const COOKIE = "solo_session";
+/** File types served inline by `GET /api/files/:sha256`. */
+const INLINE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
 
 export function tokenMatches(expected: string, given: string | undefined): boolean {
   if (!given) return false;
@@ -57,7 +60,7 @@ export function createApp({ solo, webDir }: AppOptions) {
   });
 
   api.post("/hooks/:id", async (c) => {
-    const body = await c.req.json<{ text?: string; thread?: string; user?: string; callback_url?: string }>().catch(() => ({}));
+    const body = await c.req.json<{ text?: string; thread?: string; user?: string; callback_url?: string; attachments?: unknown }>().catch(() => ({}));
     const result = await solo.receiveWebhook(c.req.param("id"), c.req.header("x-solo-secret") ?? c.req.query("secret"), body);
     return c.json(result, "accepted" in result ? 202 : 200);
   });
@@ -146,10 +149,11 @@ export function createApp({ solo, webDir }: AppOptions) {
     c.json(await solo.messages(c.req.param("id"), c.req.query("before"), Math.min(200, Number(c.req.query("limit") ?? 50)))),
   );
   const sendBody = async (c: HonoContext) => {
-    const body = await c.req.json<{ text?: string; author?: string; source?: Source; whenBusy?: "steer" | "followUp" }>();
-    if (!body.text?.trim()) throw new HttpError(400, "text is required");
+    const body = await c.req.json<{ text?: string; author?: string; source?: Source; whenBusy?: "steer" | "followUp"; attachments?: unknown }>();
+    const attachments = parseUploads(body.attachments);
+    if (!body.text?.trim() && !attachments.length) throw new HttpError(400, "text is required");
     const source: Source = body.source === "tui" || body.source === "api" ? body.source : "web";
-    return { text: body.text, author: { name: body.author?.trim() || "You", source }, whenBusy: body.whenBusy };
+    return { text: body.text ?? "", author: { name: body.author?.trim() || "You", source }, whenBusy: body.whenBusy, attachments };
   };
   api.post("/threads/:id/messages", async (c) => {
     const sent = await solo.send(c.req.param("id"), await sendBody(c));
@@ -170,6 +174,26 @@ export function createApp({ solo, webDir }: AppOptions) {
   api.post("/threads/:id/compact", async (c) => {
     await solo.compact(c.req.param("id"));
     return c.json({ ok: true });
+  });
+
+  // Files & images: what people shared, by content hash. Only raster images render inline; everything else
+  // downloads, sandboxed, so an uploaded HTML or SVG file can never run script on the dashboard's origin.
+  api.get("/files/:sha256", (c) => {
+    const file = solo.files.get(c.req.param("sha256"));
+    if (!file) return c.json({ error: "File not found" }, 404);
+    const inline = INLINE_TYPES.has(file.mimeType);
+    const encoded = encodeURIComponent(file.name);
+    const ascii = file.name.replace(/[^\x20-\x7e]|["\\]/g, "_");
+    return new Response(Readable.toWeb(createReadStream(file.path)) as ReadableStream, {
+      headers: {
+        "content-type": inline || file.mimeType.startsWith("text/") ? file.mimeType : "application/octet-stream",
+        "content-length": String(file.size),
+        "content-disposition": `${inline ? "inline" : "attachment"}; filename="${ascii}"; filename*=UTF-8''${encoded}`,
+        "x-content-type-options": "nosniff",
+        "content-security-policy": "default-src 'none'; sandbox",
+        "cache-control": "private, max-age=31536000, immutable",
+      },
+    });
   });
 
   // Schedules

@@ -38,6 +38,11 @@ export const MIGRATIONS: { id: string; sql: string }[] = [
    CREATE TABLE schedules (task_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, agent_id TEXT NOT NULL, text TEXT NOT NULL,
      at INTEGER NOT NULL, status TEXT NOT NULL);`,
   },
+  {
+    // Files & images: metadata of files stored under <dataDir>/files/<sha256>.
+    id: "050_attachments",
+    sql: `CREATE TABLE files (sha256 TEXT PRIMARY KEY, name TEXT NOT NULL, mime_type TEXT NOT NULL, size INTEGER NOT NULL, created_at INTEGER NOT NULL);`,
+  },
 ];
 
 export class Db {

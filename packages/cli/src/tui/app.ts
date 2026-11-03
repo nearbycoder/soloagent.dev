@@ -22,7 +22,8 @@ import {
   type ThreadSnapshot,
   type ThreadState,
 } from "@soloagent/client";
-import { authorName, findAgent } from "../commands/ask.ts";
+import type { AttachmentUpload } from "@soloagent/client";
+import { authorName, findAgent, readAttachments } from "../commands/ask.ts";
 import { findProvider, sortProviders } from "../commands/login.ts";
 import { openBrowser } from "../commands/prompt.ts";
 import { loadHistory, saveHistory } from "../config.ts";
@@ -75,6 +76,8 @@ export class App implements ViewModel {
   overlay: { handle: OverlayHandle; kind: OverlayKind; panel?: Component } | undefined;
 
   #history: string[] = [];
+  /** Files queued with /attach for the next message. */
+  #attachments: AttachmentUpload[] = [];
   #seq = 0;
   #flash: { text: string; tone: Tone; until: number } | undefined;
   #quitArmedUntil = 0;
@@ -598,7 +601,9 @@ export class App implements ViewModel {
 
   async #send(text: string) {
     const newest = this.current.threadId ? this.state.messages[this.state.messages.length - 1] : undefined;
-    const pending: Pending = { id: ++this.#seq, text, at: Date.now(), baseline: newest?.id ?? null };
+    const attachments = this.#attachments;
+    this.#attachments = [];
+    const pending: Pending = { id: ++this.#seq, text, at: Date.now(), baseline: newest?.id ?? null, ...(attachments.length ? { files: attachments.map((a) => a.name) } : {}) };
     this.pending.push(pending);
     this.scroll.scrollToEnd();
     this.sync();
@@ -610,9 +615,10 @@ export class App implements ViewModel {
         this.openThread(thread.id, { keepPending: true });
         threadId = thread.id;
       }
-      await this.client.send(threadId, text, { author: this.author, source: "tui", whenBusy: "steer" });
+      await this.client.send(threadId, text, { author: this.author, source: "tui", whenBusy: "steer", ...(attachments.length ? { attachments } : {}) });
     } catch (error) {
       pending.failed = true;
+      if (attachments.length) this.#attachments = [...attachments, ...this.#attachments];
       this.sync();
       throw error;
     }
@@ -704,6 +710,22 @@ export class App implements ViewModel {
         const thread = await this.client.updateThread(threadId, { title: arg });
         this.#onEvent({ type: "thread.updated", thread });
         this.notice(`Renamed to “${thread.title}”`, "success");
+        return;
+      }
+      case "attach": {
+        if (arg === "clear") {
+          this.#attachments = [];
+          return this.flash("Attachments cleared");
+        }
+        if (!arg) {
+          const names = this.#attachments.map((a) => a.name);
+          return this.notice(names.length ? `Attached to your next message: ${names.join(", ")}` : "Usage: /attach <path> (repeat for more files, /attach clear to drop them)");
+        }
+        const path = arg.replace(/^~(?=\/|$)/, process.env.HOME ?? "~").replace(/^(["'])(.*)\1$/, "$2");
+        const [file] = readAttachments([path]);
+        if (this.#attachments.length >= 10) throw new Error("At most 10 files per message");
+        this.#attachments.push(file!);
+        this.notice(`Attached ${file!.name} — it goes with your next message`, "success");
         return;
       }
       case "reset": {

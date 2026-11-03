@@ -1,8 +1,9 @@
 /** Dependency-free argument parsing: `--flag value`, `--flag=value`, booleans, `--` and short aliases. */
 
-export type FlagKind = "boolean" | "string";
+/** "strings": a repeatable string flag, collected as an array. */
+export type FlagKind = "boolean" | "string" | "strings";
 export type FlagSpec = Record<string, FlagKind>;
-export type Parsed = { positionals: string[]; flags: Record<string, string | boolean | undefined> };
+export type Parsed = { positionals: string[]; flags: Record<string, string | boolean | string[] | undefined> };
 
 export class UsageError extends Error {}
 
@@ -43,16 +44,21 @@ export function parseArgs(argv: string[], spec: FlagSpec): Parsed {
       flags[name] = inline === undefined ? true : inline === "true" || inline === "1";
       continue;
     }
+    const set = (value: string) => {
+      if (kind === "strings") flags[name] = [...((flags[name] as string[] | undefined) ?? []), value];
+      else flags[name] = value;
+    };
     if (inline !== undefined) {
-      flags[name] = inline;
+      set(inline);
       continue;
     }
     const next = argv[i + 1];
     if (next === undefined || (next.startsWith("-") && next !== "-")) throw new UsageError(`${arg} needs a value`);
-    flags[name] = next;
+    set(next);
     i++;
   }
   return { positionals, flags };
 }
 
-export const str = (value: string | boolean | undefined): string | undefined => (typeof value === "string" ? value : undefined);
+export const str = (value: string | boolean | string[] | undefined): string | undefined => (typeof value === "string" ? value : undefined);
+export const strs = (value: string | boolean | string[] | undefined): string[] => (Array.isArray(value) ? value : typeof value === "string" ? [value] : []);

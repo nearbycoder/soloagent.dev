@@ -32,6 +32,8 @@ export interface SkillHost {
   scheduleFired(taskId: string): void;
   /** Called after every answered run; delivers replies to Slack, Discord, and friends. */
   runAnswered(conversationId: number, answerEntryId: number, context: Context): void;
+  /** Swap stored-image markers back to image blocks before each model request (Files & images). */
+  expandFiles?(messages: readonly import("@earendil-works/pi-ai").Message[]): Promise<readonly import("@earendil-works/pi-ai").Message[]>;
 }
 
 const MAX_FETCH_CHARS = 24_000;
@@ -64,6 +66,7 @@ export function createSkills(host: SkillHost) {
     ],
     hooks: [
       hook(GenerationTask, {
+        beforeRequest: async (request) => (host.expandFiles ? { messages: await host.expandFiles(request.messages) } : undefined),
         afterRun: async (run, api, context) => {
           host.runAnswered(Number(api.conversationId), Number(run.answer), context);
           return undefined;

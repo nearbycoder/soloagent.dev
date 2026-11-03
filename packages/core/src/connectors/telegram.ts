@@ -1,6 +1,7 @@
 import { Bot } from "grammy";
 import { toTelegramHtml } from "./format.ts";
-import type { ConnectorDriver, DriverFactory } from "./types.ts";
+import type { ConnectorDriver, DriverFactory, InboundMessage } from "./types.ts";
+import { ATTACHMENT_LIMITS } from "../attachments.ts";
 
 /**
  * Telegram over long polling. Answers every private message, and in groups @mentions and replies to the bot.
@@ -18,6 +19,19 @@ export const telegramDriver: DriverFactory = (config, host): ConnectorDriver => 
     }
   }
 
+  /** A photo (its largest size) or a document as a download URL. The Bot API serves files up to 20 MB. */
+  async function fileOf(file: { file_id: string; file_size?: number }, name: string, mimeType: string): Promise<NonNullable<InboundMessage["attachments"]>[number]> {
+    const base = { name, mimeType, size: file.file_size ?? 0 };
+    if (base.size > ATTACHMENT_LIMITS.maxFileBytes) return base;
+    try {
+      const info = await bot!.api.getFile(file.file_id);
+      return info.file_path ? { ...base, url: `https://api.telegram.org/file/bot${token}/${info.file_path}` } : base;
+    } catch (error) {
+      host.log(`telegram: could not fetch ${name}: ${(error as Error).message}`);
+      return base;
+    }
+  }
+
   return {
     maxLength: 3_900,
 
@@ -27,16 +41,24 @@ export const telegramDriver: DriverFactory = (config, host): ConnectorDriver => 
       const me = await bot.api.getMe();
       const username = me.username;
 
-      bot.on("message:text", async (ctx) => {
+      bot.on(["message:text", "message:photo", "message:document"], async (ctx) => {
         const message = ctx.message;
         const chat = ctx.chat;
         const isDirect = chat.type === "private";
-        const mentioned = username ? message.text.includes(`@${username}`) : false;
+        // Photos and documents carry their text as a caption.
+        const raw = message.text ?? message.caption ?? "";
+        const mentioned = username ? raw.includes(`@${username}`) : false;
         const repliedToBot = message.reply_to_message?.from?.id === me.id;
         if (!isDirect && !mentioned && !repliedToBot) return;
         const from = message.from;
         const name = [from?.first_name, from?.last_name].filter(Boolean).join(" ") || from?.username || "someone";
-        const text = username ? message.text.replace(new RegExp(`@${username}\\b`, "g"), "").trim() : message.text;
+        const text = username ? raw.replace(new RegExp(`@${username}\\b`, "g"), "").trim() : raw;
+        const photo = message.photo?.at(-1);
+        const attachments = photo
+          ? [await fileOf(photo, `photo-${photo.file_unique_id}.jpg`, "image/jpeg")]
+          : message.document
+            ? [await fileOf(message.document, message.document.file_name ?? "file", message.document.mime_type ?? "")]
+            : undefined;
         const topic = message.is_topic_message ? message.message_thread_id : undefined;
         const title = "title" in chat && chat.title ? chat.title : `DM with ${name}`;
         host.receive({
@@ -51,6 +73,7 @@ export const telegramDriver: DriverFactory = (config, host): ConnectorDriver => 
             ...(isDirect ? {} : { replyTo: String(message.message_id) }),
           },
           isDirect,
+          ...(attachments ? { attachments } : {}),
         });
       });
 

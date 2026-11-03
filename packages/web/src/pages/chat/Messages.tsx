@@ -18,11 +18,12 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import type { Agent, LiveState, Message, ToolCallInfo } from "@soloagent/client";
+import type { Agent, Attachment, LiveState, Message, ToolCallInfo } from "@soloagent/client";
 import { AgentAvatar, SourceBadge } from "../../components/brand.tsx";
 import { Markdown } from "../../components/Markdown.tsx";
 import { CopyButton } from "../../components/ui.tsx";
 import { cn } from "../../lib/cn.ts";
+import { fileSize, fileUrl, PREVIEWABLE } from "../../lib/files.ts";
 import { clockTime, cost, duration, fullDate, initials, relativeTime, tokens } from "../../lib/format.ts";
 
 type AssistantMessage = Extract<Message, { kind: "assistant" }>;
@@ -66,14 +67,49 @@ function AssistantHeader({ agent, model, at, extra }: { agent: Agent | undefined
 // ---------------------------------------------------------------------------
 // Messages
 
+/** Image thumbnails (click for full size) and file chips (download) shared with a message. */
+function Attachments({ files, align }: { files: Attachment[]; align: "start" | "end" }) {
+  const images = files.filter((f) => PREVIEWABLE.has(f.mimeType));
+  const others = files.filter((f) => !PREVIEWABLE.has(f.mimeType));
+  return (
+    <div className={cn("mb-1.5 flex max-w-[min(85%,640px)] flex-col gap-1.5", align === "end" ? "items-end" : "items-start")}>
+      {images.length > 0 && (
+        <div className={cn("flex flex-wrap gap-1.5", align === "end" && "justify-end")}>
+          {images.map((f) => (
+            <a key={f.sha256} href={fileUrl(f.sha256)} target="_blank" rel="noreferrer" title={`${f.name} · ${fileSize(f.size)}`} className="block overflow-hidden rounded-xl border border-border bg-surface-2 transition-opacity hover:opacity-90">
+              <img src={fileUrl(f.sha256)} alt={f.name} loading="lazy" className={cn("block object-cover", images.length === 1 ? "max-h-72 max-w-full" : "size-32")} />
+            </a>
+          ))}
+        </div>
+      )}
+      {others.map((f) => (
+        <a
+          key={f.sha256}
+          href={fileUrl(f.sha256)}
+          download={f.name}
+          title={`Download ${f.name}`}
+          className="flex max-w-full items-center gap-2.5 rounded-xl border border-border bg-surface px-3 py-2 transition-colors hover:border-border-strong hover:bg-surface-2"
+        >
+          <FileText className="size-4.5 shrink-0 text-subtle" />
+          <span className="min-w-0 truncate text-[13px] font-medium text-fg">{f.name}</span>
+          <span className="shrink-0 text-[11.5px] text-faint">{fileSize(f.size)}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
 export const UserBubble = memo(function UserBubble({ message, first }: { message: UserMessage; first: boolean }) {
   const self = SELF_SOURCES.has(message.author.source);
   if (self) {
     return (
       <div className={cn("group/msg flex flex-col items-end", first ? "mt-6" : "mt-1.5")}>
-        <div className="max-w-[min(85%,640px)] whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-border bg-surface-2 px-3.5 py-2 text-[14.5px] leading-relaxed text-fg">
-          {message.text}
-        </div>
+        {message.attachments?.length ? <Attachments files={message.attachments} align="end" /> : null}
+        {message.text && (
+          <div className="max-w-[min(85%,640px)] whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-border bg-surface-2 px-3.5 py-2 text-[14.5px] leading-relaxed text-fg">
+            {message.text}
+          </div>
+        )}
         <div className="mt-1 flex h-4 items-center gap-1.5 pr-1 text-[11px] text-faint opacity-0 transition-opacity group-hover/msg:opacity-100">
           {message.author.source !== "web" && <SourceBadge source={message.author.source} className="h-4 text-[10px]" />}
           <span title={fullDate(message.at)}>{clockTime(message.at)}</span>
@@ -102,7 +138,8 @@ export const UserBubble = memo(function UserBubble({ message, first }: { message
             </time>
           </div>
         )}
-        <div className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-fg">{message.text}</div>
+        {message.attachments?.length ? <Attachments files={message.attachments} align="start" /> : null}
+        {message.text && <div className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-fg">{message.text}</div>}
       </div>
     </div>
   );

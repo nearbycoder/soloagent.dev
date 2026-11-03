@@ -1,6 +1,7 @@
 import bolt from "@slack/bolt";
-import type { ConnectorDriver, DriverFactory } from "./types.ts";
+import type { ConnectorDriver, DriverFactory, InboundMessage } from "./types.ts";
 import { toSlack } from "./format.ts";
+import { ATTACHMENT_LIMITS, download } from "../attachments.ts";
 
 const { App, LogLevel } = bolt;
 
@@ -44,6 +45,25 @@ export const slackDriver: DriverFactory = (config, host): ConnectorDriver => {
 
   const strip = (text: string) => text.replace(new RegExp(`<@${botUserId}>`, "g"), "").trim();
 
+  /** Files on the event, downloaded with the bot token (needs the files:read scope). */
+  type SlackFile = { name?: string; title?: string; mimetype?: string; size?: number; url_private_download?: string; url_private?: string };
+  async function files(list: SlackFile[] | undefined): Promise<InboundMessage["attachments"]> {
+    if (!list?.length) return undefined;
+    return Promise.all(
+      list.slice(0, ATTACHMENT_LIMITS.maxFiles).map(async (f) => {
+        const base = { name: f.name || f.title || "file", mimeType: f.mimetype ?? "", size: f.size ?? 0 };
+        const url = f.url_private_download ?? f.url_private;
+        if (!url || base.size > ATTACHMENT_LIMITS.maxFileBytes) return base;
+        try {
+          return { ...base, data: await download(url, { headers: { authorization: `Bearer ${botToken}` } }) };
+        } catch (error) {
+          host.log(`slack: could not download ${base.name}: ${(error as Error).message}${/403|401/.test(String(error)) ? " (does the app have the files:read scope? Reinstall it after adding the scope)" : ""}`);
+          return base;
+        }
+      }),
+    );
+  }
+
   return {
     maxLength: 12_000,
 
@@ -63,6 +83,7 @@ export const slackDriver: DriverFactory = (config, host): ConnectorDriver => {
         const location = await channelName(client, event.channel);
         const name = await userName(client, event.user);
         const text = strip(event.text ?? "");
+        const attachments = await files((event as { files?: SlackFile[] }).files);
         host.receive({
           externalKey: `${event.channel}:${threadTs}`,
           location,
@@ -71,13 +92,15 @@ export const slackDriver: DriverFactory = (config, host): ConnectorDriver => {
           text,
           target: { channel: event.channel, thread_ts: threadTs },
           isDirect: false,
+          ...(attachments ? { attachments } : {}),
         });
       });
 
       app.message(async ({ message, client }) => {
-        const m = message as { channel_type?: string; subtype?: string; bot_id?: string; user?: string; text?: string; channel: string; ts: string; thread_ts?: string };
-        if (m.channel_type !== "im" || m.subtype || m.bot_id || !m.user) return;
+        const m = message as { channel_type?: string; subtype?: string; bot_id?: string; user?: string; text?: string; channel: string; ts: string; thread_ts?: string; files?: SlackFile[] };
+        if (m.channel_type !== "im" || (m.subtype && m.subtype !== "file_share") || m.bot_id || !m.user) return;
         const name = await userName(client, m.user);
+        const attachments = await files(m.files);
         host.receive({
           externalKey: m.thread_ts ? `${m.channel}:${m.thread_ts}` : m.channel,
           location: `DM with ${name}`,
@@ -86,6 +109,7 @@ export const slackDriver: DriverFactory = (config, host): ConnectorDriver => {
           text: strip(m.text ?? ""),
           target: m.thread_ts ? { channel: m.channel, thread_ts: m.thread_ts } : { channel: m.channel },
           isDirect: true,
+          ...(attachments ? { attachments } : {}),
         });
       });
 

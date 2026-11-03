@@ -1,12 +1,12 @@
 import type { EntryRecord, LiveState as PiLiveState } from "@earendil-works/pi-durable";
-import type { Author, LiveState, Message, Source, ToolCallInfo, Usage } from "@soloagent/client";
+import type { Attachment, Author, LiveState, Message, Source, ToolCallInfo, Usage } from "@soloagent/client";
 
 /** Entry kind soloagent places inputs as, carrying who said it and where. */
 export const MESSAGE_ENTRY = "solo.message";
 /** Display-only notices: connector events, reminders set, delegations. */
 export const EVENT_ENTRY = "solo.event";
 
-export type MessageEntryData = { author: Author; text: string; at: number };
+export type MessageEntryData = { author: Author; text: string; at: number; attachments?: Attachment[] };
 export type EventEntryData = { text: string; tone: "info" | "warn" | "error"; at: number };
 
 type AnyBlock = { type: string; text?: string; thinking?: string; id?: string; name?: string; arguments?: unknown };
@@ -69,7 +69,7 @@ export function toMessages(entry: EntryRecord, threadId: string, agentId: string
   switch (entry.kind) {
     case MESSAGE_ENTRY: {
       const data = entry.data as MessageEntryData;
-      return [{ id, kind: "user", threadId, author: data.author, text: data.text, at: data.at }];
+      return [{ id, kind: "user", threadId, author: data.author, text: data.text, ...(data.attachments?.length ? { attachments: data.attachments } : {}), at: data.at }];
     }
     case "pi.user":
       return [{ id, kind: "user", threadId, author: { name: "You", source: "api" }, text: textOf(message?.content), at }];

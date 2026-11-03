@@ -17,6 +17,8 @@ export type InboundMessage = {
   text: string;
   target: ReplyTarget;
   isDirect: boolean;
+  /** Files and images shared with the message: bytes, or a URL the runtime downloads. */
+  attachments?: { name: string; mimeType: string; size: number; data?: Uint8Array; url?: string }[];
 };
 
 export interface ConnectorHost {
