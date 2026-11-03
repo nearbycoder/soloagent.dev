@@ -1,3 +1,4 @@
+import { fstatSync } from "node:fs";
 import { userInfo } from "node:os";
 import type { Agent } from "@soloagent/client";
 import type { Connection } from "../connect.ts";
@@ -7,6 +8,17 @@ async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
   return Buffer.concat(chunks).toString("utf8");
+}
+
+/** True when stdin is a pipe or a redirected file, not a terminal or an inherited empty handle. */
+function stdinPiped(): boolean {
+  if (process.stdin.isTTY) return false;
+  try {
+    const stat = fstatSync(0);
+    return stat.isFIFO() || stat.isFile();
+  } catch {
+    return false;
+  }
 }
 
 export function findAgent(agents: Agent[], ref: string): Agent | undefined {
@@ -32,6 +44,11 @@ export async function ask(
   const { client } = connection;
   let text = message;
   if (text === "-" || (text === undefined && !process.stdin.isTTY)) text = await readStdin();
+  else if (text !== undefined && stdinPiped()) {
+    // `git diff | soloagent ask "Write a commit message"`: the piped text follows the message.
+    const piped = (await readStdin()).trim();
+    if (piped) text = `${text}\n\n${piped}`;
+  }
   if (!text?.trim()) throw new Error('Nothing to ask. Usage: soloagent ask "<message>" (or pipe text with -)');
 
   let threadId = options.thread;

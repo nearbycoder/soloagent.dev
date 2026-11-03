@@ -70,6 +70,14 @@ export function Shell({ onSignOut }: { onSignOut: () => void }) {
 
   useEffect(() => setDrawer(false), [path]);
 
+  // Escape closes the mobile drawer.
+  useEffect(() => {
+    if (!drawer) return;
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && setDrawer(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawer]);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -85,10 +93,11 @@ export function Shell({ onSignOut }: { onSignOut: () => void }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const threadTitle = useApp((s) => (route.page === "chat" && route.threadId ? s.threads?.find((t) => t.id === route.threadId)?.title : undefined));
   useEffect(() => {
-    const label = NAV.find((n) => n.page === route.page)?.label;
+    const label = threadTitle || NAV.find((n) => n.page === route.page)?.label;
     document.title = label && route.page !== "overview" ? `${label} · soloagent` : "soloagent";
-  }, [route.page]);
+  }, [route.page, threadTitle]);
 
   return (
     <div className="flex h-full bg-bg">
@@ -106,8 +115,16 @@ export function Shell({ onSignOut }: { onSignOut: () => void }) {
       {drawer && (
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 animate-fade-in bg-[var(--scrim)]" onClick={() => setDrawer(false)} />
-          <aside className="relative flex h-full w-[280px] max-w-[85vw] animate-slide-in-left border-r border-border bg-bg-subtle shadow-lg">
-            <SidebarContent route={route} collapsed={false} onClose={() => setDrawer(false)} onSearch={() => setPalette(true)} />
+          <aside role="dialog" aria-modal="true" aria-label="Menu" className="relative flex h-full w-[280px] max-w-[85vw] animate-slide-in-left border-r border-border bg-bg-subtle shadow-lg">
+            <SidebarContent
+              route={route}
+              collapsed={false}
+              onClose={() => setDrawer(false)}
+              onSearch={() => {
+                setDrawer(false);
+                setPalette(true);
+              }}
+            />
           </aside>
         </div>
       )}
@@ -264,7 +281,7 @@ function SidebarContent({
               {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
               {badge > 0 &&
                 (collapsed ? (
-                  <span className={cn("absolute right-1.5 top-1.5 size-1.5 rounded-full", item.page === "chat" ? "bg-accent" : "bg-danger")} />
+                  <span className={cn("absolute right-1.5 top-1.5 size-1.5 rounded-full", item.page === "chat" ? "bg-accent-text" : "bg-danger")} />
                 ) : (
                   <span
                     className={cn(

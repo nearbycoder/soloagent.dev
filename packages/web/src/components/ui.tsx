@@ -359,7 +359,7 @@ export function Dot({ tone, pulse, className }: { tone: "success" | "warning" | 
     warning: "bg-warning",
     danger: "bg-danger",
     neutral: "bg-faint",
-    accent: "bg-accent",
+    accent: "bg-accent-text",
     info: "bg-info",
   }[tone];
   return (

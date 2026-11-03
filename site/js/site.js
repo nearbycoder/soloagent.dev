@@ -30,7 +30,34 @@
       if (target) return target.innerText;
     }
     const pre = button.closest(".code")?.querySelector("pre");
-    return pre ? pre.innerText : "";
+    if (!pre) return "";
+    // Shell blocks: copy the commands and their continuation lines, never comments or output.
+    if (pre.querySelector(".cmd")) {
+      const lines = pre.innerText.split("\n");
+      const kept = [];
+      let continuing = false;
+      for (const raw of lines) {
+        const line = raw.replace(/\s+#.*$/, "").trimEnd();
+        const isCommand = !raw.trimStart().startsWith("#") && line.trim() !== "";
+        if (continuing || (isCommand && !raw.startsWith("  "))) kept.push(continuing ? line : line.trimStart());
+        continuing = (continuing || isCommand) && line.endsWith("\\");
+      }
+      return kept.join("\n");
+    }
+    return pre.innerText;
+  };
+
+  // Screen readers don't reliably announce a button's own label change.
+  let status;
+  const announce = (message) => {
+    if (!status) {
+      status = document.createElement("span");
+      status.className = "sr-only";
+      status.setAttribute("role", "status");
+      document.body.appendChild(status);
+    }
+    status.textContent = "";
+    setTimeout(() => (status.textContent = message), 50);
   };
 
   document.addEventListener("click", async (event) => {
@@ -40,6 +67,7 @@
     if (!text) return;
     const ok = await copyText(text);
     if (!ok) return;
+    announce("Copied to clipboard");
     button.classList.add("copied");
     const label = button.classList.contains("copy") ? button : null;
     const previous = label?.textContent;
@@ -68,8 +96,11 @@
     });
     root.addEventListener("keydown", (event) => {
       const i = tabs.indexOf(document.activeElement);
-      if (i < 0 || (event.key !== "ArrowRight" && event.key !== "ArrowLeft")) return;
-      const next = tabs[(i + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+      if (i < 0) return;
+      const step = { ArrowRight: i + 1, ArrowLeft: i - 1 + tabs.length, Home: 0, End: tabs.length - 1 }[event.key];
+      if (step === undefined) return;
+      event.preventDefault();
+      const next = tabs[step % tabs.length];
       select(next);
       next.focus();
     });
@@ -77,27 +108,24 @@
 
   // ---- Docs: highlight the current section in the table of contents ----
   const toc = document.querySelector("[data-toc]");
-  if (toc && "IntersectionObserver" in window) {
+  if (toc) {
     const links = new Map();
     toc.querySelectorAll('a[href^="#"]').forEach((a) => links.set(a.getAttribute("href").slice(1), a));
-    const sections = [...links.keys()].map((id) => document.getElementById(id)).filter(Boolean);
-    const visible = new Set();
+    const targets = [...links.keys()].map((id) => document.getElementById(id)).filter(Boolean);
+    // The active entry is the last heading scrolled past, so subsections win over their parent.
+    let frame = 0;
     const setActive = () => {
-      const current = sections.find((s) => visible.has(s.id)) ?? null;
-      if (!current) return;
-      links.forEach((a, id) => a.classList.toggle("active", id === current.id));
+      frame = 0;
+      let current = targets[0];
+      for (const el of targets) if (el.getBoundingClientRect().top <= 120) current = el;
+      links.forEach((a, id) => a.classList.toggle("active", id === current?.id));
     };
-    const spy = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) visible.add(entry.target.id);
-          else visible.delete(entry.target.id);
-        }
-        setActive();
-      },
-      { rootMargin: "-80px 0px -60% 0px" },
-    );
-    sections.forEach((s) => spy.observe(s));
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(setActive);
+    };
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    setActive();
 
     // Close the mobile TOC after picking a section.
     const mobileToc = document.querySelector(".toc-mobile");

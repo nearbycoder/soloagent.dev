@@ -13,7 +13,7 @@
   --surface: #fbfbf8;
   --text: var(--ink);
   --text-2: #47463e;
-  --text-3: #7b7a70;
+  --text-3: #68675d; /* 4.5:1 on paper, paper-2, and bg-muted */
   --line: #d9d7cd;
   --line-strong: #b9b7ab;
   --accent: var(--ink);
@@ -144,6 +144,22 @@ kbd {
   outline: 2px solid var(--text);
   outline-offset: 2px;
   border-radius: 3px;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .wrap {
@@ -360,10 +376,11 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 38px;
-  padding: 0 8px 0 16px;
+  gap: 12px;
+  min-height: 38px;
+  padding: 6px 8px 6px 16px;
   border-bottom: 1px solid var(--code-line);
-  font: 500 11.5px/1 var(--mono);
+  font: 500 11.5px/1.3 var(--mono);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #8d8b80;
@@ -396,6 +413,7 @@ kbd {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
+  flex: none;
 }
 
 .copy:hover,
@@ -403,6 +421,16 @@ kbd {
   color: var(--ink);
   background: var(--lime);
   border-color: var(--lime);
+}
+
+/* Ink outlines vanish on the dark code background. */
+.code :focus-visible {
+  outline-color: var(--lime);
+}
+
+/* .code clips overflow, so draw a scrolled pre's focus ring inside it. */
+.code pre:focus-visible {
+  outline-offset: -2px;
 }
 
 .code-float pre {
@@ -416,7 +444,7 @@ kbd {
 }
 
 .t-c {
-  color: #7f7d72;
+  color: #8a887c;
 }
 .t-k {
   color: var(--lime);
@@ -496,6 +524,7 @@ td code {
   color: var(--text-3);
 }
 
+.footer h2,
 .footer h4 {
   font: 500 11.5px/1.4 var(--mono);
   letter-spacing: 0.05em;

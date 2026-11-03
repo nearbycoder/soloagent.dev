@@ -120,8 +120,8 @@ export function ModelPicker({ value, onChange, id }: { value: ModelRef | null; o
         </p>
       )}
 
-      <Popover open={open} onClose={() => setOpen(false)} anchor={anchor} matchWidth className="!p-0">
-        <div className="flex items-center gap-2 border-b border-border px-3">
+      <Popover open={open} onClose={() => setOpen(false)} anchor={anchor} matchWidth className="flex flex-col !p-0">
+        <div className="flex shrink-0 items-center gap-2 border-b border-border px-3">
           <Search className="size-4 text-faint" />
           <input
             ref={search}
@@ -143,7 +143,7 @@ export function ModelPicker({ value, onChange, id }: { value: ModelRef | null; o
             className="h-10 min-w-0 flex-1 bg-transparent text-[13.5px] text-fg outline-none"
           />
         </div>
-        <div ref={list} role="listbox" className="max-h-[min(420px,55vh)] overflow-y-auto p-1">
+        <div ref={list} role="listbox" className="max-h-[min(420px,55vh)] min-h-0 overflow-y-auto p-1">
           {!providers ? (
             <div className="grid place-items-center py-8">
               <Spinner />

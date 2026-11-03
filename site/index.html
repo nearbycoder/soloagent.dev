@@ -20,14 +20,15 @@
   <meta property="og:image" content="https://soloagent.dev/og.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="soloagent: durable agents for Slack, Discord, and your terminal">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://soloagent.dev/og.png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Martian+Mono:wdth,wght@75..112.5,400..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/site.css?v=4ea4e5271b">
-  <link rel="stylesheet" href="/css/home.css?v=3f7f96865c">
+  <link rel="stylesheet" href="/css/site.css?v=6165a4e842">
+  <link rel="stylesheet" href="/css/home.css?v=31d62bb9fa">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -70,16 +71,16 @@
       <figure class="annotated">
         <div class="annotated-frame">
           <picture>
-            <source srcset="/img/conversation-dark.webp?v=56ca14ee40" media="(max-width: 760px) and (prefers-color-scheme: dark)">
-            <source srcset="/img/conversation-light.webp?v=4c2c1cba21" media="(max-width: 760px)">
-            <source srcset="/img/dashboard-dark.webp?v=1914425360" media="(prefers-color-scheme: dark)">
-            <img src="/img/dashboard-light.webp?v=cd52962762" width="2240" height="1400" alt="The soloagent dashboard. A Slack thread where the Coder agent reads a CI log, asks the Scout agent for help, and explains a failed deploy with a table and a SQL fix.">
+            <source srcset="/img/conversation-dark.webp?v=06b9febf24" media="(max-width: 760px) and (prefers-color-scheme: dark)" width="1100" height="1263">
+            <source srcset="/img/conversation-light.webp?v=c095176b5e" media="(max-width: 760px)" width="1100" height="1263">
+            <source srcset="/img/dashboard-dark.webp?v=855953e25a" media="(prefers-color-scheme: dark)" width="2240" height="1400">
+            <img src="/img/dashboard-light.webp?v=dfd0273394" width="2240" height="1400" alt="The soloagent dashboard. A Slack thread where the Coder agent reads a CI log, asks the Scout agent for help, and explains a failed deploy with a table and a SQL fix.">
           </picture>
-          <span class="pin" style="left:19.1%;top:29.9%">1</span>
-          <span class="pin" style="left:67.4%;top:14%">2</span>
-          <span class="pin" style="left:74.6%;top:23.4%">3</span>
-          <span class="pin" style="left:98.1%;top:32.3%">4</span>
-          <span class="pin" style="left:98.1%;top:42.1%">5</span>
+          <span class="pin" aria-hidden="true" style="left:19.1%;top:29.9%">1</span>
+          <span class="pin" aria-hidden="true" style="left:67.4%;top:14%">2</span>
+          <span class="pin" aria-hidden="true" style="left:74.6%;top:23.4%">3</span>
+          <span class="pin" aria-hidden="true" style="left:98.1%;top:32.3%">4</span>
+          <span class="pin" aria-hidden="true" style="left:98.1%;top:42.1%">5</span>
         </div>
         <figcaption>
           <ol class="legend">
@@ -99,7 +100,7 @@
     <div class="wrap">
       <dl class="spec-grid">
         <div><dt>06</dt><dd>channels: Slack, Discord, Telegram, webhooks, web, terminal</dd></div>
-        <div><dt>30+</dt><dd>model providers, with subscription sign-in for five</dd></div>
+        <div><dt>40+</dt><dd>model providers, with subscription sign-in for Claude, ChatGPT, Copilot, and more</dd></div>
         <div><dt>05</dt><dd>agent skills: memory, web, delegate, schedule, workspace</dd></div>
         <div><dt>01</dt><dd>service and one volume to self-host the whole thing</dd></div>
         <div><dt>00</dt><dd>completed steps repeated after a crash or redeploy</dd></div>
@@ -113,10 +114,10 @@
       <div class="rail"><span class="label">§01</span><span class="label">On the record</span></div>
       <div class="sec-body split">
         <div>
-          <h2>Crash it mid-answer. It picks up where it stopped.</h2>
+          <h2>Crash it <span class="nowrap">mid-answer.</span> It picks up where it stopped.</h2>
           <p class="sec-lede">soloagent is built on <a class="link" href="https://github.com/earendil-works/pi" rel="noopener">Pi Durable</a>. Every model turn, tool call, delegation, and reminder is a durable step in SQLite. A deploy, a crash, or a container restart is a pause, not a reset.</p>
           <dl class="points">
-            <div><dt>Commit before show</dt><dd>Nothing reaches Slack or the dashboard until it has been written to storage.</dd></div>
+            <div><dt>Commit before show</dt><dd>Every model turn and tool call is written to storage before Slack or the dashboard shows it. Streaming text is saved as it arrives.</dd></div>
             <div><dt>Resume, don't restart</dt><dd>An interrupted model request is retried. Finished tool calls never run twice.</dd></div>
             <div><dt>Timers that outlive the process</dt><dd>A reminder set for Friday sleeps in storage and fires on Friday, across any number of deploys.</dd></div>
           </dl>
@@ -150,7 +151,7 @@
         <p class="sec-lede">Model access runs through <code>@earendil-works/pi-ai</code>. Sign in with a consumer plan or paste an API key, then give each agent its own model and thinking level: coding on Claude, research on ChatGPT, triage on something cheap.</p>
         <div class="columns">
           <div>
-            <h3 class="label">Sign in with a subscription</h3>
+            <h3 class="label">Sign in with your account</h3>
             <ul class="leaders">
               <li><span>Claude Pro &amp; Max</span><i></i><span>oauth</span></li>
               <li><span>ChatGPT Plus &amp; Pro</span><i></i><span>oauth</span></li>
@@ -161,8 +162,8 @@
           </div>
           <div>
             <h3 class="label">Or bring an API key</h3>
-            <p class="names">Anthropic, OpenAI, Google Gemini, Mistral, Groq, DeepSeek, xAI, Amazon Bedrock, Azure OpenAI, Vercel AI Gateway, Together, Fireworks, Cerebras, Hugging Face, any OpenAI-compatible endpoint, and more.</p>
-            <p class="note"><b>Sealed at rest.</b> Keys and tokens are encrypted with AES-256-GCM under a secret you control, refresh automatically, and never reach the browser. A built-in demo model works before you connect anything.</p>
+            <p class="names">Anthropic, OpenAI, Google Gemini, Mistral, Groq, DeepSeek, xAI, Amazon Bedrock, Azure OpenAI, Vercel AI Gateway, Together, Fireworks, Cerebras, Hugging Face, Moonshot, Z.AI, and many more.</p>
+            <p class="note"><b>Sealed at rest.</b> Keys and tokens are encrypted with <span class="nowrap">AES-256-GCM</span> under a secret you control, refresh automatically, and never reach the browser. A built-in demo model works before you connect anything.</p>
           </div>
         </div>
         <p class="fineprint">Product names are trademarks of their respective owners. Subscription sign-in is subject to each provider's terms; some bill third-party usage separately from plan limits.</p>
@@ -216,7 +217,7 @@
         <p class="sec-lede">Both talk to the same server over the same API. The terminal UI runs its own private server when you're not connected to one.</p>
         <div class="screens">
           <figure>
-            <div class="frame"><img src="/img/agents-light.webp?v=58395b75d1" width="1600" height="1000" alt="The Agents page listing Solo, Coder, Scout, and Ops with their models, thinking levels, and skills."></div>
+            <div class="frame"><img src="/img/agents-light.webp?v=da66281bb7" width="1600" height="1000" alt="The Agents page listing Solo, Coder, Scout, and Ops with their models, thinking levels, and skills."></div>
             <figcaption><span class="label">fig. a</span> Agents, each with a model, instructions, and skills.</figcaption>
           </figure>
           <figure>
@@ -242,7 +243,7 @@
           <li><div class="leaders-row"><code>web</code><i></i><span>web_fetch · web_search</span></div><p>Reads pages and APIs as clean text, and searches the web.</p></li>
           <li><div class="leaders-row"><code>delegate</code><i></i><span>ask_agent</span></div><p>Hands a task to another agent through a durable child conversation.</p></li>
           <li><div class="leaders-row"><code>schedule</code><i></i><span>schedule_reminder</span></div><p>Reminders and follow-ups that sleep in storage and fire after restarts.</p></li>
-          <li><div class="leaders-row"><code>workspace</code><i></i><span>read · write · edit · bash</span></div><p>Files and shell in a private folder. Powerful, so it's off by default.</p></li>
+          <li><div class="leaders-row"><code>workspace</code><i></i><span>read · write · edit · bash</span></div><p>Files and shell, starting in the agent's own folder on the server. Not a sandbox, so it's off by default.</p></li>
         </ul>
       </div>
     </div>
@@ -269,9 +270,10 @@
             <button role="tab" aria-selected="false" aria-controls="ex-sdk" id="tab-sdk" tabindex="-1">typescript</button>
             <button role="tab" aria-selected="false" aria-controls="ex-http" id="tab-http" tabindex="-1">http</button>
           </div>
-          <div class="code tab-panel" role="tabpanel" id="ex-cli" aria-labelledby="tab-cli">
+          <div class="code tab-panel" role="tabpanel" tabindex="0" id="ex-cli" aria-labelledby="tab-cli">
             <pre><code><span class="t-c"># ask once, print the answer</span>
-<span class="cmd">soloagent ask "Summarize today's incidents" --agent ops</span>
+<span class="cmd">soloagent ask --agent ops \</span>
+    "Summarize today's incidents"
 
 <span class="t-c"># pipe anything in</span>
 <span class="cmd">git diff --staged | soloagent ask - --agent coder</span>
@@ -280,8 +282,9 @@
 <span class="cmd">soloagent connect https://solo.example.com \</span>
     --token $SOLOAGENT_TOKEN</code></pre>
           </div>
-          <div class="code tab-panel" role="tabpanel" id="ex-sdk" aria-labelledby="tab-sdk" hidden>
-            <pre><code><span class="t-k">import</span> { SoloClient } <span class="t-k">from</span> <span class="t-s">"@soloagent/client"</span>;
+          <div class="code tab-panel" role="tabpanel" tabindex="0" id="ex-sdk" aria-labelledby="tab-sdk" hidden>
+            <pre><code><span class="t-c">// packages/client in the repo; not on npm yet</span>
+<span class="t-k">import</span> { SoloClient } <span class="t-k">from</span> <span class="t-s">"@soloagent/client"</span>;
 
 <span class="t-k">const</span> solo = <span class="t-k">new</span> <span class="t-f">SoloClient</span>({
   baseUrl: <span class="t-s">"https://solo.example.com"</span>,
@@ -294,7 +297,7 @@
 <span class="t-c">// stream partial answers and tool progress</span>
 solo.<span class="t-f">connect</span>().<span class="t-f">subscribe</span>(thread.id);</code></pre>
           </div>
-          <div class="code tab-panel" role="tabpanel" id="ex-http" aria-labelledby="tab-http" hidden>
+          <div class="code tab-panel" role="tabpanel" tabindex="0" id="ex-http" aria-labelledby="tab-http" hidden>
             <pre><code><span class="t-c"># from anything that can send a request</span>
 <span class="cmd">curl -X POST $SOLO/api/hooks/$HOOK_ID \</span>
   -H "x-solo-secret: $HOOK_SECRET" \
@@ -326,7 +329,7 @@ solo.<span class="t-f">connect</span>().<span class="t-f">subscribe</span>(threa
               <button role="tab" aria-selected="false" aria-controls="run-fly" id="tab-fly" tabindex="-1">fly.io</button>
             </div>
             <div class="code tab-panel" role="tabpanel" id="run-local" aria-labelledby="tab-local">
-              <div class="code-head"><span>macOS · Linux · WSL — needs Node 22.19+</span><button class="copy" type="button" data-copy="curl -fsSL https://soloagent.dev/install.sh | sh">copy</button></div>
+              <div class="code-head"><span>macOS · Linux · WSL · Node&nbsp;22.19+</span><button class="copy" type="button" data-copy="curl -fsSL https://soloagent.dev/install.sh | sh">copy</button></div>
               <pre><code><span class="cmd">curl -fsSL https://soloagent.dev/install.sh | sh</span>
 
 <span class="t-c"># then</span>
@@ -348,8 +351,10 @@ solo.<span class="t-f">connect</span>().<span class="t-f">subscribe</span>(threa
 <span class="cmd">docker compose up -d</span></code></pre>
             </div>
             <div class="code tab-panel" role="tabpanel" id="run-railway" aria-labelledby="tab-railway" hidden>
-              <div class="code-head"><span>railway</span></div>
-              <pre><code><span class="t-c"># 1. New project → Deploy from GitHub repo → soloagent.dev</span>
+              <div class="code-head"><span>railway · dockerfile + railway.json</span></div>
+              <pre><code><span class="t-k">→</span> <a href="https://railway.com/new" rel="noopener">railway.com/new</a>
+<span class="t-c"># 1. GitHub Repository → your fork, or paste</span>
+<span class="t-c">#    github.com/nearbycoder/soloagent.dev → Deploy Repo</span>
 <span class="t-c"># 2. Add a volume mounted at /data</span>
 <span class="t-c"># 3. Set SOLOAGENT_TOKEN and SOLOAGENT_SECRET, generate a domain</span>
 
@@ -363,17 +368,17 @@ solo.<span class="t-f">connect</span>().<span class="t-f">subscribe</span>(threa
               <pre><code><span class="t-c"># one click: a Docker service, a 1 GB disk at /data,</span>
 <span class="t-c"># a health check, and a generated token and secret</span>
 
-<span class="t-k">→</span> render.com/deploy?repo=github.com/nearbycoder/soloagent.dev
+<span class="t-k">→</span> <a href="https://render.com/deploy?repo=https://github.com/nearbycoder/soloagent.dev" rel="noopener">render.com/deploy?repo=github.com/nearbycoder/soloagent.dev</a>
 
 <span class="t-c"># disks need a paid instance (Starter or above)</span></code></pre>
             </div>
-            <div class="code tab-panel" role="tabpanel" id="run-fly" aria-labelledby="tab-fly" hidden>
+            <div class="code tab-panel" role="tabpanel" tabindex="0" id="run-fly" aria-labelledby="tab-fly" hidden>
               <div class="code-head"><span>fly.io · fly.toml</span></div>
               <pre><code><span class="cmd">git clone https://github.com/nearbycoder/soloagent.dev && cd soloagent.dev</span>
 <span class="cmd">fly launch --copy-config --no-deploy</span>
 <span class="cmd">fly volumes create soloagent_data --size 1</span>
-<span class="cmd">fly secrets set SOLOAGENT_TOKEN=$(openssl rand -hex 24) \</span>
-    SOLOAGENT_SECRET=$(openssl rand -hex 32)
+<span class="cmd">fly secrets set SOLOAGENT_TOKEN=$(openssl rand -base64 32) \</span>
+    SOLOAGENT_SECRET=$(openssl rand -base64 32)
 <span class="cmd">fly deploy</span></code></pre>
             </div>
           </div>
@@ -414,7 +419,7 @@ solo.<span class="t-f">connect</span>().<span class="t-f">subscribe</span>(threa
   <!-- ─────────────── CTA ─────────────── -->
   <section class="cta">
     <div class="wrap">
-      <p class="label cta-label">● ready when you are</p>
+      <p class="label cta-label"><span aria-hidden="true">●</span> ready when you are</p>
       <h2>Put your agents on the record.</h2>
       <div class="cta-actions">
         <a class="btn btn-ink" href="/docs/#getting-started">Read the docs <span class="arrow">→</span></a>
@@ -434,7 +439,7 @@ solo.<span class="t-f">connect</span>().<span class="t-f">subscribe</span>(threa
         <p>An open-source control plane for durable AI agents, built on Pi.</p>
       </div>
       <div>
-        <h4>Product</h4>
+        <h2>Product</h2>
         <ul>
           <li><a href="#record">Durability</a></li>
           <li><a href="#models">Models</a></li>
@@ -442,7 +447,7 @@ solo.<span class="t-f">connect</span>().<span class="t-f">subscribe</span>(threa
         </ul>
       </div>
       <div>
-        <h4>Docs</h4>
+        <h2>Docs</h2>
         <ul>
           <li><a href="/docs/#getting-started">Getting started</a></li>
           <li><a href="/docs/#deploy">Deploy anywhere</a></li>
@@ -450,7 +455,7 @@ solo.<span class="t-f">connect</span>().<span class="t-f">subscribe</span>(threa
         </ul>
       </div>
       <div>
-        <h4>Project</h4>
+        <h2>Project</h2>
         <ul>
           <li><a href="https://github.com/nearbycoder/soloagent.dev" rel="noopener">GitHub</a></li>
           <li><a href="https://github.com/nearbycoder/soloagent.dev/blob/main/LICENSE" rel="noopener">MIT License</a></li>
@@ -465,6 +470,6 @@ solo.<span class="t-f">connect</span>().<span class="t-f">subscribe</span>(threa
   </div>
 </footer>
 
-<script src="/js/site.js?v=d4953207ef" defer></script>
+<script src="/js/site.js?v=1f23e72a0b" defer></script>
 </body>
 </html>

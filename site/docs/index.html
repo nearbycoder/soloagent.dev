@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Docs — soloagent</title>
-  <meta name="description" content="Documentation for soloagent: getting started, deploying on Railway, providers and subscriptions, agents and skills, Slack/Discord/Telegram/webhook connectors, the terminal UI, the HTTP API and SDK, durability, and security.">
+  <meta name="description" content="Documentation for soloagent: installing it locally, deploying with Docker, Railway, Render, Fly.io, or systemd, providers and subscriptions, agents and skills, Slack/Discord/Telegram/webhook connectors, the terminal UI, the HTTP API and SDK, durability, and security.">
   <link rel="canonical" href="https://soloagent.dev/docs/">
   <meta name="theme-color" content="#12110d" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f5f4ef" media="(prefers-color-scheme: light)">
@@ -22,13 +22,13 @@
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="soloagent docs">
-  <meta name="twitter:description" content="Getting started, Railway deploys, connectors, TUI, HTTP API and SDK.">
+  <meta name="twitter:description" content="Install, deploy anywhere, connectors, TUI, HTTP API and SDK.">
   <meta name="twitter:image" content="https://soloagent.dev/og.png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Martian+Mono:wdth,wght@75..112.5,400..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/site.css?v=4ea4e5271b">
+  <link rel="stylesheet" href="/css/site.css?v=6165a4e842">
   <link rel="stylesheet" href="/css/docs.css?v=fd17d5d0b7">
 </head>
 <body>
@@ -70,9 +70,14 @@
       <a class="sub" href="#render">Render</a>
       <a class="sub" href="#fly">Fly.io</a>
       <a class="sub" href="#linux">Linux server</a>
+      <a class="sub" href="#configuration">Configuration</a>
       <a href="#providers">Providers &amp; subscriptions</a>
       <a href="#agents">Agents &amp; skills</a>
       <a href="#connectors">Connectors</a>
+      <a class="sub" href="#slack">Slack</a>
+      <a class="sub" href="#discord">Discord</a>
+      <a class="sub" href="#telegram">Telegram</a>
+      <a class="sub" href="#webhook">Webhook</a>
       <a href="#routing">Chat routing &amp; commands</a>
       <a href="#tui">Terminal UI</a>
       <a href="#api">HTTP API &amp; SDK</a>
@@ -86,6 +91,12 @@
     <nav aria-label="Table of contents">
       <a href="#getting-started">Getting started</a>
       <a href="#deploy">Deploy</a>
+      <a class="sub" href="#docker">Docker</a>
+      <a class="sub" href="#railway">Railway</a>
+      <a class="sub" href="#render">Render</a>
+      <a class="sub" href="#fly">Fly.io</a>
+      <a class="sub" href="#linux">Linux server</a>
+      <a class="sub" href="#configuration">Configuration</a>
       <a href="#providers">Providers &amp; subscriptions</a>
       <a href="#agents">Agents &amp; skills</a>
       <a href="#connectors">Connectors</a>
@@ -117,7 +128,7 @@
       <p>With <b>Node 22.19 or newer</b>, the installer puts the <code>soloagent</code> command on your path:</p>
       <div class="code code-float"><button class="copy" type="button">copy</button><pre><code><span class="cmd">curl -fsSL https://soloagent.dev/install.sh | sh</span></code></pre></div>
       <p>It downloads the latest release and installs it with npm, so you can also do that yourself, on any OS including Windows, or try it once without installing. <code>--allow-remote=root</code> lets npm 12 install from a release URL; older npm versions ignore it:</p>
-      <div class="code"><div class="code-head"><span>npm</span><button class="copy" type="button">copy</button></div><pre><code><span class="t-c"># install</span>
+      <div class="code"><div class="code-head"><span>npm</span><button class="copy" type="button" data-copy="npm install -g --allow-remote=root https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz">copy</button></div><pre><code><span class="t-c"># install</span>
 <span class="cmd">npm install -g --allow-remote=root https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz</span>
 
 <span class="t-c"># or run once, nothing installed</span>
@@ -127,14 +138,14 @@
       <p>Then open <code>http://localhost:7420</code> and paste the token from <code>docker logs soloagent</code>.</p>
 
       <h3>First run</h3>
-      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="t-c"># the terminal UI, with a private server and data in ~/.soloagent</span>
+      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button" data-copy="soloagent">copy</button></div><pre><code><span class="t-c"># the terminal UI, with a private server and data in ~/.soloagent</span>
 <span class="cmd">soloagent</span>
 
 <span class="t-c"># or the web dashboard on http://localhost:7420</span>
 <span class="cmd">soloagent serve</span>
 <span class="cmd">soloagent token</span>   <span class="t-c"># paste this into the dashboard</span></code></pre></div>
       <p>A fresh install has one agent and the built-in <b>demo model</b>, so everything works before you connect an account. Then sign in to a real model, for example your Claude Pro or Max subscription, with <code>/login anthropic</code> in the TUI, <code>soloagent login anthropic</code> in your shell, or the <b>Providers</b> page of the dashboard.</p>
-      <div class="code"><div class="code-head"><span>more</span><button class="copy" type="button">copy</button></div><pre><code><span class="t-c"># one-shot answers for scripts and pipes</span>
+      <div class="code"><div class="code-head"><span>more examples</span></div><pre><code><span class="t-c"># one-shot answers for scripts; piped input is added after the message</span>
 <span class="cmd">git diff --staged | soloagent ask "Write a commit message for this diff"</span>
 
 <span class="t-c"># point the TUI at a server you deployed</span>
@@ -164,14 +175,14 @@
         <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">curl -fsSLO https://raw.githubusercontent.com/nearbycoder/soloagent.dev/main/docker-compose.yml</span>
 <span class="cmd">docker compose up -d</span>
 <span class="cmd">docker compose logs soloagent | grep token</span></code></pre></div>
-        <p>Data lives in the <code>soloagent-data</code> volume. To choose your own token and secret, put them in a <code>.env</code> file next to the compose file (see <code>.env.example</code>). Update with <code>docker compose pull &amp;&amp; docker compose up -d</code>. Self-hosted platforms such as Coolify and Dokploy can deploy the same compose file from the repository.</p>
+        <p>Data lives in the compose file's <code>soloagent-data</code> volume. To choose your own token and secret, put them in a <code>.env</code> file next to the compose file (see <code>.env.example</code>). Update with <code>docker compose pull &amp;&amp; docker compose up -d</code>. Self-hosted platforms such as Coolify and Dokploy can deploy the same compose file from the repository.</p>
         <p>Put a reverse proxy in front for HTTPS on a public server. With Caddy it is one line: <code>solo.example.com { reverse_proxy localhost:7420 }</code>.</p>
       </div>
 
       <div class="sub-section" id="railway">
         <h3>Railway</h3>
         <ol class="steps">
-          <li><h4>Create the service</h4><p>New project → <b>Deploy from GitHub repo</b> → <code>nearbycoder/soloagent.dev</code> (or your fork). The Dockerfile and <code>railway.json</code> are picked up automatically.</p></li>
+          <li><h4>Create the service</h4><p>At <a href="https://railway.com/new" rel="noopener">railway.com/new</a>, choose <b>GitHub Repository</b> and pick your fork, or paste <code>https://github.com/nearbycoder/soloagent.dev</code> and choose <b>Deploy Repo</b>. The Dockerfile and <code>railway.json</code> are picked up automatically.</p></li>
           <li><h4>Add a volume at <code>/data</code></h4><p>soloagent uses the volume as its data directory automatically.</p></li>
           <li><h4>Set variables and a domain</h4><p>Set <code>SOLOAGENT_TOKEN</code> and <code>SOLOAGENT_SECRET</code>, generate a domain, and open it.</p></li>
         </ol>
@@ -212,9 +223,10 @@
           <tbody>
             <tr><td><code>SOLOAGENT_TOKEN</code></td><td>Admin token for the dashboard, TUI, and API. If unset, one is generated on first boot, stored, and printed in the logs.</td></tr>
             <tr><td><code>SOLOAGENT_SECRET</code></td><td>Seals provider credentials and connector tokens at rest. If unset, one is generated and kept in the data directory. Keep it stable: credentials sealed with one secret can't be opened with another.</td></tr>
-            <tr><td><code>SOLOAGENT_DATA_DIR</code></td><td>Where data lives. Docker images use <code>/data</code>; on Railway it defaults to the volume mount.</td></tr>
-            <tr><td><code>PORT</code></td><td>HTTP port, default <code>7420</code>. Most hosts set it for you.</td></tr>
+            <tr><td><code>SOLOAGENT_DATA_DIR</code></td><td>Where data lives. The Docker image uses <code>/data</code>, so mount your volume there. <code>soloagent serve</code> defaults to <code>~/.soloagent/data</code>; <code>--data</code> overrides it.</td></tr>
+            <tr><td><code>PORT</code></td><td>HTTP port, default <code>7420</code>. Most hosts set it for you. <code>soloagent serve --port</code> overrides it.</td></tr>
             <tr><td><code>SOLOAGENT_DEMO</code></td><td><code>0</code> hides the built-in demo model.</td></tr>
+            <tr><td><code>SOLOAGENT_PUBLIC_URL</code></td><td>The public address printed at startup. Railway's domain is detected automatically.</td></tr>
           </tbody>
         </table>
       </div>
@@ -231,9 +243,9 @@
     <!-- ========== PROVIDERS ========== -->
     <section id="providers">
       <h2><a href="#providers">Providers &amp; subscriptions</a></h2>
-      <p>soloagent reaches models through <code>@earendil-works/pi-ai</code>. You can sign in with a consumer subscription over OAuth, or paste an API key. Each agent picks its own provider and model.</p>
+      <p>soloagent reaches models through <code>@earendil-works/pi-ai</code>. You can sign in with a consumer subscription (or an OpenRouter account) over OAuth, or paste an API key. Each agent picks its own provider and model.</p>
 
-      <h3>Sign in with a subscription</h3>
+      <h3>Sign in with your account</h3>
       <p>Open <b>Providers</b> in the dashboard and choose <b>Sign in</b> next to one of:</p>
       <div class="chips doc-chips">
         <span class="chip oauth chip-dot">Claude Pro / Max</span>
@@ -245,12 +257,12 @@
       </div>
       <p>The provider's sign-in page opens in a new tab. When the server runs on your own machine, the login completes on its own.</p>
       <div class="callout">
-        <b>Server running remotely?</b> Some providers redirect back to a <code>localhost</code> address after sign-in, which can't reach a server on Railway. When that happens, the page in your browser may fail to load. That's expected: copy the <b>code</b> shown by the provider, or the <b>full URL</b> from the address bar, and paste it into the prompt in the dashboard.
+        <b>Server running remotely?</b> Some providers redirect back to a <code>localhost</code> address after sign-in, which can't reach a server running somewhere else. When that happens, the page in your browser may fail to load. That's expected: copy the <b>code</b> shown by the provider, or the <b>full URL</b> from the address bar, and paste it into the prompt in the dashboard.
       </div>
       <p>From the terminal, <code>/login &lt;provider&gt;</code> in the TUI and <code>soloagent login &lt;provider&gt;</code> in your shell run the same flow.</p>
 
       <h3>API keys</h3>
-      <p>Paste a key under <b>Providers</b> for any of 30+ providers, including Anthropic, OpenAI, Google Gemini, Mistral, Groq, DeepSeek, xAI, OpenRouter, Vercel AI Gateway, Amazon Bedrock, Azure, Together, Fireworks, Cerebras, and Hugging Face. Over the API, use <code>PUT /api/providers/:id/key</code>.</p>
+      <p>Paste a key under <b>Providers</b> for any of 40+ providers, including Anthropic, OpenAI, Google Gemini, Mistral, Groq, DeepSeek, xAI, OpenRouter, Vercel AI Gateway, Amazon Bedrock, Azure, Together, Fireworks, Cerebras, and Hugging Face. Over the API, send <code>{ "key": "…" }</code> to <code>PUT /api/providers/:id/key</code>, or run <code>soloagent login &lt;provider&gt; --key</code>.</p>
       <p>Keys and OAuth tokens are sealed with AES-256-GCM before they're written to disk. See <a href="#security">Security</a>.</p>
       <p class="small-note">Subscription sign-in is subject to each provider's terms. Product names are trademarks of their respective owners.</p>
     </section>
@@ -268,7 +280,8 @@
             <tr><td>Instructions</td><td>The system prompt: who it is, how it should behave, what it knows.</td></tr>
             <tr><td>Model</td><td>Any connected provider and model. Different agents can use different providers.</td></tr>
             <tr><td>Thinking level</td><td><code>off</code>, <code>minimal</code>, <code>low</code>, <code>medium</code>, <code>high</code>, or <code>xhigh</code> on models that support reasoning.</td></tr>
-            <tr><td>Skills</td><td>The tool sets it may use (below).</td></tr>
+            <tr><td>Skills</td><td>The tool sets it may use (below). New agents get every skill except Workspace.</td></tr>
+            <tr><td>Max turns</td><td>The most tool rounds one run may take, 40 by default.</td></tr>
             <tr><td>Default</td><td>The default agent answers anything not addressed to a specific agent.</td></tr>
           </tbody>
         </table>
@@ -277,10 +290,10 @@
       <h3>Skills</h3>
       <div class="skill-grid">
         <div class="skill-card"><b>Memory</b><p>Long-term notes about people, preferences, and facts, kept per agent across every conversation.</p><div class="tools"><code>remember</code><code>recall</code><code>forget</code></div></div>
-        <div class="skill-card"><b>Web</b><p>Fetch and read web pages and APIs, and search the web.</p><div class="tools"><code>web_fetch</code><code>web_search</code></div></div>
-        <div class="skill-card"><b>Delegate</b><p>Hand a sub-task to another agent and wait for its answer. The hand-off runs as a durable child conversation.</p><div class="tools"><code>ask_agent</code></div></div>
+        <div class="skill-card"><b>Web</b><p>Fetch and read web pages and APIs, and search the web through DuckDuckGo.</p><div class="tools"><code>web_fetch</code><code>web_search</code></div></div>
+        <div class="skill-card"><b>Delegate</b><p>Hand a sub-task to another agent and wait for its answer. The hand-off runs as a durable child conversation, which can't delegate further.</p><div class="tools"><code>ask_agent</code></div></div>
         <div class="skill-card"><b>Schedule</b><p>Durable reminders and follow-ups. They sleep in storage and fire even after restarts.</p><div class="tools"><code>schedule_reminder</code></div></div>
-        <div class="skill-card warn"><b>Workspace <span class="tag warn">powerful</span></b><p>Read, write, and edit files and run shell commands in a private workspace folder on the server. Only enable it for agents that trusted people can reach.</p><div class="tools"><code>read</code><code>write</code><code>edit</code><code>bash</code></div></div>
+        <div class="skill-card warn"><b>Workspace <span class="tag warn">powerful</span></b><p>Read, write, and edit files and run shell commands on the server, starting in a per-agent workspace folder. It is not a sandbox: commands run with the server's permissions. Only enable it for agents that trusted people can reach.</p><div class="tools"><code>read</code><code>write</code><code>edit</code><code>bash</code></div></div>
       </div>
     </section>
 
@@ -291,7 +304,7 @@
 
       <div class="sub-section" id="slack">
         <h3><a href="#slack">Slack</a></h3>
-        <p>Slack uses <b>Socket Mode</b>, so no public URL is needed. It works on Railway and on your laptop alike.</p>
+        <p>Slack uses <b>Socket Mode</b>, so no public URL is needed. It works on any server and on your laptop alike.</p>
         <ol class="steps">
           <li><h4>Create the app from a manifest</h4><p>Go to <a href="https://api.slack.com/apps" rel="noopener">api.slack.com/apps</a> → <b>Create New App</b> → <b>From a manifest</b>, pick your workspace, and paste the manifest below.</p></li>
           <li><h4>Create an app-level token</h4><p><b>Basic Information → App-Level Tokens → Generate</b> with the <code>connections:write</code> scope. Copy the <code>xapp-…</code> token.</p></li>
@@ -338,7 +351,7 @@ settings:
           <li><h4>Create an application</h4><p>Open the <a href="https://discord.com/developers/applications" rel="noopener">Discord Developer Portal</a> → <b>New Application</b>.</p></li>
           <li><h4>Get the bot token</h4><p>On the <b>Bot</b> tab, click <b>Reset Token</b> and copy it. Turn on <b>Message Content Intent</b> under <i>Privileged Gateway Intents</i>.</p></li>
           <li><h4>Invite the bot</h4><p><b>OAuth2 → URL Generator</b>: select the <code>bot</code> scope and the permissions <i>Send Messages</i>, <i>Send Messages in Threads</i>, <i>Read Message History</i>, and <i>View Channels</i>. Open the generated URL to add the bot to your server.</p></li>
-          <li><h4>Connect</h4><p>Paste the token into a new Discord connector. Mention the bot, reply to it, or DM it.</p></li>
+          <li><h4>Connect</h4><p>Paste the token into a new Discord connector. Mention the bot, reply to it, or DM it. Each channel, thread, and DM is its own conversation.</p></li>
         </ol>
       </div>
 
@@ -365,7 +378,7 @@ settings:
               <tr><td><code>text</code></td><td>The message. Routing works as in chat, so <code>@coder …</code> picks an agent.</td></tr>
               <tr><td><code>thread</code></td><td>Keeps a conversation going across requests. Omit it for a one-off.</td></tr>
               <tr><td><code>user</code></td><td>A display name for the sender.</td></tr>
-              <tr><td><code>callback_url</code></td><td>Optional. Without it, the request waits and returns <code>{ "answer": "…" }</code>. With it, the request returns <code>202</code> right away and the answer is POSTed to that URL as <code>{ "thread", "text" }</code>.</td></tr>
+              <tr><td><code>callback_url</code></td><td>Optional. Without it, the request waits and returns <code>{ "thread", "status", "answer" }</code>. With it, the request returns <code>202</code> with <code>{ "accepted": true, "thread" }</code> right away, and the answer is POSTed to that URL as <code>{ "thread", "text" }</code>, with the same <code>x-solo-secret</code> header so you can check it came from soloagent.</td></tr>
             </tbody>
           </table>
         </div>
@@ -381,15 +394,16 @@ settings:
         <li>Otherwise, the agent bound to the connector answers.</li>
         <li>Otherwise, the default agent answers.</li>
       </ol>
+      <p>Addressing applies to that one message, and each agent keeps its own conversation in a chat thread.</p>
       <h3>Steering</h3>
-      <p>If you send another message while an agent is still working, it <b>steers</b> the run in progress: the agent sees your new message right away and adjusts, rather than finishing first and answering later.</p>
+      <p>If you send another message while an agent is still working, it <b>steers</b> the run in progress: the agent sees your new message after its current step (a model reply or a round of tool calls) and adjusts, rather than finishing the whole task first and answering later.</p>
       <h3>Chat commands</h3>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Command</th><th>What it does</th></tr></thead>
           <tbody>
             <tr><td><code>!agents</code></td><td>List the agents you can talk to and their handles.</td></tr>
-            <tr><td><code>!reset</code></td><td>Start a fresh conversation in this thread or DM.</td></tr>
+            <tr><td><code>!reset</code></td><td>Start a fresh conversation in this thread or DM. <code>!new</code> does the same.</td></tr>
             <tr><td><code>!stop</code></td><td>Stop the agent's current run.</td></tr>
             <tr><td><code>!help</code></td><td>Show help for routing and commands.</td></tr>
           </tbody>
@@ -400,17 +414,26 @@ settings:
     <!-- ========== TUI ========== -->
     <section id="tui">
       <h2><a href="#tui">Terminal UI</a></h2>
-      <p><code>soloagent</code> opens a full-screen terminal UI built on <code>pi-tui</code>. With no arguments it runs an embedded local server; with <code>soloagent connect &lt;url&gt; --token …</code> it talks to a remote one. It streams answers live and shows tool calls as they run.</p>
+      <p><code>soloagent</code> opens a full-screen terminal UI built on <code>pi-tui</code>. With no arguments it uses a local server, starting one in-process if <code>soloagent serve</code> isn't already running; after <code>soloagent connect &lt;url&gt; --token …</code> it talks to that remote server instead. It streams answers live and shows tool calls as they run.</p>
       <h3>Keybindings</h3>
       <div class="table-wrap">
         <table class="keys">
           <tbody>
-            <tr><td><kbd>Enter</kbd></td><td>Send</td></tr>
-            <tr><td><kbd>Shift</kbd> + <kbd>Enter</kbd></td><td>New line</td></tr>
+            <tr><td><kbd>Enter</kbd></td><td>Send. While the agent works, this steers it.</td></tr>
+            <tr><td><kbd>Shift</kbd> + <kbd>Enter</kbd> or <kbd>Alt</kbd> + <kbd>Enter</kbd></td><td>New line</td></tr>
+            <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Prompt history</td></tr>
             <tr><td><kbd>Esc</kbd></td><td>Stop the current run</td></tr>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>P</kbd></td><td>Switch threads, from every channel</td></tr>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>N</kbd></td><td>New conversation</td></tr>
+            <tr><td><kbd>Alt</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd></td><td>Previous or next thread</td></tr>
             <tr><td><kbd>Ctrl</kbd> + <kbd>B</kbd></td><td>Toggle the sidebar</td></tr>
-            <tr><td><kbd>Ctrl</kbd> + <kbd>P</kbd></td><td>Switch threads</td></tr>
             <tr><td><kbd>Ctrl</kbd> + <kbd>T</kbd></td><td>Show or hide thinking</td></tr>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>O</kbd></td><td>Expand or collapse tool output</td></tr>
+            <tr><td><kbd>PgUp</kbd> / <kbd>PgDn</kbd></td><td>Scroll; <kbd>Ctrl</kbd> + <kbd>Home</kbd> / <kbd>End</kbd> jump to the top or bottom</td></tr>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd></td><td>Jump between your messages</td></tr>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd></td><td>Search the transcript</td></tr>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>L</kbd></td><td>Clear the screen</td></tr>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>C</kbd> twice</td><td>Quit</td></tr>
           </tbody>
         </table>
       </div>
@@ -418,24 +441,40 @@ settings:
       <div class="table-wrap">
         <table>
           <tbody>
-            <tr><td><code>/new</code></td><td>Start a new thread.</td></tr>
-            <tr><td><code>/agent &lt;handle&gt;</code></td><td>Switch the agent for this thread.</td></tr>
-            <tr><td><code>/login &lt;provider&gt;</code></td><td>Sign in to a provider, for example <code>/login anthropic</code>.</td></tr>
-            <tr><td><code>/threads</code></td><td>Browse your threads.</td></tr>
+            <tr><td><code>/new [@agent]</code></td><td>Start a new conversation, optionally with another agent.</td></tr>
+            <tr><td><code>/agent &lt;handle&gt;</code></td><td>Switch this thread to another agent.</td></tr>
+            <tr><td><code>/agents</code></td><td>Pick an agent and start a chat.</td></tr>
+            <tr><td><code>/threads</code></td><td>Browse conversations from every channel.</td></tr>
+            <tr><td><code>/model [provider/model]</code></td><td>Change the current agent's model.</td></tr>
+            <tr><td><code>/title &lt;text&gt;</code></td><td>Rename this thread.</td></tr>
+            <tr><td><code>/reset</code></td><td>Give the agent a fresh context in this thread.</td></tr>
             <tr><td><code>/stop</code></td><td>Stop the current run.</td></tr>
+            <tr><td><code>/compact</code></td><td>Summarize older messages to free up context.</td></tr>
+            <tr><td><code>/providers</code></td><td>Models and subscriptions, configured or not.</td></tr>
+            <tr><td><code>/login &lt;provider&gt;</code></td><td>Sign in to a provider, for example <code>/login anthropic</code>.</td></tr>
+            <tr><td><code>/key &lt;provider&gt; &lt;api-key&gt;</code></td><td>Save an API key for a provider.</td></tr>
+            <tr><td><code>/connectors</code></td><td>Slack, Discord, Telegram, and webhook status.</td></tr>
+            <tr><td><code>/usage</code></td><td>Tokens and cost across agents and models.</td></tr>
+            <tr><td><code>/clear</code></td><td>Clear the screen.</td></tr>
+            <tr><td><code>/help</code></td><td>Commands and keyboard shortcuts.</td></tr>
+            <tr><td><code>/quit</code></td><td>Exit. <code>/exit</code> and <code>/q</code> work too.</td></tr>
           </tbody>
         </table>
       </div>
-      <p>Type <code>/</code> in the input to see every command available.</p>
+      <p>Type <code>/</code> in the input to search the commands. Start a message with <code>//</code> to send text that begins with a slash.</p>
       <h3>CLI commands</h3>
       <div class="table-wrap">
         <table>
           <tbody>
-            <tr><td><code>soloagent</code></td><td>Open the TUI with an embedded local server.</td></tr>
-            <tr><td><code>soloagent connect &lt;url&gt; --token …</code></td><td>Open the TUI against a remote server.</td></tr>
-            <tr><td><code>soloagent ask "…"</code></td><td>Print one answer and exit. Reads piped input.</td></tr>
-            <tr><td><code>soloagent login &lt;provider&gt;</code></td><td>Sign in to a provider from the shell.</td></tr>
-            <tr><td><code>soloagent serve</code></td><td>Run the server and web dashboard (port 7420 by default).</td></tr>
+            <tr><td><code>soloagent</code></td><td>Open the TUI. <code>--agent &lt;handle&gt;</code>, <code>--thread &lt;id&gt;</code>, and <code>--new</code> pick where it starts.</td></tr>
+            <tr><td><code>soloagent ask "…"</code></td><td>Print one answer and exit. Piped input is added after the message; <code>ask -</code> reads the whole message from stdin. Takes <code>--agent</code>, <code>--thread</code>, and <code>--json</code>.</td></tr>
+            <tr><td><code>soloagent agents</code></td><td>List agents. <code>--json</code> for scripts.</td></tr>
+            <tr><td><code>soloagent threads</code></td><td>List recent threads. Takes <code>--limit</code>, <code>--agent</code>, and <code>--json</code>.</td></tr>
+            <tr><td><code>soloagent login [provider]</code></td><td>Sign in to a provider from the shell; <code>--key</code> saves an API key instead.</td></tr>
+            <tr><td><code>soloagent serve</code></td><td>Run the server and web dashboard. Takes <code>--port</code> (default 7420), <code>--data</code>, and <code>--host</code>.</td></tr>
+            <tr><td><code>soloagent token</code></td><td>Print the local server's admin token, to sign in to its dashboard.</td></tr>
+            <tr><td><code>soloagent connect &lt;url&gt; --token …</code></td><td>Check and remember a remote server. The TUI, <code>ask</code>, <code>agents</code>, <code>threads</code>, and <code>login</code> then use it.</td></tr>
+            <tr><td><code>soloagent disconnect</code></td><td>Forget the remote server and run locally again.</td></tr>
           </tbody>
         </table>
       </div>
@@ -444,7 +483,7 @@ settings:
     <!-- ========== API ========== -->
     <section id="api">
       <h2><a href="#api">HTTP API &amp; SDK</a></h2>
-      <p>The dashboard and TUI use the same public API, so anything they do, your scripts can do. All routes live under <code>/api</code> and require the admin token as a bearer token, except inbound webhooks, which carry their own secret.</p>
+      <p>The dashboard and TUI use the same public API, so anything they do, your scripts can do. All routes live under <code>/api</code> and require the admin token in an <code>authorization: Bearer …</code> header, except inbound webhooks, which carry their own secret. Only the WebSocket accepts the token as <code>?token=</code>; REST routes reject it. Requests without a valid token get <code>401</code>.</p>
       <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">curl https://solo.example.com/api/agents \</span>
   -H <span class="t-s">"authorization: Bearer $SOLOAGENT_TOKEN"</span></code></pre></div>
 
@@ -453,12 +492,13 @@ settings:
         <table class="routes">
           <tbody>
             <tr><td><span class="verb get">GET</span><span class="verb post">POST</span></td><td><code>/api/agents</code></td><td>List or create agents.</td></tr>
-            <tr><td><span class="verb get">GET</span><span class="verb post">POST</span></td><td><code>/api/threads</code></td><td>List or create threads. Create takes <code>{ agentId, title }</code>.</td></tr>
-            <tr><td><span class="verb post">POST</span></td><td><code>/api/threads/:id/messages</code></td><td>Send a message. Returns <code>202</code> with a <code>submissionId</code>; follow progress over the WebSocket.</td></tr>
-            <tr><td><span class="verb post">POST</span></td><td><code>/api/threads/:id/ask</code></td><td>Send a message and wait for the answer: <code>{ status, answer }</code>.</td></tr>
+            <tr><td><span class="verb get">GET</span><span class="verb post">POST</span></td><td><code>/api/threads</code></td><td>List or create threads. Create takes <code>{ agentId, title }</code>, both optional; <code>agentId</code> can be an id or a handle.</td></tr>
+            <tr><td><span class="verb post">POST</span></td><td><code>/api/threads/:id/messages</code></td><td>Send <code>{ text }</code>. Returns <code>202</code> with a <code>submissionId</code>; follow progress over the WebSocket.</td></tr>
+            <tr><td><span class="verb post">POST</span></td><td><code>/api/threads/:id/ask</code></td><td>Send <code>{ text }</code> and wait for the answer: <code>{ status, answer }</code>, or <code>{ status: "unanswered", reason }</code>.</td></tr>
             <tr><td><span class="verb get">GET</span></td><td><code>/api/providers</code></td><td>List providers, their models, and which are configured.</td></tr>
-            <tr><td><span class="verb post">POST</span></td><td><code>/api/providers/:id/login</code></td><td>Start an OAuth or API-key login flow.</td></tr>
-            <tr><td><span class="verb get">GET</span><span class="verb post">POST</span></td><td><code>/api/connectors</code></td><td>List or create connectors.</td></tr>
+            <tr><td><span class="verb post">POST</span></td><td><code>/api/providers/:id/login</code></td><td>Start a login flow: <code>{ type: "oauth" }</code> (the default) or <code>{ type: "api_key" }</code>.</td></tr>
+            <tr><td><span class="verb put">PUT</span></td><td><code>/api/providers/:id/key</code></td><td>Save an API key: <code>{ key }</code>.</td></tr>
+            <tr><td><span class="verb get">GET</span><span class="verb post">POST</span></td><td><code>/api/connectors</code></td><td>List or create connectors. Create takes <code>{ kind, name, agentId, config }</code>; a webhook's <code>config</code> is <code>{ secret }</code>.</td></tr>
             <tr><td><span class="verb post">POST</span></td><td><code>/api/hooks/:id</code></td><td>Inbound webhook. Authenticated by <code>x-solo-secret</code>, not the admin token.</td></tr>
             <tr><td><span class="verb ws">WS</span></td><td><code>/api/ws</code></td><td>Live events. Pass the token as <code>?token=</code>.</td></tr>
           </tbody>
@@ -469,7 +509,7 @@ settings:
       <p>Connect to <code>/api/ws</code> and send <code>{ "type": "subscribe", "threadId": "…" }</code> to receive a thread's <code>thread.snapshot</code>, <code>thread.messages</code>, and <code>thread.live</code> events (streaming text, thinking, and tool calls). Send <code>{ "type": "tasks.subscribe" }</code> for the live durable task graph. Server-wide events such as <code>thread.updated</code>, <code>agent.updated</code>, and <code>connector.updated</code> arrive without subscribing.</p>
 
       <h3>TypeScript SDK</h3>
-      <p><code>@soloagent/client</code> is a typed client for the REST API and WebSocket. It runs in Node 22+ and browsers.</p>
+      <p><code>@soloagent/client</code>, in <code>packages/client</code>, is a typed client for the REST API and WebSocket with no dependencies. It runs in Node 22.19+ and in browsers. It isn't on npm yet, so use it from a clone of the repository.</p>
       <div class="code"><div class="code-head"><span>ask.ts</span><button class="copy" type="button">copy</button></div><pre><code><span class="t-k">import</span> { SoloClient } <span class="t-k">from</span> <span class="t-s">"@soloagent/client"</span>;
 
 <span class="t-k">const</span> solo = <span class="t-k">new</span> <span class="t-f">SoloClient</span>({
@@ -497,7 +537,7 @@ stream.<span class="t-f">on</span>((event) =&gt; {
 stream.<span class="t-f">close</span>();</code></pre></div>
 
       <h3>Embed the core</h3>
-      <p>The runtime is a library too. Open it against a data directory and use it in-process, without the HTTP server.</p>
+      <p>The runtime, <code>@soloagent/core</code> in <code>packages/core</code>, is a library too. Open it against a data directory and use it in-process, without the HTTP server.</p>
       <div class="code"><div class="code-head"><span>embed.ts</span><button class="copy" type="button">copy</button></div><pre><code><span class="t-k">import</span> { SoloAgent } <span class="t-k">from</span> <span class="t-s">"@soloagent/core"</span>;
 
 <span class="t-k">const</span> solo = <span class="t-k">await</span> SoloAgent.<span class="t-f">open</span>({ dataDir: <span class="t-s">"./data"</span> });
@@ -510,14 +550,14 @@ stream.<span class="t-f">close</span>();</code></pre></div>
       <h2><a href="#durability">Durability</a></h2>
       <p>Agent runs execute on <code>@earendil-works/pi-durable</code>, Pi's durable execution harness, backed by SQLite in your data directory.</p>
       <ul>
-        <li><b>Commit before show.</b> Each model turn and each tool call is recorded as a durable step and committed before it's shown in any UI or chat app. What you see has already been saved.</li>
-        <li><b>Resume after a crash.</b> If the process exits mid-run (a crash, a restart, a deploy), the run resumes from its last committed step when the server starts again. Completed steps aren't repeated.</li>
+        <li><b>Commit before show.</b> Each model turn and each tool call is recorded as a durable step and committed before it's shown in any UI or chat app. Streaming text is saved as it arrives, so a crash loses at most about a second of a half-written answer.</li>
+        <li><b>Resume after a crash.</b> If the process exits mid-run (a crash, a restart, a deploy), the run resumes from its last committed step when the server starts again. Completed steps aren't repeated. An interrupted model request is retried; a tool call cut off midway runs again only if it's safe to repeat, and otherwise the agent is told it was interrupted.</li>
         <li><b>Durable sleep.</b> Scheduled reminders are durable timers. They wait in storage, not in memory, so they still fire after restarts.</li>
         <li><b>Durable delegation.</b> <code>ask_agent</code> starts a child conversation that is itself durable. The parent waits for it, across restarts if needed.</li>
         <li><b>Visible.</b> The dashboard shows the live durable task graph and upcoming schedules.</li>
       </ul>
       <div class="callout">
-        <b>Keep the data directory.</b> Durability is only as good as the storage behind it. On Railway, that's the volume at <code>/data</code>. Elsewhere, make sure <code>SOLOAGENT_DATA_DIR</code> points at persistent storage.
+        <b>Keep the data directory.</b> Durability is only as good as the storage behind it. In the Docker image (Docker, Railway, Render, Fly.io), that's the volume at <code>/data</code>. Elsewhere, make sure <code>SOLOAGENT_DATA_DIR</code> points at persistent storage.
       </div>
     </section>
 
@@ -525,10 +565,10 @@ stream.<span class="t-f">close</span>();</code></pre></div>
     <section id="security">
       <h2><a href="#security">Security</a></h2>
       <ul>
-        <li><b>One admin token.</b> The dashboard, TUI, API, and WebSocket all require <code>SOLOAGENT_TOKEN</code>. Treat it like a password. The dashboard keeps it in an HTTP-only session cookie.</li>
-        <li><b>Sealed credentials.</b> Provider keys, OAuth tokens, and connector tokens are encrypted at rest with AES-256-GCM, using a key derived from <code>SOLOAGENT_SECRET</code>.</li>
+        <li><b>One admin token.</b> The dashboard, TUI, API, and WebSocket all require the admin token: <code>SOLOAGENT_TOKEN</code>, or the one generated on first boot. Treat it like a password. The dashboard keeps it in an HTTP-only session cookie.</li>
+        <li><b>Sealed credentials.</b> Provider keys, OAuth tokens, connector tokens, and webhook secrets are encrypted at rest with AES-256-GCM, using a key derived from <code>SOLOAGENT_SECRET</code> or the secret generated in the data directory.</li>
         <li><b>Webhook secrets.</b> Each webhook connector has its own shared secret, sent in <code>x-solo-secret</code>. It grants only that connector's access.</li>
-        <li><b>Workspace is powerful.</b> The Workspace skill can run shell commands on your server. Only enable it for agents that trusted people can reach, and remember that anyone who can message a connector can talk to its agent.</li>
+        <li><b>Workspace is powerful.</b> The Workspace skill can run shell commands on your server with the server's permissions; its folder is a starting point, not a sandbox. Only enable it for agents that trusted people can reach, and remember that anyone who can message a connector can talk to any agent through it with <code>@handle</code>.</li>
         <li><b>Your data stays with you.</b> Threads, memory, schedules, and credentials live in your data directory. Model calls go directly from your server to the providers you connect.</li>
       </ul>
       <p>Found a vulnerability? Please report it privately through <a href="https://github.com/nearbycoder/soloagent.dev/security" rel="noopener">GitHub security advisories</a>.</p>
@@ -549,6 +589,6 @@ stream.<span class="t-f">close</span>();</code></pre></div>
   </div>
 </footer>
 
-<script src="/js/site.js?v=d4953207ef" defer></script>
+<script src="/js/site.js?v=1f23e72a0b" defer></script>
 </body>
 </html>

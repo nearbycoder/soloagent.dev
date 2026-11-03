@@ -92,7 +92,7 @@ function ThreadList({ activeId }: { activeId?: string }) {
           )}
         >
           <ListFilter className="size-4" />
-          {filterCount > 0 && <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-accent text-[9.5px] font-semibold text-white">{filterCount}</span>}
+          {filterCount > 0 && <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-accent text-[9.5px] font-semibold text-accent-fg">{filterCount}</span>}
         </button>
         <Popover open={filterOpen} onClose={() => setFilterOpen(false)} anchor={filterAnchor} align="end" className="w-60">
           <div className="max-h-[60vh] overflow-y-auto">
@@ -217,7 +217,7 @@ function ThreadRow({ thread, active }: { thread: Thread; active: boolean }) {
             )}
           </div>
           <p className="mt-0.5 truncate text-[12.5px] text-subtle">
-            {thread.location && <span className="text-muted">{thread.location} · </span>}
+            {thread.location && thread.location !== thread.title && <span className="text-muted">{thread.location} · </span>}
             {thread.busy && !thread.preview ? <span className="text-accent-text">Thinking…</span> : plainPreview(thread.preview) || <span className="text-faint">No messages yet</span>}
           </p>
         </div>
@@ -241,14 +241,21 @@ function NewChat({ agentId }: { agentId?: string }) {
   const start = async (text: string) => {
     if (!agent) return false;
     setSending(true);
+    let threadId: string | undefined;
     try {
       const thread = await client.createThread({ agentId: agent.id, source: "web" });
+      threadId = thread.id;
       local.thread(thread);
       await client.send(thread.id, text, { source: "web" });
       navigate(`/chat/${thread.id}`, { replace: true });
       return true;
     } catch (error) {
       toast.error(error, "Could not start the chat");
+      // Don't leave an empty thread behind; the message stays in the composer to retry.
+      if (threadId) {
+        const id = threadId;
+        void client.deleteThread(id).then(() => local.threadDeleted(id), () => {});
+      }
       setSending(false);
       return false;
     }

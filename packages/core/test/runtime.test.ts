@@ -93,6 +93,26 @@ test("webhook connector routes @handles and answers synchronously", async () => 
   }
 });
 
+test("a chat command can come before the @handle", async () => {
+  const { solo, faux, cleanup } = await open();
+  try {
+    solo.createAgent({ name: "Coder", handle: "coder", model: { provider: "faux", modelId: "faux-1" } });
+    const hook = solo.connectors.create({ kind: "webhook", config: { secret: "s3cret" } });
+    await new Promise((r) => setTimeout(r, 50));
+    faux.setResponses([fauxAssistantMessage([fauxText("fresh start")])]);
+    const result = await solo.receiveWebhook(hook.id, "s3cret", { text: "!reset @coder start over", thread: "ci" });
+    assert.equal((result as { answer?: string }).answer, "fresh start");
+    const threads = solo.listThreads({ source: "webhook" });
+    assert.equal(threads.length, 1);
+    assert.equal(solo.agents.get(threads[0]!.agentId)!.handle, "coder");
+    const { messages } = await solo.messages(threads[0]!.id);
+    const user = messages.find((m) => m.kind === "user");
+    assert.equal(user?.kind === "user" && user.text, "start over");
+  } finally {
+    await cleanup();
+  }
+});
+
 test("a scheduled reminder survives a restart and fires afterwards", async () => {
   const dir = mkdtempSync(join(tmpdir(), "solo-test-"));
   const openAt = async () => {
@@ -139,6 +159,24 @@ test("a changed SOLOAGENT_SECRET marks connectors as needing tokens instead of c
     assert.equal(hook!.status, "error");
     assert.match(hook!.statusDetail ?? "", /decrypt/);
     await second.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("auto-assignment upgrades demo agents it placed, but never an explicit choice", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "solo-test-"));
+  try {
+    const solo = await SoloAgent.open({ dataDir: dir, secret: "test", adminToken: "t", connectors: false, demo: true, log: () => {} });
+    const seeded = solo.agents.list()[0]!;
+    assert.equal(seeded.model?.provider, "demo"); // placed automatically
+    const chosen = solo.createAgent({ name: "Tester", handle: "tester" });
+    solo.updateAgent(chosen.id, { model: { provider: "demo", modelId: "solo-demo" } }); // chosen on purpose
+    await solo.providers.setApiKey("groq", "gsk-test-key");
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(solo.agents.get(seeded.id)!.model?.provider, "groq");
+    assert.equal(solo.agents.get(chosen.id)!.model?.provider, "demo");
+    await solo.close();
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

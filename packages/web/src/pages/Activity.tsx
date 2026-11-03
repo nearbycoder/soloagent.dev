@@ -9,7 +9,7 @@ import { cn } from "../lib/cn.ts";
 import { fullDate, relativeTime } from "../lib/format.ts";
 import { linkHandler } from "../lib/router.ts";
 import { confirm, toast } from "../lib/toast.ts";
-import { ActivityFeed } from "./Overview.tsx";
+import { ActivityFeed, LiveDot } from "./Overview.tsx";
 
 export function ActivityPage() {
   return (
@@ -24,7 +24,7 @@ export function ActivityPage() {
           <SectionHeader
             title={
               <span className="flex items-center gap-2">
-                Recent activity <Dot tone="success" pulse />
+                Recent activity <LiveDot />
               </span>
             }
           />

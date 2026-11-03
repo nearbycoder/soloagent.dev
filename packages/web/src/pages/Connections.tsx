@@ -119,6 +119,11 @@ export function Connections({ editId }: { editId?: string }) {
   );
 }
 
+/** The webhook driver reports its identity with an "<id>" placeholder; show the real path. */
+function identityOf(connector: Connector): string | undefined {
+  return connector.identity?.replaceAll("<id>", connector.id);
+}
+
 function Gone() {
   useEffect(() => navigate("/connections", { replace: true }), []);
   return null;
@@ -185,7 +190,7 @@ function ConnectorRow({ connector }: { connector: Connector }) {
             {connector.identity && (
               <>
                 <span className="text-faint">·</span>
-                <span className="truncate text-muted">{connector.identity}</span>
+                <span className="min-w-0 truncate text-muted">{identityOf(connector)}</span>
               </>
             )}
             <span className="text-faint">·</span>
@@ -404,7 +409,7 @@ function ConnectorEditor({
             <div className={cn("rounded-xl border p-3.5", connector.enabled && connector.status === "error" ? "border-danger/30 bg-danger-soft" : "border-border bg-surface-2/40")}>
               <div className="flex items-center gap-2">
                 <StatusPill connector={connector} />
-                {connector.identity && <span className="truncate text-[12.5px] text-muted">{connector.identity}</span>}
+                {connector.identity && <span className="min-w-0 truncate text-[12.5px] text-muted">{identityOf(connector)}</span>}
                 <Button size="xs" variant="ghost" className="ml-auto" icon={<RefreshCw className="size-3" />} onClick={() => restart(connector)}>
                   Restart
                 </Button>

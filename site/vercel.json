@@ -4,7 +4,7 @@
   "redirects": [
     {
       "source": "/deploy",
-      "destination": "https://railway.com/new/template?template=https://github.com/nearbycoder/soloagent.dev",
+      "destination": "https://railway.com/new",
       "permanent": false
     },
     {

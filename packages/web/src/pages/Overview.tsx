@@ -112,7 +112,6 @@ export function Overview() {
 
       {loaded && remaining > 0 && (
         <Card className="relative mt-6 overflow-hidden">
-          <div className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full bg-accent/10 blur-3xl" />
           <div className="relative flex flex-col gap-1 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2.5">
               <Sparkles className="size-4 text-accent-text" />
@@ -188,7 +187,7 @@ export function Overview() {
           <SectionHeader
             title={
               <span className="flex items-center gap-2">
-                Live activity <Dot tone="success" pulse />
+                Live activity <LiveDot />
               </span>
             }
             action={
@@ -203,6 +202,16 @@ export function Overview() {
         </section>
       </div>
     </Page>
+  );
+}
+
+/** Green while the live stream is up; amber and pulsing while it reconnects. */
+export function LiveDot() {
+  const status = useApp((s) => s.status);
+  return (
+    <span title={status === "live" ? "Live" : "Reconnecting…"} className="inline-flex">
+      <Dot tone={status === "live" ? "success" : "warning"} pulse />
+    </span>
   );
 }
 

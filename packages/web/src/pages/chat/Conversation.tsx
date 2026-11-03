@@ -127,20 +127,28 @@ export function Conversation({ threadId }: { threadId: string }) {
   }
 
   const items = buildTimeline(view.messages, paired, agentMap, view.thinkingMs, results, view.live);
-  const lastIsAssistant = (() => {
+  const lastTurn = (() => {
     for (let i = view.messages.length - 1; i >= 0; i--) {
       const m = view.messages[i]!;
       if (m.kind === "tool") continue;
-      return m.kind === "assistant";
+      return m;
     }
-    return false;
+    return undefined;
   })();
+  const lastIsAssistant = lastTurn?.kind === "assistant";
+  // A stopped or errored run already says so on its last message; don't repeat it below.
+  const failure = view.live.failure;
+  const lastError = lastTurn?.kind === "assistant" ? lastTurn.error : undefined;
+  const failureShownAbove =
+    lastTurn?.kind === "assistant" &&
+    ((failure?.reason === "aborted" && lastTurn.stopReason === "aborted") || (!!lastError && !!failure?.detail && (failure.detail.includes(lastError) || lastError.includes(failure.detail))));
+  const showFailure = !!failure && !view.live.busy && !failureShownAbove;
 
   return (
     <div className="flex h-full min-w-0 flex-col">
       <ConversationHeader threadId={threadId} thread={thread} agent={agent} />
 
-      <div ref={scroller} onScroll={onScroll} className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+      <div ref={scroller} onScroll={onScroll} className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden [overflow-anchor:none]">
         <div className="mx-auto w-full max-w-3xl px-4 pb-8 pt-4 sm:px-6">
           {view.hasMore && (
             <div className="flex justify-center py-3">
@@ -175,7 +183,7 @@ export function Conversation({ threadId }: { threadId: string }) {
 
           <LiveTurn live={view.live} agent={agent} head={!lastIsAssistant} thinkingMs={view.liveThinkingMs ?? undefined} />
           {view.live.retry && <RetryNotice retry={view.live.retry} />}
-          {view.live.failure && !view.live.busy && <FailureNotice failure={view.live.failure} />}
+          {showFailure && view.live.failure && <FailureNotice failure={view.live.failure} />}
         </div>
 
         {showJump && (
@@ -219,8 +227,9 @@ function buildTimeline(
   let prev: Message | undefined;
   let lastDay = "";
   for (const message of messages) {
-    const day = dayLabel(message.at);
-    if (day !== lastDay) {
+    // Some entries (resets, compactions) can arrive without a timestamp; they belong to the current day.
+    const day = message.at > 0 ? dayLabel(message.at) : lastDay;
+    if (day && day !== lastDay) {
       if (lastDay || messages.length > 4) out.push(<DayDivider key={`day-${message.id}`} label={day} />);
       lastDay = day;
     }
@@ -328,7 +337,7 @@ function ConversationHeader({ threadId, thread, agent }: { threadId: string; thr
               <SourceBadge source={thread.source} className="h-4 text-[10.5px]" />
             </>
           )}
-          {thread?.location && (
+          {thread?.location && thread.location !== thread.title && (
             <>
               <span className="text-faint">·</span>
               <span className="truncate">{thread.location}</span>

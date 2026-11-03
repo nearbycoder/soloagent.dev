@@ -8,14 +8,16 @@
 
 .hero-kicker {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   margin-bottom: 28px;
 }
 
 .live-dot {
+  flex: none;
   width: 9px;
   height: 9px;
+  margin-top: 4px;
   border-radius: 50%;
   background: var(--lime);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime) 35%, transparent);
@@ -83,18 +85,19 @@
 }
 
 .pin {
+  --pin: clamp(20px, 2.4vw, 28px);
   position: absolute;
   z-index: 2;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  margin: -14px 0 0 -14px;
+  width: var(--pin);
+  height: var(--pin);
+  margin: calc(var(--pin) / -2) 0 0 calc(var(--pin) / -2);
   border-radius: 50%;
   background: var(--lime);
   color: var(--ink);
-  font: 600 13px/1 var(--mono);
-  box-shadow: 0 0 0 3px var(--ink), 0 6px 16px -4px rgba(0, 0, 0, 0.45);
+  font: 600 clamp(11px, 1.1vw, 13px)/1 var(--mono);
+  box-shadow: 0 0 0 clamp(2px, 0.25vw, 3px) var(--ink), 0 6px 16px -4px rgba(0, 0, 0, 0.45);
 }
 
 .legend {
@@ -318,7 +321,7 @@
 }
 
 .ledger li > span:first-child {
-  color: #6d6b61;
+  color: #7d7b70;
 }
 
 .ledger li > span:nth-child(2) {
@@ -654,6 +657,17 @@
   min-height: 262px;
 }
 
+.code pre a {
+  color: var(--code-text);
+  text-decoration: underline;
+  text-decoration-color: var(--lime);
+  text-underline-offset: 3px;
+}
+
+.code pre a:hover {
+  color: var(--lime);
+}
+
 /* ── Self-host ────────────────────────────────────────── */
 
 .steps {
@@ -911,15 +925,44 @@
     grid-template-columns: minmax(0, 1fr);
   }
   .ledger li {
-    grid-template-columns: 40px 58px max-content;
-    white-space: nowrap;
-    font-size: 12px;
+    grid-template-columns: 32px 52px minmax(0, 1fr);
+    gap: 8px;
+    padding: 6px 16px;
+    font-size: 11.5px;
   }
-  .ledger ol {
-    overflow-x: auto;
+  .ledger-table,
+  .ledger-table tbody {
+    display: block;
   }
+  .ledger-table thead {
+    display: none;
+  }
+  .ledger-table tr {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .ledger-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+  .ledger-table td,
+  .ledger-table td:first-child,
   .ledger-table td:nth-child(2) {
     width: auto;
+    padding: 0;
+    border: 0;
+  }
+  .ledger-table td:nth-child(n + 3) {
+    grid-column: 2;
+    margin-top: 4px;
+    font-size: 14px;
+  }
+  .ledger-table td:nth-child(3) {
+    color: var(--text-3);
+  }
+  .ledger-table td code {
+    white-space: normal;
   }
   .chat p {
     grid-template-columns: 44px 1fr;

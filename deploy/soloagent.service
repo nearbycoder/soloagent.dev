@@ -14,9 +14,9 @@ Wants=network-online.target
 User=soloagent
 Environment=SOLOAGENT_DATA_DIR=/var/lib/soloagent/data
 Environment=PORT=7420
-# Optional: an env file with SOLOAGENT_TOKEN and SOLOAGENT_SECRET
+# Optional overrides (PORT, SOLOAGENT_TOKEN, SOLOAGENT_SECRET, ...) in an env file
 EnvironmentFile=-/etc/soloagent.env
-ExecStart=/usr/bin/env soloagent serve --port 7420 --data /var/lib/soloagent/data
+ExecStart=/usr/bin/env soloagent serve
 Restart=on-failure
 RestartSec=3
 

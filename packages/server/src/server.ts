@@ -21,6 +21,12 @@ const BROADCAST = new Set<ServerEvent["type"]>([
   "activity",
 ]);
 
+// A long-running server should never die from a stray promise rejection in a connector or a
+// third-party SDK. Log it; durable work and other connectors keep going.
+process.on("unhandledRejection", (reason) => {
+  console.error(`[solo] unhandled rejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}`);
+});
+
 export type StartOptions = SoloAgentOptions & {
   port?: number;
   host?: string;

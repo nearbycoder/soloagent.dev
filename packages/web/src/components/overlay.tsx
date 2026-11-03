@@ -193,19 +193,29 @@ export function Popover({
       const a = anchor.current?.getBoundingClientRect();
       const p = panel.current;
       if (!a || !p) return;
-      const h = p.offsetHeight;
+      // Measure the natural height, then fit the panel on whichever side has room (shrinking it if neither does).
+      p.style.maxHeight = "";
+      const natural = p.offsetHeight;
+      const below = window.innerHeight - a.bottom - 14;
+      const above = a.top - 14;
+      const up = natural > below && above > below;
+      const h = Math.min(natural, up ? above : below);
+      if (h < natural) p.style.maxHeight = `${h}px`;
       const w = matchWidth ? a.width : p.offsetWidth;
-      const up = a.bottom + h + 8 > window.innerHeight && a.top - h - 8 > 0;
       let left = align === "end" ? a.right - w : a.left;
       left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
       setPos({ top: up ? a.top - h - 6 : a.bottom + 6, left, width: a.width, up });
     };
+    // Scrolling inside the panel itself (a long list) must not re-place it.
+    const onScroll = (event: Event) => {
+      if (!panel.current?.contains(event.target as Node)) place();
+    };
     place();
     window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
+    window.addEventListener("scroll", onScroll, true);
     return () => {
       window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("scroll", onScroll, true);
     };
   }, [open, anchor, align, matchWidth]);
 

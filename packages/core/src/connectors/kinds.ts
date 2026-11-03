@@ -66,7 +66,7 @@ ${SLACK_MANIFEST}
     setup: `1. Open **https://discord.com/developers/applications** → **New Application**.
 2. **Bot** tab: click **Reset Token** and copy it. Turn on **Message Content Intent** under *Privileged Gateway Intents*.
 3. **OAuth2 → URL Generator**: scopes \`bot\`; permissions *Send Messages*, *Send Messages in Threads*, *Read Message History*, *View Channels*. Open the URL to add the bot to your server.
-4. Paste the token here. Mention the bot or DM it.`,
+4. Paste the token here. Mention the bot, reply to it, or DM it.`,
   },
   {
     kind: "telegram",
@@ -93,8 +93,8 @@ curl -X POST https://YOUR-SOLO/api/hooks/CONNECTOR_ID \\
   -d '{"text": "@coder what changed in the last deploy?", "thread": "deploys", "user": "ci"}'
 \`\`\`
 
-- Without \`callback_url\`, the request waits for the answer and returns \`{ "answer": "…" }\`.
-- With \`callback_url\`, it returns \`202\` at once and POSTs \`{ "thread", "text" }\` there when the agent answers.
+- Without \`callback_url\`, the request waits for the answer and returns \`{ "thread", "status", "answer" }\`.
+- With \`callback_url\`, it returns \`202\` at once and POSTs \`{ "thread", "text" }\` there, with the same \`x-solo-secret\` header, when the agent answers.
 - \`thread\` keeps a conversation going across requests; omit it for a one-off.`,
   },
 ];

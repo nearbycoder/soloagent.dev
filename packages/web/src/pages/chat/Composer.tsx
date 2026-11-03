@@ -119,7 +119,7 @@ export function Composer({
               title={busy ? "Steer the current run (Enter)" : "Send (Enter)"}
               className={cn(
                 "grid size-8 place-items-center rounded-full transition-all duration-150",
-                canSend ? "bg-accent text-white shadow-[0_2px_10px_-2px_var(--accent)] hover:bg-accent-hover" : "bg-surface-3 text-faint",
+                canSend ? "bg-accent text-accent-fg hover:bg-accent-hover" : "bg-surface-3 text-faint",
               )}
             >
               <ArrowUp className="size-4" strokeWidth={2.4} />

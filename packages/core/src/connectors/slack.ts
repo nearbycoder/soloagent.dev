@@ -50,7 +50,10 @@ export const slackDriver: DriverFactory = (config, host): ConnectorDriver => {
     async start() {
       if (!botToken.startsWith("xoxb-")) throw new Error("Bot token must start with xoxb-");
       if (!appToken.startsWith("xapp-")) throw new Error("App-level token must start with xapp- (enable Socket Mode)");
-      app = new App({ token: botToken, appToken, socketMode: true, logLevel: LogLevel.ERROR });
+      // Bolt verifies the token in its constructor with a promise nobody awaits, so a bad token
+      // would surface as an unhandled rejection. Defer it and await init() where errors are caught.
+      app = new App({ token: botToken, appToken, socketMode: true, logLevel: LogLevel.ERROR, deferInitialization: true });
+      await app.init();
       const auth = await app.client.auth.test();
       botUserId = auth.user_id ?? "";
 

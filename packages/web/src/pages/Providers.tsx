@@ -114,11 +114,11 @@ export function Providers() {
                   <div className="relative mt-3 flex gap-2">
                     {connected ? (
                       <>
-                        <Button size="sm" variant="secondary" className="flex-1" icon={<LogIn className="size-3.5" />} loading={starting === provider.id} onClick={() => startLogin(provider)}>
-                          Sign in again
+                        <Button size="sm" variant="secondary" className="min-w-0 flex-1" icon={<LogIn className="size-3.5" />} loading={starting === provider.id} onClick={() => startLogin(provider)}>
+                          <span className="truncate">{provider.configured?.type === "oauth" ? "Sign in again" : "Use subscription"}</span>
                         </Button>
                         <Button size="sm" variant="ghost" icon={<LogOut className="size-3.5" />} onClick={() => logout(provider)}>
-                          Sign out
+                          {provider.configured?.type === "oauth" ? "Sign out" : "Remove key"}
                         </Button>
                       </>
                     ) : (
@@ -468,7 +468,7 @@ function FlowPrompt({ flow, step }: { flow: LoginFlowState; step: number }) {
         <p className="-mt-1 text-[12.5px] leading-relaxed text-subtle">
           After approving, your browser lands on a page that may not load (it points at <span className="font-mono">localhost</span>). That's expected — copy the whole URL from the address bar
           and paste it here.
-          {prompt.message && prompt.message !== "Paste the code or the full redirect URL from your browser" && <span className="mt-1 block text-faint">{prompt.message}</span>}
+          {prompt.message && prompt.message !== "Paste the code or the full redirect URL from your browser" && !flow.authUrl?.instructions && <span className="mt-1 block text-faint">{prompt.message}</span>}
         </p>
       )}
       {prompt.type === "select" ? (

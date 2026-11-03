@@ -44,7 +44,7 @@ function help() {
 
   ${p.dim("USAGE")}
 ${cmd("soloagent", "open the terminal UI", "--agent <handle>  --thread <id>  --new")}
-${cmd('soloagent ask "<message>"', "ask once, print the answer", '--agent <handle>  --thread <id>  --json   ("-" reads stdin)')}
+${cmd('soloagent ask "<message>"', "ask once, print the answer", '--agent <handle>  --thread <id>  --json   (piped input is appended; "-" reads only stdin)')}
 ${cmd("soloagent agents", "list agents", "--json")}
 ${cmd("soloagent threads", "list recent threads", "--limit <n>  --agent <handle>  --json")}
 ${cmd("soloagent login [provider]", "sign in with a subscription", "--key  save an API key instead")}

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { errorMessage } from "../api/client.ts";
+import { errorMessage, SoloApiError } from "../api/client.ts";
 
 export type Toast = { id: number; tone: "error" | "success" | "info"; title: string; description?: string };
 
@@ -22,6 +22,8 @@ function push(t: Omit<Toast, "id">, ttl: number) {
 
 export const toast = {
   error(error: unknown, title = "Something went wrong") {
+    // A 401 already sends the app back to the login screen, which says why; don't pile a toast on top.
+    if (error instanceof SoloApiError && error.status === 401) return;
     push({ tone: "error", title, description: errorMessage(error) }, 6000);
   },
   success(title: string, description?: string) {

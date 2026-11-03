@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { join, resolve } from "node:path";
 import { EventEmitter } from "node:events";
 import { BACKGROUND_CONTEXT, type Context } from "@earendil-works/chord/context";
@@ -48,7 +48,7 @@ import { demoProvider } from "./demo.ts";
 import { createSkills, type SkillHost } from "./skills.ts";
 import { EVENT_ENTRY, MESSAGE_ENTRY, type EventEntryData, type MessageEntryData, textOf, toLive, toMessages, usageOf } from "./transcript.ts";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.1.1";
 
 export type SoloAgentOptions = {
   /** Directory for databases and agent workspaces. */
@@ -287,19 +287,46 @@ export class SoloAgent {
   }
 
   /** Give agents without a model a sensible one from the first configured provider. */
+  /**
+   * Give agents without a model a sensible one from the first configured provider. Agents that were put
+   * on the demo model automatically move to a real provider once one is connected; agents someone put on
+   * a model on purpose (including the demo model) are never changed.
+   */
   async autoAssignModels() {
     const configured = await this.providers.configured();
     const provider = configured.find((p) => p.id !== "demo") ?? configured.find((p) => p.id === "demo");
     if (!provider) return;
-    // Agents without a model get one; agents still on the demo model upgrade once a real provider is connected.
-    const missing = this.agents.list().filter((a) => !a.model || (a.model.provider === "demo" && provider.id !== "demo"));
-    if (missing.length === 0) return;
+    const auto = this.#autoModelAgents();
+    const candidates = this.agents
+      .list()
+      .filter((a) => !a.model || (auto.has(a.id) && a.model.provider === "demo" && provider.id !== "demo"));
+    if (candidates.length === 0) return;
     const model = pickModel(provider.id, provider.models.map((m) => m.id));
     if (!model) return;
-    for (const agent of missing) {
+    for (const agent of candidates) {
       this.agents.update(agent.id, { model: { provider: provider.id, modelId: model } });
+      if (provider.id === "demo") auto.add(agent.id);
+      else auto.delete(agent.id);
       this.activity({ type: "agent", text: `@${agent.handle} now runs on ${provider.name} ${model}`, agentId: agent.id });
     }
+    this.db.setSetting("auto_model_agents", JSON.stringify([...auto]));
+  }
+
+  /** Update an agent on someone's behalf. Choosing a model by hand opts the agent out of auto-assignment. */
+  updateAgent(id: string, input: Partial<AgentInput>): Agent {
+    const agent = this.agents.update(id, input);
+    if (input.model !== undefined) {
+      const auto = this.#autoModelAgents();
+      if (auto.delete(agent.id)) this.db.setSetting("auto_model_agents", JSON.stringify([...auto]));
+    }
+    return agent;
+  }
+
+  #autoModelAgents(): Set<string> {
+    const stored = this.db.setting("auto_model_agents");
+    if (stored) return new Set(JSON.parse(stored) as string[]);
+    // Installs from before this setting existed: agents on the demo model got there automatically.
+    return new Set(this.agents.list().filter((a) => a.model?.provider === "demo").map((a) => a.id));
   }
 
   agentChange(agent: Agent, options: { nested?: boolean } = {}): AgentChange {
@@ -579,10 +606,12 @@ export class SoloAgent {
 
     // Addressing: "@coder fix the build" or "coder: fix the build" picks an agent.
     let agent = connector.agentId ? this.agents.get(connector.agentId) : undefined;
-    const addressed = /^@?([a-z0-9][a-z0-9-]{0,31})[:,]?\s+([\s\S]+)$/i.exec(text.replace(/^[!/](reset|stop|new)\s*/i, ""));
+    // A command may come first: "!reset @coder start over".
+    const rest = text.replace(/^[!/](reset|stop|new)\s*/i, "");
+    const addressed = /^@?([a-z0-9][a-z0-9-]{0,31})[:,]?\s+([\s\S]+)$/i.exec(rest);
     if (addressed) {
       const named = this.agents.get(addressed[1]!.toLowerCase());
-      if (named && (text.startsWith("@") || /^[a-z0-9-]+[:,]/i.test(text))) {
+      if (named && (rest.startsWith("@") || /^[a-z0-9-]+[:,]/i.test(rest))) {
         agent = named;
         text = addressed[2]!.trim();
       }
@@ -661,7 +690,9 @@ export class SoloAgent {
     if (!connector || connector.kind !== "webhook") throw new HttpError(404, "Unknown webhook");
     if (!connector.enabled) throw new HttpError(409, "This webhook is disabled");
     const expected = this.connectors.config(connectorId).secret;
-    if (!expected || secret !== expected) throw new HttpError(401, "Bad secret");
+    const given = Buffer.from(secret ?? "");
+    const wanted = Buffer.from(expected ?? "");
+    if (!expected || given.length !== wanted.length || !timingSafeEqual(given, wanted)) throw new HttpError(401, "Bad secret");
     if (!body.text?.trim()) throw new HttpError(400, "text is required");
     const thread = body.thread?.trim() || newId("once");
     const message: InboundMessage = {

@@ -51,7 +51,7 @@ export function Logo({ className, compact }: { className?: string; compact?: boo
 
 /** Agent avatar: the glyph on a tile tinted with the agent color. */
 export function AgentAvatar({ agent, size = "md", className }: { agent: Pick<Agent, "avatar" | "color" | "name"> | undefined; size?: "xs" | "sm" | "md" | "lg" | "xl"; className?: string }) {
-  const color = agent?.color ?? "#71717a";
+  const color = agent?.color ?? "#9cbf10";
   const dims = { xs: "size-4 text-[9px] rounded", sm: "size-6 text-[12px] rounded-md", md: "size-8 text-[15px] rounded-lg", lg: "size-11 text-[20px] rounded-xl", xl: "size-14 text-[26px] rounded-2xl" }[size];
   return (
     <span
@@ -63,7 +63,7 @@ export function AgentAvatar({ agent, size = "md", className }: { agent: Pick<Age
       }}
       aria-hidden="true"
     >
-      {agent?.avatar || "✦"}
+      {agent?.avatar || "●"}
     </span>
   );
 }
@@ -101,7 +101,7 @@ export const KIND_STYLE: Record<ConnectorKind, { bg: string; fg: string; label: 
   slack: { bg: "#4A154B", fg: "#ffffff", label: "Slack" },
   discord: { bg: "#5865F2", fg: "#ffffff", label: "Discord" },
   telegram: { bg: "#229ED9", fg: "#ffffff", label: "Telegram" },
-  webhook: { bg: "#18181b", fg: "#ffffff", label: "Webhook" },
+  webhook: { bg: "#d2f53c", fg: "#15140f", label: "Webhook" },
 };
 
 /** A colored tile with the platform mark. */
@@ -201,8 +201,10 @@ export function ProviderMark({ id, name, size = "md" }: { id: string; name: stri
   let hash = 0;
   for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
   const color = palette[id] ?? `hsl(${hash % 360} 55% 52%)`;
-  const label = id === "demo" ? "✦" : id === "xai" ? "𝕏" : name.replace(/[^A-Za-z0-9]/g, "").slice(0, 1) || "?";
   const dims = { sm: "size-6 text-[11px] rounded-md", md: "size-9 text-[14px] rounded-lg", lg: "size-11 text-[17px] rounded-xl" }[size];
+  // The built-in demo provider is soloagent itself: show the mark, not a monogram.
+  if (id === "demo") return <SoloMark className={cn("shrink-0", dims.split(" ")[0])} />;
+  const label = id === "xai" ? "𝕏" : name.replace(/[^A-Za-z0-9]/g, "").slice(0, 1).toUpperCase() || "?";
   return (
     <span
       className={cn("grid shrink-0 place-items-center font-semibold select-none", dims)}

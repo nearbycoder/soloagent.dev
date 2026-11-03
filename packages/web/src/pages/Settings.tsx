@@ -43,7 +43,7 @@ export function SettingsPage({ onSignOut }: { onSignOut: () => void }) {
         <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-[13.5px] font-medium text-fg">Theme</h3>
-            <p className="mt-0.5 text-[12.5px] text-subtle">Dark is the default. System follows your OS.</p>
+            <p className="mt-0.5 text-[12.5px] text-subtle">System follows your operating system.</p>
           </div>
           <Segmented<ThemePref>
             value={pref}

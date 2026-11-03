@@ -245,7 +245,11 @@ export const local = {
     onEvent({ type: "agent.deleted", agentId });
   },
   connector(connector: Connector) {
-    onEvent({ type: "connector.updated", connector });
+    // Status is owned by the live stream: a REST response can be older than the status events that
+    // followed it (an update restarts the connector in the background), so keep the streamed status.
+    const known = state.connectors?.find((c) => c.id === connector.id);
+    const merged = known ? { ...connector, status: known.status, statusDetail: known.statusDetail, identity: known.identity } : connector;
+    onEvent({ type: "connector.updated", connector: merged });
   },
   connectorDeleted(connectorId: string) {
     onEvent({ type: "connector.deleted", connectorId });

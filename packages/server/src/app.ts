@@ -84,7 +84,7 @@ export function createApp({ solo, webDir }: AppOptions) {
     const agent = solo.agents.get(c.req.param("id"));
     return agent ? c.json(agent) : c.json({ error: "Agent not found" }, 404);
   });
-  api.patch("/agents/:id", async (c) => c.json(solo.agents.update(c.req.param("id"), await c.req.json<Partial<AgentInput>>())));
+  api.patch("/agents/:id", async (c) => c.json(solo.updateAgent(c.req.param("id"), await c.req.json<Partial<AgentInput>>())));
   api.delete("/agents/:id", (c) => {
     solo.agents.delete(c.req.param("id"));
     return c.json({ ok: true });

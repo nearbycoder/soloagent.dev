@@ -11,6 +11,7 @@ import {
   Info,
   LoaderCircle,
   RotateCcw,
+  Square,
   SquareTerminal,
   TriangleAlert,
   Users,
@@ -121,7 +122,7 @@ export function EventNotice({ message }: { message: Pick<EventMessage, "text" | 
               ? "border-warning/25 bg-warning-soft text-warning"
               : "border-border bg-surface-2 text-subtle",
         )}
-        title={fullDate(message.at)}
+        title={message.at > 0 ? fullDate(message.at) : undefined}
       >
         <Icon className="size-3.5 shrink-0" />
         <span className="min-w-0 truncate">{message.text}</span>
@@ -197,13 +198,18 @@ export const AssistantMessageView = memo(function AssistantMessageView({
           ))}
         </div>
       )}
-      {message.error && (
-        <div className="mt-2 flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-[13px] text-danger">
-          <CircleAlert className="mt-0.5 size-4 shrink-0" />
-          <span className="min-w-0 break-words">{message.error}</span>
-        </div>
+      {message.stopReason === "aborted" ? (
+        <StoppedNote />
+      ) : (
+        message.error && (
+          <div className="mt-2 flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-[13px] text-danger">
+            <CircleAlert className="mt-0.5 size-4 shrink-0" />
+            <span className="min-w-0 break-words" title={message.error}>
+              {friendlyError(message.error)}
+            </span>
+          </div>
+        )
       )}
-      {message.stopReason === "aborted" && !message.error && <p className="mt-1.5 text-[12px] italic text-faint">Stopped</p>}
       {message.text && (
         <div className="mt-1 flex h-6 items-center gap-0.5 opacity-0 transition-opacity group-hover/msg:opacity-100">
           <CopyButton text={message.text} label="Copy message" size="xs" />
@@ -246,7 +252,7 @@ function TypingDots() {
   return (
     <div className="flex h-7 items-center gap-1" aria-label="Agent is working" role="status">
       {[0, 1, 2].map((i) => (
-        <span key={i} className="size-1.5 animate-bounce rounded-full bg-accent/70" style={{ animationDelay: `${i * 140}ms`, animationDuration: "1s" }} />
+        <span key={i} className="size-1.5 animate-bounce rounded-full bg-accent-text/70" style={{ animationDelay: `${i * 140}ms`, animationDuration: "1s" }} />
       ))}
     </div>
   );
@@ -264,13 +270,47 @@ export function RetryNotice({ retry }: { retry: NonNullable<LiveState["retry"]> 
   );
 }
 
+/** Provider errors often arrive as `401 {"error":{"message":"…"}}`; show the message, keep the raw text in a tooltip. */
+function friendlyError(text: string): string {
+  const match = /^(\d{3})\s+(\{[\s\S]*\})\s*$/.exec(text.trim());
+  if (!match) return text;
+  try {
+    const body = JSON.parse(match[2]!) as { error?: { message?: string } | string; message?: string };
+    const message = typeof body.error === "string" ? body.error : (body.error?.message ?? body.message);
+    return message ? `${message} (HTTP ${match[1]})` : text;
+  } catch {
+    return text;
+  }
+}
+
+function StoppedNote({ className }: { className?: string }) {
+  return (
+    <p className={cn("mt-1.5 flex items-center gap-1.5 text-[12px] text-subtle", className)}>
+      <Square className="size-2.5 fill-current" />
+      Stopped
+    </p>
+  );
+}
+
+/** "rate_limited" → "Rate limited". */
+function humanizeReason(reason: string): string {
+  const text = reason.replace(/[_-]+/g, " ").trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 export function FailureNotice({ failure }: { failure: NonNullable<LiveState["failure"]> }) {
+  // A run the user stopped is not a failure.
+  if (failure.reason === "aborted") return <StoppedNote className="ml-[46px] mt-3" />;
   return (
     <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-danger/25 bg-danger-soft px-3.5 py-2.5 text-[13px]">
       <CircleAlert className="mt-0.5 size-4 shrink-0 text-danger" />
       <div className="min-w-0">
-        <p className="font-medium text-danger">{failure.reason}</p>
-        {failure.detail && <p className="mt-0.5 whitespace-pre-wrap break-words text-[12.5px] text-muted">{failure.detail}</p>}
+        <p className="font-medium text-danger">{humanizeReason(failure.reason)}</p>
+        {failure.detail && (
+          <p className="mt-0.5 whitespace-pre-wrap break-words text-[12.5px] text-muted" title={failure.detail}>
+            {friendlyError(failure.detail)}
+          </p>
+        )}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react";
 import { client, errorMessage } from "../api/client.ts";
 import { SparkMark } from "../components/brand.tsx";
@@ -10,6 +10,10 @@ export function Login({ onLoggedIn, expired }: { onLoggedIn: (version: string) =
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(expired ? "Your session ended. Sign in again to continue." : null);
+
+  useEffect(() => {
+    document.title = "Sign in · soloagent";
+  }, []);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();

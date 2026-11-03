@@ -89,11 +89,12 @@ export function useThread(threadId: string): ThreadView {
     setLoadingEarlier(true);
     try {
       const page = await client.messages(threadId, first.id);
-      let added = 0;
+      // Count from the ref: a setState updater runs later, during render, so it can't report back here.
+      const known = new Set(stateRef.current.messages.map((m) => m.id));
+      const added = page.messages.filter((m) => !known.has(m.id)).length;
       setState((s) => {
-        const known = new Set(s.messages.map((m) => m.id));
-        const older = page.messages.filter((m) => !known.has(m.id));
-        added = older.length;
+        const current = new Set(s.messages.map((m) => m.id));
+        const older = page.messages.filter((m) => !current.has(m.id));
         return { ...s, messages: [...older, ...s.messages], hasMore: page.hasMore };
       });
       return added;

@@ -40,8 +40,8 @@ soloagent is an open-source, self-hosted home for your AI agents. Give each agen
   - `web` — `web_fetch`, `web_search`
   - `delegate` — `ask_agent` hands a task to another agent through a durable child conversation
   - `schedule` — durable reminders and follow-ups that survive restarts
-  - `workspace` — read / write / edit / bash in a private folder (powerful; off by default)
-- **Steer mid-run.** Messages sent while an agent works are folded into the running work instead of waiting.
+  - `workspace` — read / write / edit / bash, starting in a per-agent folder (powerful, not a sandbox; off by default)
+- **Steer mid-run.** Messages sent while an agent works join the running work at its next step instead of waiting for it to finish.
 - **A real GUI and a real TUI.** A fast dashboard (chat with streaming, thinking, and tool cards; agent editor; subscription logins; connector setup with guides; live task graph; usage and cost) and a full-screen terminal UI built on `pi-tui`.
 - **Try it with zero accounts.** A built-in demo model answers until you connect a provider.
 
@@ -89,9 +89,10 @@ Serverless and edge platforms (Vercel functions, Netlify, Cloudflare Workers, La
 |---|---|
 | `SOLOAGENT_TOKEN` | Admin token for the dashboard, TUI, and API. Generated and printed on first boot if unset. |
 | `SOLOAGENT_SECRET` | Seals provider credentials and bot tokens at rest. Generated and kept in the data dir if unset; keep it stable. |
-| `SOLOAGENT_DATA_DIR` | Data directory. `/data` in the Docker image; the volume on Railway. |
+| `SOLOAGENT_DATA_DIR` | Data directory. `/data` in the Docker image (mount your volume there); `~/.soloagent/data` for `soloagent serve`. |
 | `PORT` | HTTP port, default `7420`. |
 | `SOLOAGENT_DEMO` | `0` hides the built-in demo model. |
+| `SOLOAGENT_PUBLIC_URL` | The public address printed at startup. Railway's domain is detected automatically. |
 
 Connect your terminal to a deployed server:
 
@@ -119,19 +120,20 @@ Open **Connections** in the dashboard; each connector has a step-by-step guide.
 | **Slack** | Create an app from the bundled manifest, enable Socket Mode, and paste the `xapp-…` app token (scope `connections:write`) and `xoxb-…` bot token. Invite the bot to a channel and mention it. |
 | **Discord** | A bot token with the *Message Content* intent enabled; invite it with the `bot` scope. |
 | **Telegram** | A bot token from @BotFather (`/newbot`). |
-| **Webhook** | A shared secret. `POST /api/hooks/<id>` with `x-solo-secret` and `{ "text", "thread", "user", "callback_url"? }`. |
+| **Webhook** | A shared secret. `POST /api/hooks/<id>` with `x-solo-secret` and `{ "text", "thread", "user", "callback_url"? }`; the answer comes back as `{ "thread", "status", "answer" }`, or is POSTed to `callback_url` as `{ "thread", "text" }`. |
 
-In any chat: `@coder fix the build` or `coder: fix the build` picks an agent; otherwise the connector's agent (or the default) answers. Commands: `!agents`, `!reset`, `!stop`, `!help`.
+In any chat: `@coder fix the build` or `coder: fix the build` picks an agent; otherwise the connector's agent (or the default) answers. Commands: `!agents`, `!reset` (or `!new`), `!stop`, `!help`.
 
 ## Terminal UI
 
 ```
-soloagent                     open the terminal UI (embedded server, or your remote)
-soloagent ask "<message>"     ask once and print the answer   (--agent, --thread, --json, "-" = stdin)
+soloagent                     open the terminal UI (local server, or your remote)
+soloagent ask "<message>"     ask once and print the answer   (--agent, --thread, --json; piped input is appended, "-" = stdin only)
 soloagent login [provider]    sign in with a subscription      (--key for API keys)
-soloagent serve               run the server in the foreground
+soloagent serve               run the server in the foreground (--port, --data, --host)
 soloagent connect <url>       use a remote server              (--token)
-soloagent agents | threads    list things
+soloagent disconnect          go back to the local server
+soloagent agents | threads    list things                      (--json)
 soloagent token               print the local admin token
 ```
 
@@ -143,7 +145,7 @@ git diff | soloagent ask - --agent reviewer
 
 ## SDK and API
 
-Everything the GUI and TUI do goes through a typed client:
+Everything the GUI and TUI do goes through a typed client, `@soloagent/client` in `packages/client` (not on npm yet; use it from a clone):
 
 ```ts
 import { SoloClient } from "@soloagent/client";
@@ -166,9 +168,10 @@ const solo = await SoloAgent.open({ dataDir: "./.data" });
 const thread = await solo.createThread({ source: "api" });
 const sent = await solo.send(thread.id, { text: "hello", author: { name: "me", source: "api" } });
 console.log(await sent.wait());
+await solo.close();
 ```
 
-REST routes live under `/api` with `Authorization: Bearer <token>`: `agents`, `threads` (`/messages`, `/ask`, `/stop`, `/reset`, `/compact`), `providers` (`/login`, `/key`), `connectors`, `schedules`, `usage`, `overview`, and the WebSocket at `/api/ws`. See the [docs](https://soloagent.dev/docs/).
+REST routes live under `/api` with `Authorization: Bearer <token>` (only the WebSocket accepts `?token=`): `agents`, `threads` (`/messages`, `/ask`, `/stop`, `/reset`, `/compact`), `providers` (`/login`, `/key`), `connectors`, `schedules`, `usage`, `overview`, and the WebSocket at `/api/ws`. See the [docs](https://soloagent.dev/docs/).
 
 ## Architecture
 
@@ -207,9 +210,9 @@ git tag v0.x.y && git push --tags   # CI builds the release tarball, Docker imag
 
 ## Security
 
-- Every API call needs the admin token; the dashboard keeps it in an httpOnly cookie.
-- Provider credentials and bot tokens are sealed with AES-256-GCM using `SOLOAGENT_SECRET`, or a generated secret in the data directory.
-- The `workspace` skill runs shell commands in a per-agent folder inside the server's container. Grant it only to agents you trust, on a deployment you're comfortable with.
+- Every API call needs the admin token, except inbound webhooks, which use their own secret; the dashboard keeps the token in an httpOnly cookie.
+- Provider credentials, bot tokens, and webhook secrets are sealed with AES-256-GCM using `SOLOAGENT_SECRET`, or a generated secret in the data directory.
+- The `workspace` skill runs shell commands on the server, starting in a per-agent folder, with the server's permissions. It is not a sandbox. Grant it only to agents you trust, on a deployment you're comfortable with.
 - Third-party subscriptions have their own terms. Use subscription logins for your own personal use.
 
 ## License

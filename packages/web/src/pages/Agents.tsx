@@ -12,9 +12,9 @@ import { contextWindow, perMillion, slugify } from "../lib/format.ts";
 import { navigate } from "../lib/router.ts";
 import { confirm, toast } from "../lib/toast.ts";
 
-export const GLYPHS = ["✦", "◆", "●", "▲", "■", "★", "⚡", "λ", "∞", "§", "☾", "☀", "✿", "⌘", "♪", "❖"];
+export const GLYPHS = ["●", "◆", "✦", "▲", "■", "★", "⚡", "λ", "∞", "§", "☾", "☀", "✿", "⌘", "♪", "❖"];
 export const EMOJI = ["🤖", "🧠", "🦊", "🐙", "🦉", "🚀", "🔮", "🧪", "📚", "🛠️", "🎨", "💼", "🧭", "🌱", "🐝", "🍀"];
-export const COLORS = ["#8b5cf6", "#6366f1", "#3b82f6", "#0ea5e9", "#14b8a6", "#10b981", "#84cc16", "#f59e0b", "#f97316", "#f43f5e", "#ec4899", "#64748b"];
+export const COLORS = ["#9cbf10", "#3b82f6", "#0ea5e9", "#14b8a6", "#10b981", "#65a30d", "#eab308", "#f59e0b", "#f97316", "#f43f5e", "#ec4899", "#78716c"];
 const THINKING: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh"];
 
 export function Agents({ editId }: { editId?: string }) {
@@ -160,7 +160,7 @@ function toDraft(agent: Agent | null, defaultModel: Agent["model"]): Draft {
   return {
     name: agent?.name ?? "",
     handle: agent?.handle ?? "",
-    avatar: agent?.avatar ?? "✦",
+    avatar: agent?.avatar ?? "●",
     color: agent?.color ?? COLORS[Math.floor(Math.random() * COLORS.length)]!,
     description: agent?.description ?? "",
     instructions: agent?.instructions ?? "",

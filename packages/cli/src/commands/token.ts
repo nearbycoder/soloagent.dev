@@ -6,7 +6,8 @@ import { err, out, paint } from "../style.ts";
 /** `soloagent token`: the local install's admin token, e.g. to sign in to its web GUI. */
 export async function token(options: { data?: string }): Promise<number> {
   const p = paint(process.stderr);
-  const dataDir = options.data ?? paths.data;
+  // Same lookup as `soloagent serve`: --data, then SOLOAGENT_DATA_DIR, then ~/.soloagent/data.
+  const dataDir = options.data ?? process.env.SOLOAGENT_DATA_DIR ?? paths.data;
   const file = join(dataDir, "soloagent.sqlite");
   let value: string | undefined;
   if (existsSync(file)) {
