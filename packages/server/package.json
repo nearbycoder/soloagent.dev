@@ -1,0 +1,22 @@
+{
+  "name": "@soloagent/server",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@soloagent/core": "0.1.0",
+    "@soloagent/client": "0.1.0",
+    "hono": "^4.13.16",
+    "@hono/node-server": "^2.1.6",
+    "ws": "^8.22.1"
+  },
+  "scripts": {
+    "dev": "node --watch src/main.ts"
+  },
+  "devDependencies": {
+    "@types/ws": "^8"
+  }
+}

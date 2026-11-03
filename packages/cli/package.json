@@ -1,0 +1,18 @@
+{
+  "name": "@soloagent/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@soloagent/client": "0.1.0",
+    "@soloagent/core": "0.1.0",
+    "@soloagent/server": "0.1.0",
+    "@earendil-works/pi-tui": "1.5.0"
+  },
+  "bin": {
+    "soloagent": "./src/main.ts"
+  }
+}
