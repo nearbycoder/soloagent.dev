@@ -8,3 +8,8 @@ site
 *.sqlite
 *.sqlite-*
 .env*
+assets
+docs
+.github
+*.md
+!README.md

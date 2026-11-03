@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://soloagent.dev/docs/
+    about: Install, deploy, providers, connectors, the terminal UI, and the API.
+  - name: Report a security vulnerability
+    url: https://github.com/nearbycoder/soloagent.dev/security/advisories/new
+    about: Please report security issues privately, not as public issues. See SECURITY.md.

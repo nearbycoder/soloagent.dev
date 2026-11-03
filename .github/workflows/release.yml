@@ -34,3 +34,38 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: cd dist/npm && npm publish --access public
+
+  # Points the Homebrew formula in nearbycoder/homebrew-soloagent at this release. Runs only when a
+  # HOMEBREW_TAP_TOKEN secret (a token with contents:write on the tap repo) is configured, and
+  # skips pre-release tags like v0.2.0-rc.1.
+  homebrew:
+    needs: release
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    env:
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
+      - uses: actions/checkout@v4
+        if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
+        with:
+          repository: nearbycoder/homebrew-soloagent
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+      - uses: actions/setup-node@v4
+        if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
+        with:
+          node-version: 24
+      - name: Update and push the formula
+        if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          node scripts/update-homebrew.mjs tap/Formula/soloagent.rb --version "$version"
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/soloagent.rb
+          if git diff --cached --quiet; then echo "formula already at $version"; exit 0; fi
+          git commit -m "soloagent $version"
+          git push
