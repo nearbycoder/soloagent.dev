@@ -5,7 +5,7 @@ import { Hono, type Context as HonoContext } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { CONNECTOR_KINDS, HttpError, VERSION, type SoloAgent } from "@soloagent/core";
-import type { AgentInput, ConnectorInput, Source } from "@soloagent/client";
+import type { AgentInput, AutomationInput, ConnectorInput, Source } from "@soloagent/client";
 
 export type AppOptions = {
   solo: SoloAgent;
@@ -176,6 +176,25 @@ export function createApp({ solo, webDir }: AppOptions) {
   api.get("/schedules", (c) => c.json(solo.schedules()));
   api.delete("/schedules/:id", async (c) => {
     await solo.cancelSchedule(c.req.param("id"));
+    return c.json({ ok: true });
+  });
+
+  // Automations (recurring schedules)
+  api.get("/automations", (c) => c.json(solo.automations.list()));
+  api.get("/automations/preview", (c) => {
+    const cron = c.req.query("cron");
+    if (!cron?.trim()) throw new HttpError(400, "cron is required");
+    return c.json(solo.automations.preview(cron, c.req.query("tz"), Number(c.req.query("count") ?? 5)));
+  });
+  api.post("/automations", async (c) => c.json(await solo.automations.create(await c.req.json<AutomationInput>()), 201));
+  api.get("/automations/:id", (c) => {
+    const automation = solo.automations.get(c.req.param("id"));
+    return automation ? c.json(automation) : c.json({ error: "Automation not found" }, 404);
+  });
+  api.patch("/automations/:id", async (c) => c.json(await solo.automations.update(c.req.param("id"), await c.req.json<Partial<AutomationInput>>())));
+  api.post("/automations/:id/run", async (c) => c.json(await solo.automations.runNow(c.req.param("id"))));
+  api.delete("/automations/:id", async (c) => {
+    if (!(await solo.automations.delete(c.req.param("id")))) throw new HttpError(404, "Automation not found");
     return c.json({ ok: true });
   });
 

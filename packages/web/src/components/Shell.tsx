@@ -11,6 +11,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plug,
+  Repeat,
   Search,
   Settings,
   SquarePen,
@@ -31,6 +32,7 @@ const Agents = lazy(() => import("../pages/Agents.tsx").then((m) => ({ default: 
 const Providers = lazy(() => import("../pages/Providers.tsx").then((m) => ({ default: m.Providers })));
 const Connections = lazy(() => import("../pages/Connections.tsx").then((m) => ({ default: m.Connections })));
 const ActivityPage = lazy(() => import("../pages/Activity.tsx").then((m) => ({ default: m.ActivityPage })));
+const Automations = lazy(() => import("../pages/Automations.tsx").then((m) => ({ default: m.Automations })));
 const Usage = lazy(() => import("../pages/Usage.tsx").then((m) => ({ default: m.Usage })));
 const SettingsPage = lazy(() => import("../pages/Settings.tsx").then((m) => ({ default: m.SettingsPage })));
 
@@ -41,6 +43,7 @@ export const NAV: { page: Route["page"]; path: string; label: string; icon: Reac
   { page: "providers", path: "/providers", label: "Providers", icon: <KeyRound /> },
   { page: "connections", path: "/connections", label: "Connections", icon: <Plug /> },
   { page: "activity", path: "/activity", label: "Activity", icon: <Activity /> },
+  { page: "automations", path: "/automations", label: "Automations", icon: <Repeat /> },
   { page: "usage", path: "/usage", label: "Usage", icon: <ChartNoAxesColumn /> },
   { page: "settings", path: "/settings", label: "Settings", icon: <Settings /> },
 ];
@@ -176,6 +179,8 @@ function PageFor({ route, onSignOut }: { route: Route; onSignOut: () => void }) 
       return <Connections editId={route.connectorId} />;
     case "activity":
       return <ActivityPage />;
+    case "automations":
+      return <Automations editId={route.automationId} />;
     case "usage":
       return <Usage />;
     case "settings":

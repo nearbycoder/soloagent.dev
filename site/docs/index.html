@@ -79,6 +79,7 @@
       <a class="sub" href="#telegram">Telegram</a>
       <a class="sub" href="#webhook">Webhook</a>
       <a href="#routing">Chat routing &amp; commands</a>
+      <a href="#automations">Automations</a>
       <a href="#tui">Terminal UI</a>
       <a href="#api">HTTP API &amp; SDK</a>
       <a href="#durability">Durability</a>
@@ -105,6 +106,7 @@
       <a class="sub" href="#telegram">Telegram</a>
       <a class="sub" href="#webhook">Webhook</a>
       <a href="#routing">Chat routing &amp; commands</a>
+      <a href="#automations">Automations</a>
       <a href="#tui">Terminal UI</a>
       <a href="#api">HTTP API &amp; SDK</a>
       <a href="#durability">Durability</a>
@@ -292,7 +294,7 @@
         <div class="skill-card"><b>Memory</b><p>Long-term notes about people, preferences, and facts, kept per agent across every conversation.</p><div class="tools"><code>remember</code><code>recall</code><code>forget</code></div></div>
         <div class="skill-card"><b>Web</b><p>Fetch and read web pages and APIs, and search the web through DuckDuckGo.</p><div class="tools"><code>web_fetch</code><code>web_search</code></div></div>
         <div class="skill-card"><b>Delegate</b><p>Hand a sub-task to another agent and wait for its answer. The hand-off runs as a durable child conversation, which can't delegate further.</p><div class="tools"><code>ask_agent</code></div></div>
-        <div class="skill-card"><b>Schedule</b><p>Durable reminders and follow-ups. They sleep in storage and fire even after restarts.</p><div class="tools"><code>schedule_reminder</code></div></div>
+        <div class="skill-card"><b>Schedule</b><p>Durable reminders, follow-ups, and recurring <a href="#automations">automations</a>. They sleep in storage and fire even after restarts.</p><div class="tools"><code>schedule_reminder</code><code>schedule_recurring</code><code>list_automations</code><code>cancel_automation</code></div></div>
         <div class="skill-card warn"><b>Workspace <span class="tag warn">powerful</span></b><p>Read, write, and edit files and run shell commands on the server, starting in a per-agent workspace folder. It is not a sandbox: commands run with the server's permissions. Only enable it for agents that trusted people can reach.</p><div class="tools"><code>read</code><code>write</code><code>edit</code><code>bash</code></div></div>
       </div>
     </section>
@@ -411,6 +413,54 @@ settings:
       </div>
     </section>
 
+    <!-- ========== AUTOMATIONS ========== -->
+    <section id="automations">
+      <h2><a href="#automations">Automations</a></h2>
+      <p>An automation is a prompt that runs on a schedule: “every weekday at 9:00, post a standup summary in #eng”, “every Monday, summarize last week's deploys”, “every hour, check the status page and alert if anything is down”. Reminders fire once; automations repeat.</p>
+      <p>Create them under <b>Automations</b> in the dashboard, with <code>POST /api/automations</code>, or by asking an agent that has the Schedule skill. In Slack:</p>
+      <div class="code"><div class="code-head"><span>slack</span><button class="copy" type="button">copy</button></div><pre><code>@solo every weekday at 9 post the open incidents here</code></pre></div>
+      <p>The agent calls <code>schedule_recurring</code>. It can also <code>list_automations</code> and <code>cancel_automation</code>.</p>
+
+      <h3>Schedules</h3>
+      <p>A schedule is a 5-field cron expression read in an IANA time zone (the server's by default). The dashboard also offers simple presets, which are stored as cron:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Preset or phrase</th><th>Cron</th></tr></thead>
+          <tbody>
+            <tr><td>every 15 minutes</td><td><code>*/15 * * * *</code></td></tr>
+            <tr><td>every 2 hours</td><td><code>0 */2 * * *</code></td></tr>
+            <tr><td>daily at 17:30</td><td><code>30 17 * * *</code></td></tr>
+            <tr><td>weekdays at 9:00</td><td><code>0 9 * * 1-5</code></td></tr>
+            <tr><td>mondays at 9:30</td><td><code>30 9 * * 1</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The fields are minute, hour, day of month, month, and day of week. Each takes <code>*</code>, numbers, lists (<code>1,15</code>), ranges (<code>1-5</code>), and steps (<code>*/10</code>); months and days also take names (<code>jan</code>, <code>mon-fri</code>). As in classic cron, when both day fields are set, a day matching either one fires. <code>@hourly</code>, <code>@daily</code>, <code>@weekly</code>, and <code>@monthly</code> work too.</p>
+      <p><b>Daylight saving time.</b> A time skipped by a spring-forward jump (02:30 on that night in most of the US) fires once, at the moment of the jump. A time repeated by a fall-back fires once, on its first occurrence.</p>
+
+      <h3>Where runs land</h3>
+      <ul>
+        <li><b>A thread.</b> Pick any existing thread, web or chat. Each run is a message from <code>Automation: &lt;name&gt;</code> in that thread, answered by the thread's agent. In a chat thread the answer is posted to Slack, Discord, or Telegram like any other reply.</li>
+        <li><b>A chat channel.</b> Pick a connection and a channel id (Slack channel id, Discord channel id, Telegram chat id, or a webhook callback URL). Each run posts a new top-level message in the channel; on Slack, replies to it start a normal thread with the agent. The automation keeps one conversation of its own, so the agent remembers earlier runs (“since yesterday…”).</li>
+      </ul>
+
+      <h3>Catch up once</h3>
+      <p>Each enabled automation is a durable task that sleeps until its next run. If the server is down when a run is due, that run fires once when the server starts again, and the schedule continues from then. Missed runs are not replayed one by one: an hourly automation that was down for a day runs once on startup, not 24 times.</p>
+      <p>Disabling, editing, or deleting an automation cancels or reschedules its task immediately. <b>Run now</b> runs it once outside its schedule, even when it is disabled. Runs use the same path as a chat message, so the agent's model, skills, and limits apply.</p>
+
+      <h3>API</h3>
+      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">curl https://solo.example.com/api/automations \</span>
+  -H <span class="t-s">"authorization: Bearer $SOLOAGENT_TOKEN"</span> -H <span class="t-s">"content-type: application/json"</span> \
+  -d <span class="t-s">'{
+    "name": "Standup summary",
+    "prompt": "Summarize the PRs merged since the last run and the open incidents.",
+    "preset": { "kind": "weekdays", "time": "09:00" },
+    "timezone": "America/Chicago",
+    "target": { "kind": "channel", "connectorId": "sla_…", "channel": "C0123456789", "location": "#eng" }
+  }'</span></code></pre></div>
+      <p>Give <code>cron</code> (an expression or a phrase like <code>"weekdays at 9:00"</code>) or <code>preset</code>. A thread target is <code>{ "kind": "thread", "threadId": "thr_…" }</code>. List them from the terminal with <code>soloagent automations</code>.</p>
+    </section>
+
     <!-- ========== TUI ========== -->
     <section id="tui">
       <h2><a href="#tui">Terminal UI</a></h2>
@@ -470,6 +520,7 @@ settings:
             <tr><td><code>soloagent ask "…"</code></td><td>Print one answer and exit. Piped input is added after the message; <code>ask -</code> reads the whole message from stdin. Takes <code>--agent</code>, <code>--thread</code>, and <code>--json</code>.</td></tr>
             <tr><td><code>soloagent agents</code></td><td>List agents. <code>--json</code> for scripts.</td></tr>
             <tr><td><code>soloagent threads</code></td><td>List recent threads. Takes <code>--limit</code>, <code>--agent</code>, and <code>--json</code>.</td></tr>
+            <tr><td><code>soloagent automations</code></td><td>List automations with their schedules, targets, and next runs. <code>--json</code> for scripts.</td></tr>
             <tr><td><code>soloagent login [provider]</code></td><td>Sign in to a provider from the shell; <code>--key</code> saves an API key instead.</td></tr>
             <tr><td><code>soloagent serve</code></td><td>Run the server and web dashboard. Takes <code>--port</code> (default 7420), <code>--data</code>, and <code>--host</code>.</td></tr>
             <tr><td><code>soloagent token</code></td><td>Print the local server's admin token, to sign in to its dashboard.</td></tr>
@@ -499,6 +550,10 @@ settings:
             <tr><td><span class="verb post">POST</span></td><td><code>/api/providers/:id/login</code></td><td>Start a login flow: <code>{ type: "oauth" }</code> (the default) or <code>{ type: "api_key" }</code>.</td></tr>
             <tr><td><span class="verb put">PUT</span></td><td><code>/api/providers/:id/key</code></td><td>Save an API key: <code>{ key }</code>.</td></tr>
             <tr><td><span class="verb get">GET</span><span class="verb post">POST</span></td><td><code>/api/connectors</code></td><td>List or create connectors. Create takes <code>{ kind, name, agentId, config }</code>; a webhook's <code>config</code> is <code>{ secret }</code>.</td></tr>
+            <tr><td><span class="verb get">GET</span><span class="verb post">POST</span></td><td><code>/api/automations</code></td><td>List or create <a href="#automations">automations</a>.</td></tr>
+            <tr><td><span class="verb patch">PATCH</span><span class="verb delete">DELETE</span></td><td><code>/api/automations/:id</code></td><td>Edit (including <code>{ enabled }</code>) or delete an automation.</td></tr>
+            <tr><td><span class="verb post">POST</span></td><td><code>/api/automations/:id/run</code></td><td>Run an automation once now.</td></tr>
+            <tr><td><span class="verb get">GET</span></td><td><code>/api/automations/preview?cron=&amp;tz=</code></td><td>The schedule in words and its next 5 run times.</td></tr>
             <tr><td><span class="verb post">POST</span></td><td><code>/api/hooks/:id</code></td><td>Inbound webhook. Authenticated by <code>x-solo-secret</code>, not the admin token.</td></tr>
             <tr><td><span class="verb ws">WS</span></td><td><code>/api/ws</code></td><td>Live events. Pass the token as <code>?token=</code>.</td></tr>
           </tbody>
@@ -506,7 +561,7 @@ settings:
       </div>
 
       <h3>WebSocket events</h3>
-      <p>Connect to <code>/api/ws</code> and send <code>{ "type": "subscribe", "threadId": "…" }</code> to receive a thread's <code>thread.snapshot</code>, <code>thread.messages</code>, and <code>thread.live</code> events (streaming text, thinking, and tool calls). Send <code>{ "type": "tasks.subscribe" }</code> for the live durable task graph. Server-wide events such as <code>thread.updated</code>, <code>agent.updated</code>, and <code>connector.updated</code> arrive without subscribing.</p>
+      <p>Connect to <code>/api/ws</code> and send <code>{ "type": "subscribe", "threadId": "…" }</code> to receive a thread's <code>thread.snapshot</code>, <code>thread.messages</code>, and <code>thread.live</code> events (streaming text, thinking, and tool calls). Send <code>{ "type": "tasks.subscribe" }</code> for the live durable task graph. Server-wide events such as <code>thread.updated</code>, <code>agent.updated</code>, <code>connector.updated</code>, and <code>automation.updated</code> arrive without subscribing.</p>
 
       <h3>TypeScript SDK</h3>
       <p><code>@soloagent/client</code>, in <code>packages/client</code>, is a typed client for the REST API and WebSocket with no dependencies. It runs in Node 22.19+ and in browsers. It isn't on npm yet, so use it from a clone of the repository.</p>
@@ -552,7 +607,7 @@ stream.<span class="t-f">close</span>();</code></pre></div>
       <ul>
         <li><b>Commit before show.</b> Each model turn and each tool call is recorded as a durable step and committed before it's shown in any UI or chat app. Streaming text is saved as it arrives, so a crash loses at most about a second of a half-written answer.</li>
         <li><b>Resume after a crash.</b> If the process exits mid-run (a crash, a restart, a deploy), the run resumes from its last committed step when the server starts again. Completed steps aren't repeated. An interrupted model request is retried; a tool call cut off midway runs again only if it's safe to repeat, and otherwise the agent is told it was interrupted.</li>
-        <li><b>Durable sleep.</b> Scheduled reminders are durable timers. They wait in storage, not in memory, so they still fire after restarts.</li>
+        <li><b>Durable sleep.</b> Scheduled reminders and automations are durable timers. They wait in storage, not in memory, so they still fire after restarts. An automation that came due while the server was down runs once on startup.</li>
         <li><b>Durable delegation.</b> <code>ask_agent</code> starts a child conversation that is itself durable. The parent waits for it, across restarts if needed.</li>
         <li><b>Visible.</b> The dashboard shows the live durable task graph and upcoming schedules.</li>
       </ul>

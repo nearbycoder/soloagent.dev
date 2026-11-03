@@ -28,6 +28,7 @@ const COMMANDS: Record<string, FlagSpec> = {
   ask: { agent: "string", thread: "string", json: "boolean" },
   agents: { json: "boolean" },
   threads: { json: "boolean", limit: "string", agent: "string" },
+  automations: { json: "boolean" },
   login: { key: "boolean" },
   token: { data: "string" },
   help: {},
@@ -47,6 +48,7 @@ ${cmd("soloagent", "open the terminal UI", "--agent <handle>  --thread <id>  --n
 ${cmd('soloagent ask "<message>"', "ask once, print the answer", '--agent <handle>  --thread <id>  --json   (piped input is appended; "-" reads only stdin)')}
 ${cmd("soloagent agents", "list agents", "--json")}
 ${cmd("soloagent threads", "list recent threads", "--limit <n>  --agent <handle>  --json")}
+${cmd("soloagent automations", "list recurring automations", "--json")}
 ${cmd("soloagent login [provider]", "sign in with a subscription", "--key  save an API key instead")}
 ${cmd("soloagent serve", "run the server in the foreground", "--port <7420>  --data <dir>  --host <addr>")}
 ${cmd("soloagent connect <url>", "use a remote server from now on", "--token <token>")}
@@ -135,6 +137,10 @@ async function main(argv: string[]): Promise<number> {
     case "threads": {
       const { threads } = await import("./commands/list.ts");
       return withConnection(flags, (c) => threads(c, { json: flags.json === true, limit: str(flags.limit), agent: str(flags.agent) }));
+    }
+    case "automations": {
+      const { automations } = await import("./commands/automations.ts");
+      return withConnection(flags, (c) => automations(c, { json: flags.json === true }));
     }
     case "login": {
       const { login } = await import("./commands/login.ts");

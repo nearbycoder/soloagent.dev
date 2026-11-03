@@ -37,6 +37,7 @@ import type {
   UsageSummary,
 } from "@soloagent/client";
 import { AgentStore } from "./agents.ts";
+import { Automations, type NextRunFn } from "./automations.ts";
 import { ConnectorManager } from "./connectors/manager.ts";
 import { chunk } from "./connectors/format.ts";
 import type { InboundMessage, PostHandle, ReplyTarget } from "./connectors/types.ts";
@@ -64,6 +65,8 @@ export type SoloAgentOptions = {
   /** Register the built-in demo model so a fresh install works without any account. Default: SOLOAGENT_DEMO !== "0". */
   demo?: boolean;
   log?: (message: string) => void;
+  /** Testing: when automations fire next, instead of their cron schedule. */
+  nextAutomationRun?: NextRunFn;
 };
 
 type ThreadRow = {
@@ -106,6 +109,7 @@ export class SoloAgent {
   readonly agents: AgentStore;
   readonly providers: ProviderHub;
   readonly connectors: ConnectorManager;
+  readonly automations: Automations;
   readonly adminToken: string;
   readonly dataDir: string;
   readonly startedAt = Date.now();
@@ -128,6 +132,7 @@ export class SoloAgent {
     adminToken: string;
     dataDir: string;
     log: (message: string) => void;
+    nextAutomationRun?: NextRunFn;
   }) {
     this.db = init.db;
     this.harness = init.harness;
@@ -138,6 +143,7 @@ export class SoloAgent {
     this.adminToken = init.adminToken;
     this.dataDir = init.dataDir;
     this.#log = init.log;
+    this.automations = new Automations(this, init.skills.Automation, init.nextAutomationRun);
   }
 
   static async open(options: SoloAgentOptions): Promise<SoloAgent> {
@@ -220,6 +226,7 @@ export class SoloAgent {
           solo?.markBusy(row.thread_id);
         }
       },
+      automations: () => solo!.automations,
       runAnswered: (conversationId, answer, context) => void solo?.runAnswered(conversationId, answer, context).catch((error) => log(`deliver: ${String(error)}`)),
     };
 
@@ -246,7 +253,7 @@ export class SoloAgent {
       ctx,
     );
 
-    solo = new SoloAgent({ db, harness, agents, providers, connectors, skills, adminToken, dataDir, log });
+    solo = new SoloAgent({ db, harness, agents, providers, connectors, skills, adminToken, dataDir, log, nextAutomationRun: options.nextAutomationRun });
     harness.resume();
     if (agents.list().length === 0) solo.seed();
     await solo.autoAssignModels();

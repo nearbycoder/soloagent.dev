@@ -1,6 +1,9 @@
 import type {
   Agent,
   AgentInput,
+  Automation,
+  AutomationInput,
+  AutomationPreview,
   ClientEvent,
   Connector,
   ConnectorInput,
@@ -214,6 +217,33 @@ export class SoloClient {
   }
   cancelSchedule(taskId: string) {
     return this.request<{ ok: true }>("DELETE", `/schedules/${encodeURIComponent(taskId)}`);
+  }
+
+  // Automations (recurring schedules)
+  automations() {
+    return this.request<Automation[]>("GET", "/automations");
+  }
+  automation(id: string) {
+    return this.request<Automation>("GET", `/automations/${encodeURIComponent(id)}`);
+  }
+  createAutomation(input: AutomationInput) {
+    return this.request<Automation>("POST", "/automations", input);
+  }
+  updateAutomation(id: string, input: Partial<AutomationInput>) {
+    return this.request<Automation>("PATCH", `/automations/${encodeURIComponent(id)}`, input);
+  }
+  deleteAutomation(id: string) {
+    return this.request<{ ok: true }>("DELETE", `/automations/${encodeURIComponent(id)}`);
+  }
+  /** Run once now, outside the schedule. */
+  runAutomation(id: string) {
+    return this.request<Automation>("POST", `/automations/${encodeURIComponent(id)}/run`);
+  }
+  /** The next fire times of a cron expression (or a phrase like "weekdays at 9:00") in a time zone. */
+  previewAutomation(cron: string, timezone?: string, count = 5) {
+    const params = new URLSearchParams({ cron, count: String(count) });
+    if (timezone) params.set("tz", timezone);
+    return this.request<AutomationPreview>("GET", `/automations/preview?${params}`);
   }
 
   /** Open the live event stream. Reconnects automatically until `close()`. */

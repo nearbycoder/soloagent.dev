@@ -39,8 +39,9 @@ soloagent is an open-source, self-hosted home for your AI agents. Give each agen
   - `memory` — remember / recall / forget across every conversation
   - `web` — `web_fetch`, `web_search`
   - `delegate` — `ask_agent` hands a task to another agent through a durable child conversation
-  - `schedule` — durable reminders and follow-ups that survive restarts
+  - `schedule` — durable reminders, follow-ups, and recurring automations that survive restarts
   - `workspace` — read / write / edit / bash, starting in a per-agent folder (powerful, not a sandbox; off by default)
+- **Recurring automations.** "Every weekday at 9:00, post a standup summary in #eng." Cron or simple presets, any time zone (DST-aware), into an existing thread or a chat channel. Each one is a durable task; a run that came due while the server was down fires once on startup. Manage them on the **Automations** page, with `soloagent automations`, or by asking an agent.
 - **Steer mid-run.** Messages sent while an agent works join the running work at its next step instead of waiting for it to finish.
 - **A real GUI and a real TUI.** A fast dashboard (chat with streaming, thinking, and tool cards; agent editor; subscription logins; connector setup with guides; live task graph; usage and cost) and a full-screen terminal UI built on `pi-tui`.
 - **Try it with zero accounts.** A built-in demo model answers until you connect a provider.
@@ -134,6 +135,7 @@ soloagent serve               run the server in the foreground (--port, --data, 
 soloagent connect <url>       use a remote server              (--token)
 soloagent disconnect          go back to the local server
 soloagent agents | threads    list things                      (--json)
+soloagent automations         list recurring automations       (--json)
 soloagent token               print the local admin token
 ```
 
@@ -171,7 +173,7 @@ console.log(await sent.wait());
 await solo.close();
 ```
 
-REST routes live under `/api` with `Authorization: Bearer <token>` (only the WebSocket accepts `?token=`): `agents`, `threads` (`/messages`, `/ask`, `/stop`, `/reset`, `/compact`), `providers` (`/login`, `/key`), `connectors`, `schedules`, `usage`, `overview`, and the WebSocket at `/api/ws`. See the [docs](https://soloagent.dev/docs/).
+REST routes live under `/api` with `Authorization: Bearer <token>` (only the WebSocket accepts `?token=`): `agents`, `threads` (`/messages`, `/ask`, `/stop`, `/reset`, `/compact`), `providers` (`/login`, `/key`), `connectors`, `schedules`, `automations` (`/run`, `/preview`), `usage`, `overview`, and the WebSocket at `/api/ws`. See the [docs](https://soloagent.dev/docs/).
 
 ## Architecture
 
