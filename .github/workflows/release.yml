@@ -1,0 +1,36 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:npm
+      - name: Pack
+        run: |
+          cd dist/npm
+          npm pack
+          cp soloagent-*.tgz ../soloagent.tgz
+      # `soloagent.tgz` has a stable name so releases/latest/download/soloagent.tgz always works.
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/soloagent.tgz dist/npm/soloagent-*.tgz --generate-notes --verify-tag || gh release upload "$GITHUB_REF_NAME" dist/soloagent.tgz --clobber
+      # Publishes to npm only when an NPM_TOKEN secret is configured.
+      - name: npm publish
+        if: ${{ env.NODE_AUTH_TOKEN != '' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: cd dist/npm && npm publish --access public

@@ -1,0 +1,28 @@
+# soloagent on any machine with Docker: a laptop, a VPS, a home server, a NAS,
+# or a self-hosted PaaS like Coolify or Dokploy.
+#
+#   docker compose up -d
+#   docker compose logs soloagent | grep token     # the admin token, unless you set one
+#
+# Then open http://localhost:7420 (or your server's address).
+services:
+  soloagent:
+    image: ghcr.io/nearbycoder/soloagent.dev:latest
+    # Builds from this checkout when the image can't be pulled.
+    build: .
+    container_name: soloagent
+    restart: unless-stopped
+    ports:
+      - "${SOLOAGENT_PORT:-7420}:7420"
+    environment:
+      # Both are optional: left empty, soloagent generates them on first boot
+      # and keeps them in the data volume. Set them to choose your own.
+      SOLOAGENT_TOKEN: ${SOLOAGENT_TOKEN:-}
+      SOLOAGENT_SECRET: ${SOLOAGENT_SECRET:-}
+      # Set to 0 to hide the built-in demo model.
+      SOLOAGENT_DEMO: ${SOLOAGENT_DEMO:-1}
+    volumes:
+      - soloagent-data:/data
+
+volumes:
+  soloagent-data:

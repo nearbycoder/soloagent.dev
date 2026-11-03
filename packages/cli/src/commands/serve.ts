@@ -15,7 +15,7 @@ export async function serve(options: { port?: string; data?: string; host?: stri
   if (usesHomeData) saveRuntime({ url: server.url, token: server.solo.adminToken, pid: process.pid, dataDir, startedAt: Date.now() });
 
   out();
-  out(`  ${p.accent("✦")} ${p.bold("soloagent")} is up — ${p.cyan(publicUrl)}`);
+  out(`  ${p.bold("soloagent")} is up — ${p.cyan(publicUrl)}`);
   out(`    ${p.dim("data     ")} ${dataDir}`);
   out(`    ${p.dim("token    ")} ${process.env.SOLOAGENT_TOKEN ? "(from SOLOAGENT_TOKEN)" : server.solo.adminToken}`);
   out(`    ${p.dim("web      ")} ${publicUrl}`);
@@ -30,7 +30,7 @@ export async function serve(options: { port?: string; data?: string; host?: stri
       process.on(signal, async () => {
         if (closing) process.exit(1);
         closing = true;
-        out(`\n  ${p.accent("✦")} shutting down — durable work resumes on next start`);
+        out(`\n  shutting down — durable work resumes on next start`);
         clearRuntime();
         await server.close().catch(() => {});
         done();

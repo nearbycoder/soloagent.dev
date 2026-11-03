@@ -1,0 +1,22 @@
+# Render Blueprint: https://render.com/deploy?repo=https://github.com/nearbycoder/soloagent.dev
+# A persistent disk keeps conversations, schedules, and sealed credentials across deploys.
+# Disks need a paid instance type; "starter" is the smallest that supports one.
+services:
+  - type: web
+    name: soloagent
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    numInstances: 1
+    disk:
+      name: soloagent-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: SOLOAGENT_DATA_DIR
+        value: /data
+      - key: SOLOAGENT_TOKEN
+        generateValue: true
+      - key: SOLOAGENT_SECRET
+        generateValue: true

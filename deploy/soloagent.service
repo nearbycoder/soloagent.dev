@@ -1,0 +1,24 @@
+# systemd unit for running soloagent directly on a Linux host (no Docker).
+#
+#   sudo useradd --system --create-home --home-dir /var/lib/soloagent soloagent
+#   sudo npm install -g https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz
+#   sudo cp deploy/soloagent.service /etc/systemd/system/
+#   sudo systemctl enable --now soloagent
+#   sudo journalctl -u soloagent | grep token
+[Unit]
+Description=soloagent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=soloagent
+Environment=SOLOAGENT_DATA_DIR=/var/lib/soloagent/data
+Environment=PORT=7420
+# Optional: an env file with SOLOAGENT_TOKEN and SOLOAGENT_SECRET
+EnvironmentFile=-/etc/soloagent.env
+ExecStart=/usr/bin/env soloagent serve --port 7420 --data /var/lib/soloagent/data
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

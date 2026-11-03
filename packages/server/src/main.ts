@@ -19,7 +19,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, async () => {
     if (closing) process.exit(1);
     closing = true;
-    console.log("\n  ✦ shutting down — durable work resumes on next start");
+    console.log("\n  shutting down — durable work resumes on next start");
     await server.close().catch(() => {});
     process.exit(0);
   });

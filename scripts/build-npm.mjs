@@ -68,4 +68,4 @@ writeFileSync(
     2,
   ),
 );
-console.log(`✦ built ${out} (${Object.keys(deps).length} runtime deps)`);
+console.log(`built ${out} (${Object.keys(deps).length} runtime deps)`);
