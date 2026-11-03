@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 COPY --from=build /app /app
 RUN ln -s /app/packages/cli/src/main.ts /usr/local/bin/soloagent && chmod +x /app/packages/cli/src/main.ts
-VOLUME ["/data"]
+# Mount a volume at /data (Railway: add a volume; Docker: -v soloagent:/data).
 EXPOSE 7420
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||7420)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["node", "packages/server/src/main.ts"]
