@@ -12,6 +12,8 @@ export type Pending = {
   text: string;
   at: number;
   failed?: boolean;
+  /** Names of files sent with it (Files & images). */
+  files?: string[];
   /** Newest message id when this was sent; only later messages can echo it. */
   baseline: string | null;
 };

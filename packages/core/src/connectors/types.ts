@@ -19,6 +19,8 @@ export type InboundMessage = {
   isDirect: boolean;
   /** The platform channel (or group chat), for connector access lists. Absent for DMs and webhooks. */
   channel?: { id: string; name?: string; parent?: { id: string; name?: string } };
+  /** Files and images shared with the message: bytes, or a URL the runtime downloads. */
+  attachments?: { name: string; mimeType: string; size: number; data?: Uint8Array; url?: string }[];
 };
 
 /** Approvals: someone pressed Approve or Deny on an approval message. */

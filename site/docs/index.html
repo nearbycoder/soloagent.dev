@@ -85,6 +85,7 @@
       <a class="sub" href="#workspace-safety">Workspace safety</a>
       <a class="sub" href="#budgets">Budgets &amp; rate limits</a>
       <a class="sub" href="#users">Users &amp; roles</a>
+      <a href="#files">Files &amp; images</a>
       <a href="#tui">Terminal UI</a>
       <a href="#api">HTTP API &amp; SDK</a>
       <a href="#durability">Durability</a>
@@ -117,6 +118,7 @@
       <a class="sub" href="#workspace-safety">Workspace safety</a>
       <a class="sub" href="#budgets">Budgets &amp; rate limits</a>
       <a class="sub" href="#users">Users &amp; roles</a>
+      <a href="#files">Files &amp; images</a>
       <a href="#tui">Terminal UI</a>
       <a href="#api">HTTP API &amp; SDK</a>
       <a href="#durability">Durability</a>
@@ -238,6 +240,7 @@
             <tr><td><code>SOLOAGENT_DATA_DIR</code></td><td>Where data lives. The Docker image uses <code>/data</code>, so mount your volume there. <code>soloagent serve</code> defaults to <code>~/.soloagent/data</code>; <code>--data</code> overrides it.</td></tr>
             <tr><td><code>PORT</code></td><td>HTTP port, default <code>7420</code>. Most hosts set it for you. <code>soloagent serve --port</code> overrides it.</td></tr>
             <tr><td><code>SOLOAGENT_DEMO</code></td><td><code>0</code> hides the built-in demo model.</td></tr>
+            <tr><td><code>SOLOAGENT_ALLOW_PRIVATE_FILE_URLS</code></td><td><code>1</code> lets attachment URLs point at loopback and private network addresses. Off by default, so webhook callers can't make the server fetch internal services. See <a href="#files">Files &amp; images</a>.</td></tr>
             <tr><td><code>SOLOAGENT_PUBLIC_URL</code></td><td>The public address printed at startup. Railway's domain is detected automatically.</td></tr>
           </tbody>
         </table>
@@ -381,6 +384,7 @@ oauth_config:
       - app_mentions:read
       - chat:write
       - channels:read
+      - files:read
       - groups:read
       - im:history
       - im:read
@@ -396,6 +400,7 @@ settings:
   org_deploy_enabled: <span class="t-n">false</span>
   socket_mode_enabled: <span class="t-n">true</span>
   token_rotation_enabled: <span class="t-n">false</span></code></pre></div>
+        <p>The <code>files:read</code> scope lets agents see files and images people share. If you created the app before this scope was in the manifest, add <code>files:read</code> under <b>OAuth &amp; Permissions → Scopes</b> and reinstall the app; until then, shared files are skipped.</p>
       </div>
 
       <div class="sub-section" id="discord">
@@ -431,6 +436,7 @@ settings:
               <tr><td><code>text</code></td><td>The message. Routing works as in chat, so <code>@coder …</code> picks an agent.</td></tr>
               <tr><td><code>thread</code></td><td>Keeps a conversation going across requests. Omit it for a one-off.</td></tr>
               <tr><td><code>user</code></td><td>A display name for the sender.</td></tr>
+              <tr><td><code>attachments</code></td><td>Optional files: <code>[{ "name", "mimeType", "data_base64" }]</code> or <code>[{ "name", "mimeType", "url" }]</code>. <code>text</code> may be empty when there are attachments. See <a href="#files">Files &amp; images</a>.</td></tr>
               <tr><td><code>callback_url</code></td><td>Optional. Without it, the request waits and returns <code>{ "thread", "status", "answer" }</code>. With it, the request returns <code>202</code> with <code>{ "accepted": true, "thread" }</code> right away, and the answer is POSTed to that URL as <code>{ "thread", "text" }</code>, with the same <code>x-solo-secret</code> header so you can check it came from soloagent.</td></tr>
             </tbody>
           </table>
@@ -523,6 +529,32 @@ settings:
       </div>
     </section>
 
+    <!-- ========== FILES ========== -->
+    <section id="files">
+      <h2><a href="#files">Files &amp; images</a></h2>
+      <p>People can share files and images with agents from Slack, Discord, Telegram, webhooks, the dashboard (paste, drag and drop, or the paperclip), and the CLI (<code>soloagent ask "describe this" --file ./screenshot.png</code>). Each file becomes part of the message the agent sees:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>File</th><th>What the agent gets</th></tr></thead>
+          <tbody>
+            <tr><td>Images: PNG, JPEG, GIF, WebP; BMP and TIFF are converted</td><td>The image itself, resized to fit the model's limits (by default 2000×2000 pixels and about 4.5 MB). Models without image input see a placeholder instead. HEIC and other formats the image processor can't decode get a note.</td></tr>
+            <tr><td>Text: plain text, Markdown, CSV, JSON, YAML, XML, SVG, logs, and source code</td><td>The contents in a fenced block with the file name. Up to 100 KB per file and 200 KB per message; longer files are cut, with a note saying so.</td></tr>
+            <tr><td>PDF</td><td>A note with the name, type, and size. soloagent doesn't extract PDF text.</td></tr>
+            <tr><td>Anything else</td><td>A note with the name, type, and size.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Agents with the <b>Workspace</b> skill also get every file in <code>attachments/</code> in their workspace, and notes point there, so they can work on PDFs, archives, and long files with their tools.</p>
+      <h3>Limits</h3>
+      <p>Files can be up to 20 MB, with up to 10 per message. Downloads from chat platforms and URLs time out after 30 seconds. Telegram bots can only download files up to 20 MB. Attachment URLs must be <code>http</code> or <code>https</code> and may not point at loopback or private network addresses unless <code>SOLOAGENT_ALLOW_PRIVATE_FILE_URLS=1</code> is set.</p>
+      <h3>Sending files over the API</h3>
+      <p><code>POST /api/threads/:id/messages</code>, <code>/ask</code>, and webhooks take an <code>attachments</code> array of <code>{ name, mimeType, data_base64 }</code> or <code>{ name, mimeType, url }</code>. <code>mimeType</code> is optional; it's guessed from the file name. The SDK passes them through: <code>solo.send(threadId, "what's wrong here?", { attachments })</code>.</p>
+      <h3>Slack</h3>
+      <p>Slack needs the <code>files:read</code> scope, which is in the manifest above. Apps created before it was added must add the scope and be reinstalled.</p>
+      <h3>Where files are stored</h3>
+      <p>Original files are kept on your server's disk under <code>&lt;data dir&gt;/files/</code>, named by their SHA-256 hash, so a file shared twice is stored once. Messages keep only each file's name, type, size, and hash. Images go to the model at request time and aren't copied into the conversation database. Files are never deleted automatically; deleting a thread leaves its files in place. They're readable only with the admin token, through <code>GET /api/files/:sha256</code>, and they're sent to your model provider along with the message, like any other message content.</p>
+    </section>
+
     <!-- ========== TUI ========== -->
     <section id="tui">
       <h2><a href="#tui">Terminal UI</a></h2>
@@ -559,6 +591,7 @@ settings:
             <tr><td><code>/threads</code></td><td>Browse conversations from every channel.</td></tr>
             <tr><td><code>/model [provider/model]</code></td><td>Change the current agent's model.</td></tr>
             <tr><td><code>/title &lt;text&gt;</code></td><td>Rename this thread.</td></tr>
+            <tr><td><code>/attach &lt;path&gt;</code></td><td>Attach a file or image to your next message. Repeat for more; <code>/attach clear</code> drops them.</td></tr>
             <tr><td><code>/reset</code></td><td>Give the agent a fresh context in this thread.</td></tr>
             <tr><td><code>/stop</code></td><td>Stop the current run.</td></tr>
             <tr><td><code>/approve</code></td><td>Approve the tool call this thread is waiting on.</td></tr>
@@ -581,7 +614,7 @@ settings:
         <table>
           <tbody>
             <tr><td><code>soloagent</code></td><td>Open the TUI. <code>--agent &lt;handle&gt;</code>, <code>--thread &lt;id&gt;</code>, and <code>--new</code> pick where it starts.</td></tr>
-            <tr><td><code>soloagent ask "…"</code></td><td>Print one answer and exit. Piped input is added after the message; <code>ask -</code> reads the whole message from stdin. Takes <code>--agent</code>, <code>--thread</code>, and <code>--json</code>.</td></tr>
+            <tr><td><code>soloagent ask "…"</code></td><td>Print one answer and exit. Piped input is added after the message; <code>ask -</code> reads the whole message from stdin. Takes <code>--agent</code>, <code>--thread</code>, <code>--json</code>, and <code>--file &lt;path&gt;</code> (repeatable) to attach files and images.</td></tr>
             <tr><td><code>soloagent agents</code></td><td>List agents. <code>--json</code> for scripts.</td></tr>
             <tr><td><code>soloagent threads</code></td><td>List recent threads. Takes <code>--limit</code>, <code>--agent</code>, and <code>--json</code>.</td></tr>
             <tr><td><code>soloagent login [provider]</code></td><td>Sign in to a provider from the shell; <code>--key</code> saves an API key instead.</td></tr>
@@ -607,8 +640,9 @@ settings:
           <tbody>
             <tr><td><span class="verb get">GET</span><span class="verb post">POST</span></td><td><code>/api/agents</code></td><td>List or create agents.</td></tr>
             <tr><td><span class="verb get">GET</span><span class="verb post">POST</span></td><td><code>/api/threads</code></td><td>List or create threads. Create takes <code>{ agentId, title }</code>, both optional; <code>agentId</code> can be an id or a handle.</td></tr>
-            <tr><td><span class="verb post">POST</span></td><td><code>/api/threads/:id/messages</code></td><td>Send <code>{ text }</code>. Returns <code>202</code> with a <code>submissionId</code>; follow progress over the WebSocket.</td></tr>
-            <tr><td><span class="verb post">POST</span></td><td><code>/api/threads/:id/ask</code></td><td>Send <code>{ text }</code> and wait for the answer: <code>{ status, answer }</code>, or <code>{ status: "unanswered", reason }</code>.</td></tr>
+            <tr><td><span class="verb post">POST</span></td><td><code>/api/threads/:id/messages</code></td><td>Send <code>{ text, attachments? }</code>; attachments as on <a href="#files">Files &amp; images</a>. Returns <code>202</code> with a <code>submissionId</code>; follow progress over the WebSocket.</td></tr>
+            <tr><td><span class="verb post">POST</span></td><td><code>/api/threads/:id/ask</code></td><td>Send <code>{ text, attachments? }</code> and wait for the answer: <code>{ status, answer }</code>, or <code>{ status: "unanswered", reason }</code>.</td></tr>
+            <tr><td><span class="verb get">GET</span></td><td><code>/api/files/:sha256</code></td><td>A shared file, with its type and name. Images are served inline, other files as downloads.</td></tr>
             <tr><td><span class="verb get">GET</span></td><td><code>/api/providers</code></td><td>List providers, their models, and which are configured.</td></tr>
             <tr><td><span class="verb post">POST</span></td><td><code>/api/providers/:id/login</code></td><td>Start a login flow: <code>{ type: "oauth" }</code> (the default) or <code>{ type: "api_key" }</code>.</td></tr>
             <tr><td><span class="verb put">PUT</span></td><td><code>/api/providers/:id/key</code></td><td>Save an API key: <code>{ key }</code>.</td></tr>

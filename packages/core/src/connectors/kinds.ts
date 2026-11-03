@@ -22,6 +22,7 @@ oauth_config:
       - app_mentions:read
       - chat:write
       - channels:read
+      - files:read
       - groups:read
       - im:history
       - im:read
@@ -53,6 +54,8 @@ export const CONNECTOR_KINDS: ConnectorKindInfo[] = [
 4. Paste both tokens here. Invite the bot to a channel with \`/invite @Solo\`, then mention it.
 
 Socket Mode means no public URL is needed — it works on Railway and on your laptop alike. The manifest turns on **Interactivity**, which the Approve / Deny buttons of tool approvals need; for an app made from an older manifest, switch it on under **Interactivity & Shortcuts** (no request URL is needed with Socket Mode).
+
+Files and images people share reach the agent through the \`files:read\` scope. Apps created before it was added: add \`files:read\` under **OAuth & Permissions → Scopes**, then reinstall the app.
 
 \`\`\`yaml
 ${SLACK_MANIFEST}

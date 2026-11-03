@@ -76,6 +76,11 @@ export const MIGRATIONS: { id: string; sql: string }[] = [
    CREATE INDEX approvals_status ON approvals(status, created_at DESC);
    CREATE INDEX approvals_thread ON approvals(thread_id, status);`,
   },
+  {
+    // Files & images: metadata of files stored under <dataDir>/files/<sha256>.
+    id: "050_attachments",
+    sql: `CREATE TABLE files (sha256 TEXT PRIMARY KEY, name TEXT NOT NULL, mime_type TEXT NOT NULL, size INTEGER NOT NULL, created_at INTEGER NOT NULL);`,
+  },
 ];
 
 export class Db {

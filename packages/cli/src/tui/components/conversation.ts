@@ -73,7 +73,12 @@ class UserBlock implements Component {
         : c.dim("sending…")
       : c.dim(source === "tui" ? SOURCE_LABEL[source] : `${sourceIcon(source)} ${SOURCE_LABEL[source]}`);
     const lines = [PROMPT_MARK + header(` ${c.accent("❯")} ${bold(name)}  ${meta}`, pending ? undefined : m.at, width)];
-    lines.push(...wrapWith(sanitize(m.text), width, INDENT, pending ? c.muted : (s) => s));
+    // Files & images: one chip per file, e.g. [image: screenshot.png]
+    const chips = pending
+      ? (m.files ?? []).map((f) => `[file: ${f}]`)
+      : (m.attachments ?? []).map((a) => `[${a.mimeType.startsWith("image/") ? "image" : "file"}: ${a.name}]`);
+    if (chips.length) lines.push(...wrapWith(sanitize(chips.join(" ")), width, INDENT, c.cyan));
+    if (m.text) lines.push(...wrapWith(sanitize(m.text), width, INDENT, pending ? c.muted : (s) => s));
     return fitAll(lines, width);
   }
   invalidate(): void {}

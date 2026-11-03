@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { SoloApiError } from "@soloagent/client";
-import { parseArgs, str, UsageError, type FlagSpec } from "./args.ts";
+import { parseArgs, str, strs, UsageError, type FlagSpec, type Parsed } from "./args.ts";
 import type { Connection } from "./connect.ts";
 import { err, out, paint } from "./style.ts";
 
@@ -25,7 +25,7 @@ const COMMANDS: Record<string, FlagSpec> = {
   serve: { port: "string", data: "string", host: "string" },
   connect: {},
   disconnect: {},
-  ask: { agent: "string", thread: "string", json: "boolean" },
+  ask: { agent: "string", thread: "string", json: "boolean", file: "strings" },
   agents: { json: "boolean" },
   threads: { json: "boolean", limit: "string", agent: "string" },
   login: { key: "boolean" },
@@ -44,7 +44,7 @@ function help() {
 
   ${p.dim("USAGE")}
 ${cmd("soloagent", "open the terminal UI", "--agent <handle>  --thread <id>  --new")}
-${cmd('soloagent ask "<message>"', "ask once, print the answer", '--agent <handle>  --thread <id>  --json   (piped input is appended; "-" reads only stdin)')}
+${cmd('soloagent ask "<message>"', "ask once, print the answer", '--agent <handle>  --thread <id>  --json  --file <path> (repeatable)   (piped input is appended; "-" reads only stdin)')}
 ${cmd("soloagent agents", "list agents", "--json")}
 ${cmd("soloagent threads", "list recent threads", "--limit <n>  --agent <handle>  --json")}
 ${cmd("soloagent login [provider]", "sign in with a subscription", "--key  save an API key instead")}
@@ -60,17 +60,18 @@ ${cmd("soloagent token", "print the local admin token (web GUI login)")}
   ${p.dim("EXAMPLES")}
     soloagent ask "summarize today's deploys" --agent ops
     git diff | soloagent ask - --agent reviewer --json
+    soloagent ask "what's wrong in this screenshot?" --file ./screenshot.png
     soloagent login anthropic
 `);
 }
 
-async function connection(flags: Record<string, string | boolean | undefined>): Promise<Connection> {
+async function connection(flags: Parsed["flags"]): Promise<Connection> {
   const { resolveConnection } = await import("./connect.ts");
   return resolveConnection({ url: str(flags.url), token: str(flags.token) });
 }
 
 /** Run a command with a connection that is always closed afterwards. */
-async function withConnection(flags: Record<string, string | boolean | undefined>, run: (c: Connection) => Promise<number | void>): Promise<number> {
+async function withConnection(flags: Parsed["flags"], run: (c: Connection) => Promise<number | void>): Promise<number> {
   const conn = await connection(flags);
   try {
     return (await run(conn)) ?? 0;
@@ -126,7 +127,7 @@ async function main(argv: string[]): Promise<number> {
     case "ask": {
       const { ask } = await import("./commands/ask.ts");
       const message = positionals.length > 1 ? positionals.join(" ") : positionals[0];
-      return withConnection(flags, (c) => ask(c, message, { agent: str(flags.agent), thread: str(flags.thread), json: flags.json === true }));
+      return withConnection(flags, (c) => ask(c, message, { agent: str(flags.agent), thread: str(flags.thread), json: flags.json === true, files: strs(flags.file) }));
     }
     case "agents": {
       const { agents } = await import("./commands/list.ts");

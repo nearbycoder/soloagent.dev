@@ -43,6 +43,7 @@ soloagent is an open-source, self-hosted home for your AI agents. Give each agen
   - `workspace` — read / write / edit / bash, starting in a per-agent folder (powerful, not a sandbox; off by default)
 - **Approvals.** Agents can pause before risky tools (`bash`, `write`, `edit`, or every tool) until someone clicks **Approve** in the dashboard, the TUI (`/approve`, `/deny`), or right in the Slack, Discord, or Telegram thread. The wait is durable: it survives restarts, and an approved call runs once. On by default for agents with `workspace`.
 - **Ready for teams.** Per-connector access lists (people, channels, agents), daily spend and message budgets per agent, per-person rate limits, and dashboard users with admin and member roles, invited by one-time link.
+- **Files and images.** Share screenshots, photos, logs, CSVs, and code from any chat app, the dashboard (paste, drop, or 📎), or `soloagent ask --file`. Images go to the model resized; text files are inlined; files are stored on your disk, content-addressed.
 - **Steer mid-run.** Messages sent while an agent works join the running work at its next step instead of waiting for it to finish.
 - **A real GUI and a real TUI.** A fast dashboard (chat with streaming, thinking, and tool cards; agent editor; subscription logins; connector setup with guides; live task graph; usage and cost) and a full-screen terminal UI built on `pi-tui`.
 - **Try it with zero accounts.** A built-in demo model answers until you connect a provider.
@@ -130,10 +131,12 @@ Open **Connections** in the dashboard; each connector has a step-by-step guide.
 
 | | What you need |
 |---|---|
-| **Slack** | Create an app from the bundled manifest, enable Socket Mode, and paste the `xapp-…` app token (scope `connections:write`) and `xoxb-…` bot token. Invite the bot to a channel and mention it. |
+| **Slack** | Create an app from the bundled manifest, enable Socket Mode, and paste the `xapp-…` app token (scope `connections:write`) and `xoxb-…` bot token. Invite the bot to a channel and mention it. Apps created before `files:read` was in the manifest: add that scope and reinstall to share files. |
 | **Discord** | A bot token with the *Message Content* intent enabled; invite it with the `bot` scope. |
 | **Telegram** | A bot token from @BotFather (`/newbot`). |
-| **Webhook** | A shared secret. `POST /api/hooks/<id>` with `x-solo-secret` and `{ "text", "thread", "user", "callback_url"? }`; the answer comes back as `{ "thread", "status", "answer" }`, or is POSTed to `callback_url` as `{ "thread", "text" }`. |
+| **Webhook** | A shared secret. `POST /api/hooks/<id>` with `x-solo-secret` and `{ "text", "thread", "user", "callback_url"?, "attachments"? }`; the answer comes back as `{ "thread", "status", "answer" }`, or is POSTed to `callback_url` as `{ "thread", "text" }`. |
+
+Files and images people share reach the agent too: images resized for the model, text files inlined (100 KB each), notes for PDFs and other files; up to 20 MB and 10 files per message. They're stored under `<data dir>/files/`. See [Files & images](https://soloagent.dev/docs/#files).
 
 For [approval](https://soloagent.dev/docs/#approvals) buttons, list who may press them under **Approvers** on the connector (platform user ids or display names). Slack needs **Interactivity** on; the bundled manifest enables it.
 

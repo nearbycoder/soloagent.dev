@@ -1,6 +1,7 @@
-import { fstatSync } from "node:fs";
+import { fstatSync, readFileSync, statSync } from "node:fs";
 import { userInfo } from "node:os";
-import type { Agent } from "@soloagent/client";
+import { basename } from "node:path";
+import type { Agent, AttachmentUpload } from "@soloagent/client";
 import type { Connection } from "../connect.ts";
 import { err, out, paint } from "../style.ts";
 
@@ -26,6 +27,21 @@ export function findAgent(agents: Agent[], ref: string): Agent | undefined {
   return agents.find((a) => a.id === ref || a.handle === needle) ?? agents.find((a) => a.name.toLowerCase() === needle);
 }
 
+/** Read local files for upload. The server works out the type from the extension. */
+export function readAttachments(paths: string[]): AttachmentUpload[] {
+  if (paths.length > 10) throw new Error("At most 10 files per message");
+  return paths.map((path) => {
+    let size: number;
+    try {
+      size = statSync(path).size;
+    } catch {
+      throw new Error(`Cannot read ${path}`);
+    }
+    if (size > 20 * 1024 * 1024) throw new Error(`${path} is larger than the 20 MB limit`);
+    return { name: basename(path), data_base64: readFileSync(path).toString("base64") };
+  });
+}
+
 export function authorName(): string {
   try {
     return userInfo().username || "You";
@@ -38,7 +54,7 @@ export function authorName(): string {
 export async function ask(
   connection: Connection,
   message: string | undefined,
-  options: { agent?: string; thread?: string; json?: boolean },
+  options: { agent?: string; thread?: string; json?: boolean; files?: string[] },
 ): Promise<number> {
   const p = paint(process.stderr);
   const { client } = connection;
@@ -49,7 +65,8 @@ export async function ask(
     const piped = (await readStdin()).trim();
     if (piped) text = `${text}\n\n${piped}`;
   }
-  if (!text?.trim()) throw new Error('Nothing to ask. Usage: soloagent ask "<message>" (or pipe text with -)');
+  const attachments = readAttachments(options.files ?? []);
+  if (!text?.trim() && attachments.length === 0) throw new Error('Nothing to ask. Usage: soloagent ask "<message>" (or pipe text with -)');
 
   let threadId = options.thread;
   let agentId: string | undefined;
@@ -64,7 +81,7 @@ export async function ask(
     threadId = (await client.createThread({ agentId, source: "api" })).id;
   }
 
-  const result = await client.ask(threadId, text, { source: "api", author: authorName() });
+  const result = await client.ask(threadId, text ?? "", { source: "api", author: authorName(), ...(attachments.length ? { attachments } : {}) });
   if (options.json) {
     out(JSON.stringify({ threadId, ...result }));
     return result.status === "done" ? 0 : 1;

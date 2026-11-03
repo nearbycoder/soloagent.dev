@@ -189,6 +189,8 @@ export type Message =
       threadId: string;
       author: Author;
       text: string;
+      /** Files and images shared with the message (Files & images). */
+      attachments?: Attachment[];
       at: number;
     }
   | {
@@ -223,6 +225,14 @@ export type Message =
       tone: "info" | "warn" | "error";
       at: number;
     };
+
+// ── Files & images ──
+
+/** A file shared with a message. The bytes are served at `GET /api/files/:sha256`. */
+export type Attachment = { name: string; mimeType: string; size: number; sha256: string };
+
+/** A file to send with a message: its bytes as base64, or (webhooks and the API) a URL to download. */
+export type AttachmentUpload = { name: string; mimeType?: string; data_base64: string } | { name: string; mimeType?: string; url: string };
 
 /** Ephemeral run state for a thread: streamed partials and running tools. */
 export type LiveState = {

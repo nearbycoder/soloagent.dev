@@ -37,6 +37,8 @@ export interface SkillHost {
   responded(conversationId: number, key: string, message: AssistantMessage): void;
   /** A delegate's child conversation now runs as `agentId`. */
   delegated(conversationId: number, agentId: string): void;
+  /** Swap stored-image markers back to image blocks before each model request (Files & images). */
+  expandFiles?(messages: readonly import("@earendil-works/pi-ai").Message[]): Promise<readonly import("@earendil-works/pi-ai").Message[]>;
 }
 
 const MAX_FETCH_CHARS = 24_000;
@@ -72,6 +74,7 @@ export function createSkills(host: SkillHost) {
         afterResponse: (message, api) => {
           host.responded(Number(api.conversationId), `${api.conversationId}:${api.taskId}:${message.timestamp}:${message.responseId ?? ""}`, message);
         },
+        beforeRequest: async (request) => (host.expandFiles ? { messages: await host.expandFiles(request.messages) } : undefined),
         afterRun: async (run, api, context) => {
           host.runAnswered(Number(api.conversationId), Number(run.answer), context);
           return undefined;
