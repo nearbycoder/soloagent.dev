@@ -58,12 +58,14 @@ export function InvitePage({ code, onJoined }: { code: string; onJoined: (me: Me
       <div className="relative flex flex-1 flex-col items-center justify-center px-4 py-16">
         <div className="mb-9 flex flex-col items-center text-center">
           <SparkMark className="mb-6 size-14" />
-          <h1 className="font-display text-[30px] font-semibold text-fg">Join your team</h1>
+          <h1 className="font-display text-[30px] font-semibold text-fg">{loadError ? "This link doesn't work" : "Join your team"}</h1>
           <p className="mt-2 max-w-xs text-[14px] leading-relaxed text-subtle">
             {invite ? (
               <>
                 You're invited to soloagent as {invite.role === "admin" ? "an admin" : "a member"}. Pick a name and password to sign in.
               </>
+            ) : loadError ? (
+              "Invite links work once and expire after 7 days."
             ) : (
               "One control plane for all of your AI agents."
             )}

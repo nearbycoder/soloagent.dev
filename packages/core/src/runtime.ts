@@ -1577,6 +1577,7 @@ export function parseUploads(value: unknown): InboundAttachment[] {
       const b64 = upload.data_base64.replace(/^data:[^,]*,/, "");
       if (Math.floor((b64.length * 3) / 4) > ATTACHMENT_LIMITS.maxFileBytes + 3) throw new HttpError(413, `${safeName(name)} is larger than the ${formatBytes(ATTACHMENT_LIMITS.maxFileBytes)} limit`);
       const data = Buffer.from(b64, "base64");
+      if (data.byteLength === 0) throw new HttpError(400, `${safeName(name)} is empty`);
       return { name, mimeType, size: data.byteLength, data };
     }
     if (typeof upload.url === "string" && /^https?:\/\//i.test(upload.url)) return { name, mimeType, size: 0, url: upload.url };

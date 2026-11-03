@@ -1034,7 +1034,7 @@ export class App implements ViewModel {
         lines.push(c.dim("BY AGENT"));
         for (const row of [...summary.byAgent].sort((a, b) => b.usage.cost - a.usage.cost)) {
           const agent = this.agentById(row.agentId);
-          lines.push(line(`${agent ? agentColor(agent.color)(`${agent.avatar} @${agent.handle}`) : row.agentId} ${c.dim(`${row.threads} threads`)}`, row.usage));
+          lines.push(line(`${agent ? agentColor(agent.color)(`${agent.avatar} @${agent.handle}`) : row.agentId} ${c.dim(`${row.threads} ${row.threads === 1 ? "thread" : "threads"}`)}`, row.usage));
         }
         lines.push("");
       }
@@ -1056,7 +1056,7 @@ export class App implements ViewModel {
     if (connectors.length === 0) {
       lines.push(c.muted("No connectors yet."), "");
       for (const kind of kinds) lines.push(`  ${c.accent(icon[kind.kind] ?? "•")} ${bold(kind.name)} ${c.dim(kind.tagline)}`);
-      lines.push("", c.dim("Add one from the web GUI (soloagent token prints its login)."));
+      lines.push("", c.dim(`Add one in the dashboard: ${this.conn.url.replace(/\/$/, "")}/connections`));
     }
     for (const conn of connectors) {
       const status =

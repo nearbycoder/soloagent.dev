@@ -24,6 +24,7 @@ import { explainError } from "@soloagent/client";
 import { approvalArgs, ApprovalWaiting } from "../../components/ApprovalActions.tsx";
 import { AgentAvatar, SourceBadge } from "../../components/brand.tsx";
 import { Markdown } from "../../components/Markdown.tsx";
+import { ImageViewer } from "../../components/ImageViewer.tsx";
 import { CopyButton } from "../../components/ui.tsx";
 import { cn } from "../../lib/cn.ts";
 import { fileSize, fileUrl, PREVIEWABLE } from "../../lib/files.ts";
@@ -72,19 +73,35 @@ function AssistantHeader({ agent, model, at, extra }: { agent: Agent | undefined
 
 /** Image thumbnails (click for full size) and file chips (download) shared with a message. */
 function Attachments({ files, align }: { files: Attachment[]; align: "start" | "end" }) {
-  const images = files.filter((f) => PREVIEWABLE.has(f.mimeType));
-  const others = files.filter((f) => !PREVIEWABLE.has(f.mimeType));
+  // An image that fails to load (deleted, corrupt) falls back to a file card instead of a broken-image icon.
+  const [broken, setBroken] = useState<Set<string>>(() => new Set());
+  const [viewing, setViewing] = useState<Attachment | null>(null);
+  const images = files.filter((f) => PREVIEWABLE.has(f.mimeType) && !broken.has(f.sha256));
+  const others = files.filter((f) => !PREVIEWABLE.has(f.mimeType) || broken.has(f.sha256));
   return (
     <div className={cn("mb-1.5 flex max-w-[min(85%,640px)] flex-col gap-1.5", align === "end" ? "items-end" : "items-start")}>
       {images.length > 0 && (
         <div className={cn("flex flex-wrap gap-1.5", align === "end" && "justify-end")}>
           {images.map((f) => (
-            <a key={f.sha256} href={fileUrl(f.sha256)} target="_blank" rel="noreferrer" title={`${f.name} · ${fileSize(f.size)}`} className="block overflow-hidden rounded-xl border border-border bg-surface-2 transition-opacity hover:opacity-90">
-              <img src={fileUrl(f.sha256)} alt={f.name} loading="lazy" className={cn("block object-cover", images.length === 1 ? "max-h-72 max-w-full" : "size-32")} />
+            <a
+              key={f.sha256}
+              href={fileUrl(f.sha256)}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => {
+                // Plain clicks open the viewer; cmd/ctrl/middle-click still open a tab.
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+                event.preventDefault();
+                setViewing(f);
+              }}
+              title={`${f.name} · ${fileSize(f.size)}`}
+              className="block overflow-hidden rounded-xl border border-border bg-surface-2 transition-opacity hover:opacity-90">
+              <img src={fileUrl(f.sha256)} alt={f.name} loading="lazy" onError={() => setBroken((b) => new Set(b).add(f.sha256))} className={cn("block object-cover", images.length === 1 ? "max-h-72 max-w-full" : "size-32")} />
             </a>
           ))}
         </div>
       )}
+      {viewing && <ImageViewer src={fileUrl(viewing.sha256)} name={viewing.name} onClose={() => setViewing(null)} />}
       {others.map((f) => (
         <a
           key={f.sha256}
