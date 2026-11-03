@@ -14,9 +14,10 @@ import {
   Plus,
   Search,
   Settings,
+  Users,
   SquarePen,
 } from "lucide-react";
-import { useApp } from "../api/store.ts";
+import { useApp, useIsAdmin } from "../api/store.ts";
 import { cn } from "../lib/cn.ts";
 import { shortTime } from "../lib/format.ts";
 import { navigate } from "../lib/router.ts";
@@ -34,6 +35,9 @@ type Item = {
   run: () => void;
 };
 
+/** Pages members don't see. */
+const ADMIN_PAGES = new Set(["p-providers", "p-connections", "p-team"]);
+
 export function CommandPalette({ open, onClose, onSignOut }: { open: boolean; onClose: () => void; onSignOut: () => void }) {
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
@@ -41,6 +45,7 @@ export function CommandPalette({ open, onClose, onSignOut }: { open: boolean; on
   const list = useRef<HTMLDivElement>(null);
   const agents = useApp((s) => s.agents);
   const threads = useApp((s) => s.threads);
+  const isAdmin = useIsAdmin();
 
   useEffect(() => {
     if (open) {
@@ -60,6 +65,7 @@ export function CommandPalette({ open, onClose, onSignOut }: { open: boolean; on
       { id: "p-connections", group: "Go to", label: "Connections", icon: <Plug />, run: go("/connections"), keywords: "slack discord telegram webhook connectors" },
       { id: "p-activity", group: "Go to", label: "Activity", icon: <Activity />, run: go("/activity"), keywords: "tasks schedules log" },
       { id: "p-usage", group: "Go to", label: "Usage", icon: <ChartNoAxesColumn />, run: go("/usage"), keywords: "cost tokens spend" },
+      { id: "p-team", group: "Go to", label: "Team", icon: <Users />, run: go("/team"), keywords: "users members invites roles" },
       { id: "p-settings", group: "Go to", label: "Settings", icon: <Settings />, run: go("/settings"), keywords: "tui terminal theme" },
     ];
     const chats: Item[] = (agents ?? []).map((agent) => ({
@@ -82,13 +88,18 @@ export function CommandPalette({ open, onClose, onSignOut }: { open: boolean; on
       run: go(`/chat/${thread.id}`),
     }));
     const actions: Item[] = [
-      { id: "x-agent", group: "Actions", label: "Create an agent", icon: <Plus />, run: go("/agents/new") },
-      { id: "x-connect", group: "Actions", label: "Add a connection", icon: <Plug />, run: go("/connections/new"), keywords: "slack discord telegram webhook" },
+      ...(isAdmin
+        ? [
+            { id: "x-agent", group: "Actions", label: "Create an agent", icon: <Plus />, run: go("/agents/new") },
+            { id: "x-connect", group: "Actions", label: "Add a connection", icon: <Plug />, run: go("/connections/new"), keywords: "slack discord telegram webhook" },
+            { id: "x-invite", group: "Actions", label: "Invite someone", icon: <Users />, run: go("/team"), keywords: "team users members invite" },
+          ]
+        : []),
       { id: "x-theme", group: "Actions", label: "Toggle light / dark theme", icon: <Moon />, run: toggleTheme, keywords: "appearance mode" },
       { id: "x-out", group: "Actions", label: "Sign out", icon: <LogOut />, run: onSignOut, keywords: "logout" },
     ];
-    return [...pages, ...chats, ...recent, ...actions];
-  }, [agents, threads, onSignOut]);
+    return [...pages.filter((p) => isAdmin || !ADMIN_PAGES.has(p.id)), ...chats, ...recent, ...actions];
+  }, [agents, threads, onSignOut, isAdmin]);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();

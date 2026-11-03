@@ -11,6 +11,7 @@ import {
 } from "@earendil-works/pi-durable";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { int, num, obj, opt, str } from "@earendil-works/pi-schema";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { Agent, AgentSkill } from "@soloagent/client";
 import { EVENT_ENTRY, MESSAGE_ENTRY, textOf, type EventEntryData, type MessageEntryData } from "./transcript.ts";
 
@@ -32,6 +33,10 @@ export interface SkillHost {
   scheduleFired(taskId: string): void;
   /** Called after every answered run; delivers replies to Slack, Discord, and friends. */
   runAnswered(conversationId: number, answerEntryId: number, context: Context): void;
+  /** Every provider response, for the spend ledger. `key` is unique per response. */
+  responded(conversationId: number, key: string, message: AssistantMessage): void;
+  /** A delegate's child conversation now runs as `agentId`. */
+  delegated(conversationId: number, agentId: string): void;
 }
 
 const MAX_FETCH_CHARS = 24_000;
@@ -64,6 +69,9 @@ export function createSkills(host: SkillHost) {
     ],
     hooks: [
       hook(GenerationTask, {
+        afterResponse: (message, api) => {
+          host.responded(Number(api.conversationId), `${api.conversationId}:${api.taskId}:${message.timestamp}:${message.responseId ?? ""}`, message);
+        },
         afterRun: async (run, api, context) => {
           host.runAnswered(Number(api.conversationId), Number(run.answer), context);
           return undefined;
@@ -205,6 +213,7 @@ export function createSkills(host: SkillHost) {
             await configure(tx, created.id, host.agentChange(target, { nested: true }));
             return created.id;
           }, context);
+          host.delegated(Number(child), target.id);
           await api.details({ conversationId: Number(child), agent: target.handle }, context);
           const handle = await api.conversation(child, context);
           if (!handle) throw new Error("Delegate conversation vanished");

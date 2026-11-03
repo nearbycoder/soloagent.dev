@@ -71,6 +71,7 @@ export const slackDriver: DriverFactory = (config, host): ConnectorDriver => {
           text,
           target: { channel: event.channel, thread_ts: threadTs },
           isDirect: false,
+          channel: { id: event.channel, name: location },
         });
       });
 

@@ -38,6 +38,33 @@ export const MIGRATIONS: { id: string; sql: string }[] = [
    CREATE TABLE schedules (task_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, agent_id TEXT NOT NULL, text TEXT NOT NULL,
      at INTEGER NOT NULL, status TEXT NOT NULL);`,
   },
+  {
+    // Teams: dashboard users, invite links, sign-in sessions, recorded provider spend, and admitted messages
+    // (for daily run budgets and per-user rate limits).
+    id: "010_teams",
+    sql: `CREATE TABLE users (
+     id TEXT PRIMARY KEY, name TEXT NOT NULL, name_key TEXT NOT NULL UNIQUE, role TEXT NOT NULL,
+     password TEXT, created_at INTEGER NOT NULL, last_seen_at INTEGER);
+   CREATE TABLE sessions (
+     token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL);
+   CREATE INDEX sessions_user ON sessions(user_id);
+   CREATE TABLE invites (
+     id TEXT PRIMARY KEY, code_hash TEXT NOT NULL UNIQUE, role TEXT NOT NULL, name TEXT, created_by TEXT NOT NULL,
+     created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER, used_by TEXT);
+   CREATE TABLE spend (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, response_key TEXT NOT NULL UNIQUE,
+     agent_id TEXT, connector_id TEXT, thread_id TEXT, conversation_id INTEGER NOT NULL,
+     provider TEXT NOT NULL, model TEXT NOT NULL, input INTEGER NOT NULL, output INTEGER NOT NULL,
+     cache_read INTEGER NOT NULL, cache_write INTEGER NOT NULL, cost REAL NOT NULL);
+   CREATE INDEX spend_agent_at ON spend(agent_id, at);
+   CREATE INDEX spend_at ON spend(at);
+   CREATE TABLE admissions (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, agent_id TEXT NOT NULL,
+     connector_id TEXT, user_key TEXT, thread_id TEXT);
+   CREATE INDEX admissions_agent_at ON admissions(agent_id, at);
+   CREATE INDEX admissions_user_at ON admissions(connector_id, user_key, at);`,
+  },
 ];
 
 export class Db {

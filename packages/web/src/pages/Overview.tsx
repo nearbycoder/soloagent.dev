@@ -15,9 +15,10 @@ import {
   SquarePen,
   Star,
   UserPlus,
+  ShieldCheck,
 } from "lucide-react";
 import type { ActivityItem, Agent } from "@soloagent/client";
-import { loadProviders, useAgentMap, useApp } from "../api/store.ts";
+import { loadProviders, useAgentMap, useApp, useIsAdmin } from "../api/store.ts";
 import { AgentAvatar } from "../components/brand.tsx";
 import { Badge, Button, Card, Dot, EmptyState, Page, SectionHeader, Skeleton } from "../components/ui.tsx";
 import { cn } from "../lib/cn.ts";
@@ -35,6 +36,7 @@ export function Overview() {
   const connectors = useApp((s) => s.connectors);
   const providers = useApp((s) => s.providers);
   const threads = useApp((s) => s.threads);
+  const isAdmin = useIsAdmin();
 
   useEffect(() => {
     void loadProviders();
@@ -78,9 +80,11 @@ export function Overview() {
           <h1 className="font-display mt-1 text-[30px] font-semibold text-fg">Your agents at a glance</h1>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" icon={<Bot className="size-4" />} onClick={() => navigate("/agents/new")}>
-            New agent
-          </Button>
+          {isAdmin && (
+            <Button variant="secondary" icon={<Bot className="size-4" />} onClick={() => navigate("/agents/new")}>
+              New agent
+            </Button>
+          )}
           <Button variant="primary" icon={<SquarePen className="size-4" />} onClick={() => navigate("/chat/new")}>
             New chat
           </Button>
@@ -110,7 +114,7 @@ export function Overview() {
         />
       </div>
 
-      {loaded && remaining > 0 && (
+      {isAdmin && loaded && remaining > 0 && (
         <Card className="relative mt-6 overflow-hidden">
           <div className="relative flex flex-col gap-1 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2.5">
@@ -273,6 +277,7 @@ const ACTIVITY_ICON: Record<ActivityItem["type"], { icon: ReactNode; className: 
   provider: { icon: <KeyRound />, className: "text-warning bg-warning-soft" },
   schedule: { icon: <Radio />, className: "text-info bg-info-soft" },
   error: { icon: <CircleAlert />, className: "text-danger bg-danger-soft" },
+  access: { icon: <ShieldCheck />, className: "text-warning bg-warning-soft" },
 };
 
 /** Live activity list. Shared with the Activity page. */

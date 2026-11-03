@@ -15,9 +15,10 @@ import {
   Settings,
   SquarePen,
   Sun,
+  Users,
   X,
 } from "lucide-react";
-import { useApp, type ConnectionStatus } from "../api/store.ts";
+import { useApp, useIsAdmin, type ConnectionStatus } from "../api/store.ts";
 import { cn } from "../lib/cn.ts";
 import { linkHandler, navigate, parseRoute, usePath, type Route } from "../lib/router.ts";
 import { toggleTheme, useTheme } from "../lib/theme.ts";
@@ -33,15 +34,18 @@ const Connections = lazy(() => import("../pages/Connections.tsx").then((m) => ({
 const ActivityPage = lazy(() => import("../pages/Activity.tsx").then((m) => ({ default: m.ActivityPage })));
 const Usage = lazy(() => import("../pages/Usage.tsx").then((m) => ({ default: m.Usage })));
 const SettingsPage = lazy(() => import("../pages/Settings.tsx").then((m) => ({ default: m.SettingsPage })));
+const Team = lazy(() => import("../pages/Team.tsx").then((m) => ({ default: m.Team })));
 
-export const NAV: { page: Route["page"]; path: string; label: string; icon: ReactNode }[] = [
+/** `adminOnly` items are hidden from members (the server enforces it too). */
+export const NAV: { page: Route["page"]; path: string; label: string; icon: ReactNode; adminOnly?: boolean }[] = [
   { page: "overview", path: "/", label: "Overview", icon: <LayoutDashboard /> },
   { page: "chat", path: "/chat", label: "Chat", icon: <MessagesSquare /> },
   { page: "agents", path: "/agents", label: "Agents", icon: <Bot /> },
-  { page: "providers", path: "/providers", label: "Providers", icon: <KeyRound /> },
-  { page: "connections", path: "/connections", label: "Connections", icon: <Plug /> },
+  { page: "providers", path: "/providers", label: "Providers", icon: <KeyRound />, adminOnly: true },
+  { page: "connections", path: "/connections", label: "Connections", icon: <Plug />, adminOnly: true },
   { page: "activity", path: "/activity", label: "Activity", icon: <Activity /> },
   { page: "usage", path: "/usage", label: "Usage", icon: <ChartNoAxesColumn /> },
+  { page: "team", path: "/team", label: "Team", icon: <Users />, adminOnly: true },
   { page: "settings", path: "/settings", label: "Settings", icon: <Settings /> },
 ];
 
@@ -178,6 +182,8 @@ function PageFor({ route, onSignOut }: { route: Route; onSignOut: () => void }) 
       return <ActivityPage />;
     case "usage":
       return <Usage />;
+    case "team":
+      return <Team />;
     case "settings":
       return <SettingsPage onSignOut={onSignOut} />;
   }
@@ -199,6 +205,7 @@ function SidebarContent({
   const agents = useApp((s) => s.agents);
   const busy = useApp((s) => s.threads?.filter((t) => t.busy).length ?? 0);
   const connectorErrors = useApp((s) => s.connectors?.filter((c) => c.enabled && c.status === "error").length ?? 0);
+  const isAdmin = useIsAdmin();
   const { resolved } = useTheme();
 
   return (
@@ -261,7 +268,7 @@ function SidebarContent({
       </div>
 
       <nav className={cn("mt-3 flex flex-col gap-px", collapsed ? "px-2.5" : "px-3")} aria-label="Main">
-        {NAV.map((item) => {
+        {NAV.filter((item) => isAdmin || !item.adminOnly).map((item) => {
           const active = route.page === item.page;
           const badge = item.page === "chat" && busy > 0 ? busy : item.page === "connections" && connectorErrors > 0 ? connectorErrors : 0;
           return (

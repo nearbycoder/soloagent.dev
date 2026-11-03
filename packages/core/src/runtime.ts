@@ -3,7 +3,7 @@ import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { join, resolve } from "node:path";
 import { EventEmitter } from "node:events";
 import { BACKGROUND_CONTEXT, type Context } from "@earendil-works/chord/context";
-import type { Provider } from "@earendil-works/pi-ai";
+import { type AssistantMessage, calculateCost, type Provider } from "@earendil-works/pi-ai";
 import {
   type AgentChange,
   type Conversation,
@@ -22,6 +22,8 @@ import type {
   ActivityItem,
   Agent,
   AgentInput,
+  AgentSpend,
+  DailyUsage,
   Author,
   Connector,
   LiveState,
@@ -46,6 +48,7 @@ import { ProviderHub } from "./providers.ts";
 import { Sealer } from "./secrets.ts";
 import { demoProvider } from "./demo.ts";
 import { createSkills, type SkillHost } from "./skills.ts";
+import { Ledger, listAllows, TeamStore } from "./team.ts";
 import { EVENT_ENTRY, MESSAGE_ENTRY, type EventEntryData, type MessageEntryData, textOf, toLive, toMessages, usageOf } from "./transcript.ts";
 
 export const VERSION = "0.1.1";
@@ -93,6 +96,11 @@ const ctx: Context = BACKGROUND_CONTEXT;
 const cid = (id: number) => id as unknown as ConversationId;
 const eid = (id: number) => id as unknown as EntryId;
 const ZERO: Usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 };
+/** One "you can't do that here" notice per person, connector, and reason in this window. */
+const NOTICE_WINDOW_MS = 10 * 60_000;
+
+/** Why a message was not admitted. `detail` is for the activity log, `message` for the person. */
+type Denial = { reason: "access_denied" | "over_budget" | "rate_limited"; message: string; detail: string };
 
 /**
  * soloagent's runtime: one Pi Durable Harness, the agents that run on it, the threads that map chat
@@ -106,8 +114,15 @@ export class SoloAgent {
   readonly agents: AgentStore;
   readonly providers: ProviderHub;
   readonly connectors: ConnectorManager;
-  readonly adminToken: string;
+  /** Dashboard users, invites, and sessions. */
+  readonly team: TeamStore;
+  /** Recorded spend and admitted messages, for budgets and rate limits. */
+  readonly ledger: Ledger;
+  /** Where the admin token comes from: SOLOAGENT_TOKEN / an option (rotate it there), or stored in settings. */
+  readonly adminTokenSource: "env" | "option" | "stored";
   readonly dataDir: string;
+  #adminToken: string;
+  #notices = new Map<string, number>();
   readonly startedAt = Date.now();
   #skills: ReturnType<typeof createSkills>;
   #watchers = new Map<string, ThreadWatcher>();
@@ -126,6 +141,7 @@ export class SoloAgent {
     connectors: ConnectorManager;
     skills: ReturnType<typeof createSkills>;
     adminToken: string;
+    adminTokenSource: "env" | "option" | "stored";
     dataDir: string;
     log: (message: string) => void;
   }) {
@@ -135,7 +151,10 @@ export class SoloAgent {
     this.providers = init.providers;
     this.connectors = init.connectors;
     this.#skills = init.skills;
-    this.adminToken = init.adminToken;
+    this.#adminToken = init.adminToken;
+    this.adminTokenSource = init.adminTokenSource;
+    this.team = new TeamStore(init.db);
+    this.ledger = new Ledger(init.db);
     this.dataDir = init.dataDir;
     this.#log = init.log;
   }
@@ -149,7 +168,8 @@ export class SoloAgent {
     const sealer = new Sealer(secret);
 
     const adminToken = options.adminToken ?? process.env.SOLOAGENT_TOKEN ?? db.setting("admin_token") ?? `solo_${randomBytes(18).toString("base64url")}`;
-    if (!options.adminToken && !process.env.SOLOAGENT_TOKEN) db.setSetting("admin_token", adminToken);
+    const adminTokenSource = options.adminToken ? "option" : process.env.SOLOAGENT_TOKEN ? "env" : "stored";
+    if (adminTokenSource === "stored") db.setSetting("admin_token", adminToken);
 
     // Late-bound: the skills, hub, and stores call back into the runtime once it exists.
     let solo: SoloAgent | undefined;
@@ -221,6 +241,14 @@ export class SoloAgent {
         }
       },
       runAnswered: (conversationId, answer, context) => void solo?.runAnswered(conversationId, answer, context).catch((error) => log(`deliver: ${String(error)}`)),
+      responded: (conversationId, key, message) => {
+        try {
+          solo?.recordResponse(conversationId, key, message);
+        } catch (error) {
+          log(`spend: ${String(error)}`);
+        }
+      },
+      delegated: (conversationId, agentId) => db.run("INSERT OR IGNORE INTO conversation_agents (conversation_id, agent_id) VALUES (?, ?)", conversationId, agentId),
     };
 
     const skills = createSkills(host);
@@ -246,7 +274,7 @@ export class SoloAgent {
       ctx,
     );
 
-    solo = new SoloAgent({ db, harness, agents, providers, connectors, skills, adminToken, dataDir, log });
+    solo = new SoloAgent({ db, harness, agents, providers, connectors, skills, adminToken, adminTokenSource, dataDir, log });
     harness.resume();
     if (agents.list().length === 0) solo.seed();
     await solo.autoAssignModels();
@@ -256,6 +284,23 @@ export class SoloAgent {
 
   emit(event: ServerEvent) {
     this.events.emit("event", event);
+  }
+
+  /** The superuser token for the API, the CLI, and the dashboard. */
+  get adminToken(): string {
+    return this.#adminToken;
+  }
+
+  /** Replace a stored admin token. Sessions signed in with the old token end at their next request. */
+  rotateAdminToken(): string {
+    if (this.adminTokenSource !== "stored") {
+      throw new HttpError(409, "The admin token is set by SOLOAGENT_TOKEN. Change it there and restart the server.");
+    }
+    const token = `solo_${randomBytes(18).toString("base64url")}`;
+    this.db.setSetting("admin_token", token);
+    this.#adminToken = token;
+    this.activity({ type: "access", text: "The admin token was rotated" });
+    return token;
   }
 
   async close() {
@@ -479,6 +524,12 @@ export class SoloAgent {
     const agent = this.agents.get(row.agent_id);
     if (!agent) throw new Error("This thread's agent was deleted — switch it to another agent");
     if (!agent.model) throw new Error(`@${agent.handle} has no model yet. Connect a provider (Claude, ChatGPT, Copilot, …) in Providers.`);
+    const userKey = input.author.id ?? input.author.name;
+    const denied = this.checkLimits(agent, row.connector_id, userKey);
+    if (denied) {
+      this.activity({ type: "access", text: `${input.author.name} → @${agent.handle}: ${denied.detail}`, agentId: agent.id, threadId, connectorId: row.connector_id ?? undefined });
+      throw new HttpError(429, denied.message);
+    }
     const conversation = await this.#conversation(row);
     if (row.agent_version !== this.agents.version(agent)) {
       await conversation.configure(this.agentChange(agent), ctx);
@@ -499,6 +550,7 @@ export class SoloAgent {
     );
     const title = row.message_count === 0 && row.title === "New conversation" ? text.replace(/\s+/g, " ").slice(0, 60) : row.title;
     this.db.run("UPDATE threads SET message_count = message_count + 1, preview = ?, title = ?, updated_at = ? WHERE id = ?", text.slice(0, 140), title, at, threadId);
+    this.ledger.recordAdmission({ agentId: agent.id, connectorId: row.connector_id, userKey, threadId, at });
     this.markBusy(threadId);
     this.activity({ type: "message", text: `${input.author.name} → @${agent.handle}: ${text.slice(0, 100)}`, agentId: agent.id, threadId });
     return {
@@ -591,36 +643,65 @@ export class SoloAgent {
     const reply = async (markdown: string) => {
       if (driver) await driver.post(message.target, markdown).catch((error) => this.#log(`post: ${String(error)}`));
     };
+    const deny = async (denial: Denial, agent: Agent | undefined) => {
+      const userKey = message.author.id ?? message.author.name;
+      if (this.#firstNotice(`${connector.id}:${userKey}:${denial.reason}`)) {
+        await reply(denial.message);
+        this.activity({
+          type: "access",
+          text: `${message.author.name}${message.channel?.name ? ` in ${message.channel.name}` : message.isDirect ? " (DM)" : ""} → ${agent ? `@${agent.handle}` : "soloagent"} on ${connector.name}: ${denial.detail}`,
+          agentId: agent?.id,
+          connectorId: connector.id,
+        });
+      }
+      return { status: "unanswered" as const, reason: denial.reason, detail: denial.message };
+    };
 
-    // Chat commands
+    // Addressing: "@coder fix the build" or "coder: fix the build" picks an agent.
+    // A command may come first: "!reset @coder start over".
     const command = /^[!/](help|agents|reset|stop|new)\b/i.exec(text)?.[1]?.toLowerCase();
+    let agent = connector.agentId ? this.agents.get(connector.agentId) : undefined;
+    const rest = text.replace(/^[!/](reset|stop|new)\s*/i, "");
+    const addressed = /^@?([a-z0-9][a-z0-9-]{0,31})[:,]?\s+([\s\S]+)$/i.exec(rest);
+    let addressedAgent: Agent | undefined;
+    if (addressed) {
+      const named = this.agents.get(addressed[1]!.toLowerCase());
+      if (named && (rest.startsWith("@") || /^[a-z0-9-]+[:,]/i.test(rest))) addressedAgent = named;
+    }
+
+    // Access: who may talk here, and from where. Webhooks are secret-authenticated: only `agents` applies.
+    const here = this.#accessHere(connector, message);
+    if (!here.ok) {
+      const target = addressedAgent ?? agent ?? this.agents.default();
+      return deny({ ...here.denial, message: `You don't have access to ${target ? `@${target.handle}` : "soloagent"} here. Ask an admin.` }, target);
+    }
+
     if (command === "help") {
-      await reply(helpText(this.agents.list()));
-      return { status: "done" as const, answer: helpText(this.agents.list()) };
+      const reachable = this.agents.list().filter((a) => !this.#agentDenied(connector, a));
+      await reply(helpText(reachable));
+      return { status: "done" as const, answer: helpText(reachable) };
     }
     if (command === "agents") {
-      const list = this.agents.list().map((a) => `${a.avatar} *@${a.handle}* — ${a.name}${a.description ? `: ${a.description}` : ""}${a.model ? "" : " _(no model yet)_"}`).join("\n");
-      await reply(list || "No agents yet.");
+      const list = this.agents
+        .list()
+        .filter((a) => !this.#agentDenied(connector, a))
+        .map((a) => `${a.avatar} *@${a.handle}* — ${a.name}${a.description ? `: ${a.description}` : ""}${a.model ? "" : " _(no model yet)_"}`)
+        .join("\n");
+      await reply(list || "No agents are available here.");
       return { status: "done" as const, answer: list };
     }
 
-    // Addressing: "@coder fix the build" or "coder: fix the build" picks an agent.
-    let agent = connector.agentId ? this.agents.get(connector.agentId) : undefined;
-    // A command may come first: "!reset @coder start over".
-    const rest = text.replace(/^[!/](reset|stop|new)\s*/i, "");
-    const addressed = /^@?([a-z0-9][a-z0-9-]{0,31})[:,]?\s+([\s\S]+)$/i.exec(rest);
-    if (addressed) {
-      const named = this.agents.get(addressed[1]!.toLowerCase());
-      if (named && (rest.startsWith("@") || /^[a-z0-9-]+[:,]/i.test(rest))) {
-        agent = named;
-        text = addressed[2]!.trim();
-      }
+    if (addressedAgent && addressed) {
+      agent = addressedAgent;
+      text = addressed[2]!.trim();
     }
     agent ??= this.agents.default();
     if (!agent) {
       await reply("No agents are set up yet. Open your soloagent dashboard to create one.");
       return { status: "unanswered" as const, reason: "no_agent" };
     }
+    const agentDenied = this.#agentDenied(connector, agent);
+    if (agentDenied) return deny(agentDenied, agent);
 
     let row = this.db.get<ThreadRow>("SELECT * FROM threads WHERE connector_id = ? AND external_key = ? AND agent_id = ?", connector.id, message.externalKey, agent.id);
     if (!row) {
@@ -660,6 +741,8 @@ export class SoloAgent {
       await reply(`@${agent.handle} has no model yet — connect Claude, ChatGPT, or another provider in the soloagent dashboard.`);
       return { status: "unanswered" as const, reason: "no_model" };
     }
+    const limited = this.checkLimits(agent, connector.id, message.author.id ?? message.author.name);
+    if (limited) return deny(limited, agent);
 
     // Start the streamed reply before the run so the placeholder appears instantly.
     if (driver && !this.#outbound.has(row.id)) {
@@ -709,7 +792,118 @@ export class SoloAgent {
       return { accepted: true, thread };
     }
     const result = await this.handleInbound(connector, message, { wait: true });
+    if (result.status === "unanswered" && "detail" in result && result.detail) {
+      if (result.reason === "access_denied") throw new HttpError(403, result.detail);
+      if (result.reason === "over_budget" || result.reason === "rate_limited") throw new HttpError(429, result.detail);
+    }
     return { thread, ...result };
+  }
+
+  // ───────────────────────────── teams: access, budgets, spend ─────────────────────────────
+
+  /** The connector's user and channel lists. Webhooks are secret-authenticated and skip them. */
+  #accessHere(connector: Connector, message: InboundMessage): { ok: true } | { ok: false; denial: Denial } {
+    if (connector.kind === "webhook") return { ok: true };
+    const { users, channels } = connector.access;
+    const author = message.author;
+    const userOk = listAllows(users, author.id, author.name);
+    // A DM (or a message without a channel) is no channel at all: with a channel list set, only people the user list names explicitly get through.
+    const channel = message.isDirect ? undefined : message.channel;
+    const channelOk = channel
+      ? listAllows(channels, channel.id, channel.name, channel.parent?.id, channel.parent?.name)
+      : channels.length === 0 || (users.length > 0 && userOk);
+    if (userOk && channelOk) return { ok: true };
+    return {
+      ok: false,
+      denial: {
+        reason: "access_denied",
+        message: "You don't have access here. Ask an admin.",
+        detail: !userOk ? "not on this connection's user list" : channel ? "this channel is not on the channel list" : "DMs need the user list to name this person",
+      },
+    };
+  }
+
+  /** Whether this connector may reach an agent: its agent list, and workspace safety for chat apps. */
+  #agentDenied(connector: Connector, agent: Agent): Denial | undefined {
+    const message = `You don't have access to @${agent.handle} here. Ask an admin.`;
+    if (!listAllows(connector.access.agents, agent.id, agent.handle)) return { reason: "access_denied", message, detail: "agent is not on this connection's agent list" };
+    if (connector.kind !== "webhook" && agent.skills.includes("workspace") && !agent.chatAccess) {
+      return { reason: "access_denied", message, detail: "agents with the workspace skill are not reachable from chat unless chat access is on" };
+    }
+    return undefined;
+  }
+
+  /** Daily budget and per-user rate limit, checked before a message reaches the model. */
+  checkLimits(agent: Agent, connectorId: string | null, userKey: string | null): Denial | undefined {
+    const { dailyUsd, dailyRuns } = agent.budget;
+    if (dailyUsd !== null && this.ledger.spentToday(agent.id) >= dailyUsd) {
+      return {
+        reason: "over_budget",
+        message: `@${agent.handle} has used its daily budget ($${dailyUsd.toFixed(2)}). It resets at midnight UTC, or an admin can raise it.`,
+        detail: `daily budget of $${dailyUsd.toFixed(2)} reached`,
+      };
+    }
+    if (dailyRuns !== null && this.ledger.runsToday(agent.id) >= dailyRuns) {
+      return {
+        reason: "over_budget",
+        message: `@${agent.handle} has reached its limit of ${dailyRuns} message${dailyRuns === 1 ? "" : "s"} for today. It resets at midnight UTC, or an admin can raise it.`,
+        detail: `daily limit of ${dailyRuns} message${dailyRuns === 1 ? "" : "s"} reached`,
+      };
+    }
+    const limit = connectorId ? this.connectors.get(connectorId)?.limits.perUserPerHour : null;
+    if (connectorId && userKey && limit !== null && limit !== undefined && this.ledger.userMessagesLastHour(connectorId, userKey) >= limit) {
+      return {
+        reason: "rate_limited",
+        message: `You've sent ${limit} message${limit === 1 ? "" : "s"} in the last hour, the limit here. Try again a little later.`,
+        detail: `rate limit of ${limit} per hour reached`,
+      };
+    }
+    return undefined;
+  }
+
+  /** True once per key per window, so a denied person can't make the bot spam the channel. */
+  #firstNotice(key: string): boolean {
+    const now = Date.now();
+    const last = this.#notices.get(key);
+    if (last !== undefined && now - last < NOTICE_WINDOW_MS) return false;
+    if (this.#notices.size > 5_000) for (const [k, at] of this.#notices) if (now - at >= NOTICE_WINDOW_MS) this.#notices.delete(k);
+    this.#notices.set(key, now);
+    return true;
+  }
+
+  /** Called by the Base extension's afterResponse hook for every provider response, nested delegates included. */
+  recordResponse(conversationId: number, key: string, message: AssistantMessage) {
+    const u = message.usage;
+    if (!u) return;
+    let cost = u.cost?.total ?? 0;
+    const tokens = u.input + u.output + u.cacheRead + u.cacheWrite;
+    if (!cost && tokens > 0) {
+      // Providers that report no price (subscriptions, the faux provider) are priced from the catalog.
+      const model = this.providers.models.getModel(message.provider, message.model);
+      if (model) cost = calculateCost(model, structuredClone(u)).total;
+    }
+    if (tokens === 0 && cost === 0) return;
+    const row = this.db.get<ThreadRow>("SELECT * FROM threads WHERE conversation_id = ?", conversationId);
+    this.ledger.recordSpend({
+      key,
+      agentId: this.agentForConversation(conversationId)?.id ?? row?.agent_id ?? null,
+      connectorId: row?.connector_id ?? null,
+      threadId: row?.id ?? null,
+      conversationId,
+      provider: message.provider,
+      model: message.model,
+      usage: { input: u.input, output: u.output, cacheRead: u.cacheRead, cacheWrite: u.cacheWrite, cost },
+      at: Date.now(),
+    });
+  }
+
+  /** Today's (UTC) spend and messages for every agent, with their budgets. */
+  spendToday(): AgentSpend[] {
+    return this.ledger.today(this.agents.list().map((a) => ({ agentId: a.id, budget: a.budget })));
+  }
+
+  dailyUsage(days = 14): DailyUsage[] {
+    return this.ledger.daily(days);
   }
 
   #streamOutbound(threadId: string, live: LiveState) {

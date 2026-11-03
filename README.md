@@ -41,6 +41,7 @@ soloagent is an open-source, self-hosted home for your AI agents. Give each agen
   - `delegate` — `ask_agent` hands a task to another agent through a durable child conversation
   - `schedule` — durable reminders and follow-ups that survive restarts
   - `workspace` — read / write / edit / bash, starting in a per-agent folder (powerful, not a sandbox; off by default)
+- **Ready for teams.** Per-connector access lists (people, channels, agents), daily spend and message budgets per agent, per-person rate limits, and dashboard users with admin and member roles, invited by one-time link.
 - **Steer mid-run.** Messages sent while an agent works join the running work at its next step instead of waiting for it to finish.
 - **A real GUI and a real TUI.** A fast dashboard (chat with streaming, thinking, and tool cards; agent editor; subscription logins; connector setup with guides; live task graph; usage and cost) and a full-screen terminal UI built on `pi-tui`.
 - **Try it with zero accounts.** A built-in demo model answers until you connect a provider.
@@ -123,6 +124,15 @@ Open **Connections** in the dashboard; each connector has a step-by-step guide.
 | **Webhook** | A shared secret. `POST /api/hooks/<id>` with `x-solo-secret` and `{ "text", "thread", "user", "callback_url"? }`; the answer comes back as `{ "thread", "status", "answer" }`, or is POSTed to `callback_url` as `{ "thread", "text" }`. |
 
 In any chat: `@coder fix the build` or `coder: fix the build` picks an agent; otherwise the connector's agent (or the default) answers. Commands: `!agents`, `!reset` (or `!new`), `!stop`, `!help`.
+
+## Teams and access
+
+- **Access lists.** Each connector can limit which people (platform id or name), channels (id or `#name`), and agents it serves. Empty means everyone. People who aren't allowed get one short reply, and the attempt is logged in Activity. Webhooks apply only the agent list.
+- **Workspace safety.** Agents with the `workspace` skill aren't reachable from Slack, Discord, or Telegram unless the agent's chat access is turned on.
+- **Budgets and rate limits.** Set a daily USD budget or message limit per agent, and messages per person per hour per connector. Over a limit, chat gets a friendly reply and the API returns `429`. Spend is recorded for every provider response.
+- **Users and roles.** Invite people from **Team** with a one-time link (7 days). Members chat, view agents, and see usage; admins also manage providers, connectors, agents, and the team. The admin token stays the superuser for the CLI and API, and can be rotated from Settings unless it comes from `SOLOAGENT_TOKEN`.
+
+Details: [soloagent.dev/docs#teams](https://soloagent.dev/docs/#teams).
 
 ## Terminal UI
 
@@ -210,9 +220,9 @@ git tag v0.x.y && git push --tags   # CI builds the release tarball, Docker imag
 
 ## Security
 
-- Every API call needs the admin token, except inbound webhooks, which use their own secret; the dashboard keeps the token in an httpOnly cookie.
+- Every API call needs the admin token or a signed-in user's session, except inbound webhooks, which use their own secret. Sessions live in an httpOnly cookie; passwords are hashed with scrypt. Roles are enforced on the server.
 - Provider credentials, bot tokens, and webhook secrets are sealed with AES-256-GCM using `SOLOAGENT_SECRET`, or a generated secret in the data directory.
-- The `workspace` skill runs shell commands on the server, starting in a per-agent folder, with the server's permissions. It is not a sandbox. Grant it only to agents you trust, on a deployment you're comfortable with.
+- The `workspace` skill runs shell commands on the server, starting in a per-agent folder, with the server's permissions. It is not a sandbox. Grant it only to agents you trust, on a deployment you're comfortable with. Chat apps can't reach such an agent unless you turn on its chat access.
 - Third-party subscriptions have their own terms. Use subscription logins for your own personal use.
 
 ## License

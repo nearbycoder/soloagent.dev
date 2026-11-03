@@ -79,6 +79,11 @@
       <a class="sub" href="#telegram">Telegram</a>
       <a class="sub" href="#webhook">Webhook</a>
       <a href="#routing">Chat routing &amp; commands</a>
+      <a href="#teams">Teams &amp; access</a>
+      <a class="sub" href="#access">Access lists</a>
+      <a class="sub" href="#workspace-safety">Workspace safety</a>
+      <a class="sub" href="#budgets">Budgets &amp; rate limits</a>
+      <a class="sub" href="#users">Users &amp; roles</a>
       <a href="#tui">Terminal UI</a>
       <a href="#api">HTTP API &amp; SDK</a>
       <a href="#durability">Durability</a>
@@ -105,6 +110,11 @@
       <a class="sub" href="#telegram">Telegram</a>
       <a class="sub" href="#webhook">Webhook</a>
       <a href="#routing">Chat routing &amp; commands</a>
+      <a href="#teams">Teams &amp; access</a>
+      <a class="sub" href="#access">Access lists</a>
+      <a class="sub" href="#workspace-safety">Workspace safety</a>
+      <a class="sub" href="#budgets">Budgets &amp; rate limits</a>
+      <a class="sub" href="#users">Users &amp; roles</a>
       <a href="#tui">Terminal UI</a>
       <a href="#api">HTTP API &amp; SDK</a>
       <a href="#durability">Durability</a>
@@ -411,6 +421,65 @@ settings:
       </div>
     </section>
 
+    <section id="teams">
+      <h2><a href="#teams">Teams &amp; access</a></h2>
+      <p>By default anyone in a connected Slack, Discord, or Telegram can talk to any agent, and the dashboard has one admin token. For a team, limit who can reach which agents, cap what they cost, and give people their own sign-in.</p>
+
+      <div class="sub-section" id="access">
+        <h3><a href="#access">Access lists</a></h3>
+        <p>Each connector has three lists, edited under <b>Access</b> in its settings. An empty list means everyone, everywhere, or every agent.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>List</th><th>Matches</th></tr></thead>
+            <tbody>
+              <tr><td>People</td><td>The platform user id (<code>U024BE7LH</code>) or display name (<code>ann</code>), ignoring case.</td></tr>
+              <tr><td>Channels</td><td>The channel id or name, such as <code>#eng</code>. A Discord thread matches its parent channel. When this list is set, a DM is allowed only if the People list names the sender.</td></tr>
+              <tr><td>Agents</td><td>Agent handles or ids people can reach through this connector, whether by <code>@handle</code> or as the connector's default.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Someone who isn't allowed gets one short reply, "You don't have access to @x here. Ask an admin.", at most once every ten minutes, and the attempt is logged in <b>Activity</b>. Nothing reaches the model. <code>!agents</code> and <code>!help</code> list only the agents reachable on that connector.</p>
+        <p>Webhook connectors are authenticated by their secret, so only the Agents list applies to them. A denied webhook call answers <code>403</code>.</p>
+      </div>
+
+      <div class="sub-section" id="workspace-safety">
+        <h3><a href="#workspace-safety">Workspace safety</a></h3>
+        <p>An agent with the <a href="#agents">Workspace skill</a> can run shell commands on your server, so Slack, Discord, and Telegram can't reach it unless the agent's <b>Reachable from chat apps</b> setting (<code>chatAccess</code>) is on. It is off by default. The dashboard, TUI, API, and webhooks still reach it. If you turn it on, use the connector's access lists to name the people who may use it.</p>
+      </div>
+
+      <div class="sub-section" id="budgets">
+        <h3><a href="#budgets">Budgets &amp; rate limits</a></h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Setting</th><th>Where</th><th>What it limits</th></tr></thead>
+            <tbody>
+              <tr><td>Daily spend</td><td>Agent, <code>budget.dailyUsd</code></td><td>USD spent by the agent today, at list API prices.</td></tr>
+              <tr><td>Daily messages</td><td>Agent, <code>budget.dailyRuns</code></td><td>Messages the agent accepted today.</td></tr>
+              <tr><td>Messages per person per hour</td><td>Connector, <code>limits.perUserPerHour</code></td><td>Messages one person may send through the connector in a rolling hour.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Empty or <code>null</code> means no limit. Days are UTC. Limits are checked before a message is sent to the model: over a limit, chat users get a short reply, and the API and dashboard get <code>429</code> with a message. Each is logged in Activity. A run that's already going finishes, so a busy agent can end slightly over its spend budget.</p>
+        <p>Spend is recorded for every provider response, including a delegate's, with its agent, connector, thread, model, tokens, and cost. Agent cards show today's spend against the budget, and <b>Usage</b> shows the last 14 days. Subscription logins that don't report a price are counted at list prices.</p>
+      </div>
+
+      <div class="sub-section" id="users">
+        <h3><a href="#users">Users &amp; roles</a></h3>
+        <p>Invite people from <b>Team</b> in the dashboard. An invite is a one-time link, <code>/invite/&lt;code&gt;</code>, that expires after 7 days; the invitee picks a name and password and is signed in. Afterwards they sign in with <b>Team member</b> on the sign-in page. Passwords are hashed with scrypt.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Role</th><th>Can</th></tr></thead>
+            <tbody>
+              <tr><td>Member</td><td>Chat, view agents and conversations, see usage and activity.</td></tr>
+              <tr><td>Admin</td><td>Everything a member can, plus manage providers, connectors, agents, the team, and the admin token.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The server enforces roles on every route; members get <code>403</code> on admin routes. Messages a signed-in person sends carry their name. Admins can change roles, remove people (which signs them out everywhere), and revoke unused invites.</p>
+        <p>The <b>admin token</b> stays the superuser, for the CLI, the TUI, and scripts. Rotate it from <b>Settings</b>; the new token is shown once, and the old one stops working. If you set <code>SOLOAGENT_TOKEN</code>, rotate it by changing the variable and restarting.</p>
+      </div>
+    </section>
+
     <!-- ========== TUI ========== -->
     <section id="tui">
       <h2><a href="#tui">Terminal UI</a></h2>
@@ -483,7 +552,7 @@ settings:
     <!-- ========== API ========== -->
     <section id="api">
       <h2><a href="#api">HTTP API &amp; SDK</a></h2>
-      <p>The dashboard and TUI use the same public API, so anything they do, your scripts can do. All routes live under <code>/api</code> and require the admin token in an <code>authorization: Bearer …</code> header, except inbound webhooks, which carry their own secret. Only the WebSocket accepts the token as <code>?token=</code>; REST routes reject it. Requests without a valid token get <code>401</code>.</p>
+      <p>The dashboard and TUI use the same public API, so anything they do, your scripts can do. All routes live under <code>/api</code> and require the admin token in an <code>authorization: Bearer …</code> header (or a signed-in user's session cookie), except inbound webhooks, which carry their own secret, and invite links. Only the WebSocket accepts the token as <code>?token=</code>; REST routes reject it. Requests without a valid token get <code>401</code>.</p>
       <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">curl https://solo.example.com/api/agents \</span>
   -H <span class="t-s">"authorization: Bearer $SOLOAGENT_TOKEN"</span></code></pre></div>
 
@@ -500,6 +569,9 @@ settings:
             <tr><td><span class="verb put">PUT</span></td><td><code>/api/providers/:id/key</code></td><td>Save an API key: <code>{ key }</code>.</td></tr>
             <tr><td><span class="verb get">GET</span><span class="verb post">POST</span></td><td><code>/api/connectors</code></td><td>List or create connectors. Create takes <code>{ kind, name, agentId, config }</code>; a webhook's <code>config</code> is <code>{ secret }</code>.</td></tr>
             <tr><td><span class="verb post">POST</span></td><td><code>/api/hooks/:id</code></td><td>Inbound webhook. Authenticated by <code>x-solo-secret</code>, not the admin token.</td></tr>
+            <tr><td><span class="verb get">GET</span></td><td><code>/api/spend/today</code></td><td>Today's spend and messages per agent, with budgets. <code>/api/usage/daily?days=14</code> gives spend per day.</td></tr>
+            <tr><td><span class="verb get">GET</span><span class="verb post">POST</span></td><td><code>/api/invites</code></td><td>List or create invites (admins): <code>{ role, name }</code>. Create returns the one-time <code>url</code>. <code>/api/users</code> lists people; <code>PATCH</code> and <code>DELETE /api/users/:id</code> change a role or remove someone.</td></tr>
+            <tr><td><span class="verb post">POST</span></td><td><code>/api/admin-token/rotate</code></td><td>Replace a stored admin token and return the new one. <code>409</code> when it comes from <code>SOLOAGENT_TOKEN</code>.</td></tr>
             <tr><td><span class="verb ws">WS</span></td><td><code>/api/ws</code></td><td>Live events. Pass the token as <code>?token=</code>.</td></tr>
           </tbody>
         </table>
@@ -565,10 +637,10 @@ stream.<span class="t-f">close</span>();</code></pre></div>
     <section id="security">
       <h2><a href="#security">Security</a></h2>
       <ul>
-        <li><b>One admin token.</b> The dashboard, TUI, API, and WebSocket all require the admin token: <code>SOLOAGENT_TOKEN</code>, or the one generated on first boot. Treat it like a password. The dashboard keeps it in an HTTP-only session cookie.</li>
+        <li><b>The admin token and users.</b> The API, TUI, and WebSocket take the admin token: <code>SOLOAGENT_TOKEN</code>, or the one generated on first boot. Treat it like a password and <a href="#users">rotate it</a> if it leaks. People sign in to the dashboard with their own name and password and an admin or member <a href="#users">role</a>. Sessions live in an HTTP-only cookie.</li>
         <li><b>Sealed credentials.</b> Provider keys, OAuth tokens, connector tokens, and webhook secrets are encrypted at rest with AES-256-GCM, using a key derived from <code>SOLOAGENT_SECRET</code> or the secret generated in the data directory.</li>
         <li><b>Webhook secrets.</b> Each webhook connector has its own shared secret, sent in <code>x-solo-secret</code>. It grants only that connector's access.</li>
-        <li><b>Workspace is powerful.</b> The Workspace skill can run shell commands on your server with the server's permissions; its folder is a starting point, not a sandbox. Only enable it for agents that trusted people can reach, and remember that anyone who can message a connector can talk to any agent through it with <code>@handle</code>.</li>
+        <li><b>Workspace is powerful.</b> The Workspace skill can run shell commands on your server with the server's permissions; its folder is a starting point, not a sandbox. Chat apps can't reach such an agent unless you turn on its chat access; if you do, limit who can reach it with the connector's <a href="#access">access lists</a>.</li>
         <li><b>Your data stays with you.</b> Threads, memory, schedules, and credentials live in your data directory. Model calls go directly from your server to the providers you connect.</li>
       </ul>
       <p>Found a vulnerability? Please report it privately through <a href="https://github.com/nearbycoder/soloagent.dev/security" rel="noopener">GitHub security advisories</a>.</p>

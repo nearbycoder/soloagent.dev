@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, CircleCheck, CircleX, ExternalLink, KeyRound, LogIn, LogOut, Search, ShieldCheck, Sparkles } from "lucide-react";
 import type { LoginFlowState, ProviderInfo } from "@soloagent/client";
 import { client } from "../api/client.ts";
-import { loadProviders, setFlow, useApp } from "../api/store.ts";
+import { loadProviders, setFlow, useApp, useIsAdmin } from "../api/store.ts";
+import { AdminsOnly } from "./Team.tsx";
 import { ProviderMark } from "../components/brand.tsx";
 import { Modal } from "../components/overlay.tsx";
 import { Badge, Button, Card, CopyButton, CopyField, Input, Page, PageHeader, SectionHeader, Select, Skeleton, Spinner } from "../components/ui.tsx";
@@ -19,6 +20,11 @@ const SUBSCRIPTION_HINT: Record<string, string> = {
 };
 
 export function Providers() {
+  const isAdmin = useIsAdmin();
+  return isAdmin ? <ProvidersPage /> : <AdminsOnly what="providers" />;
+}
+
+function ProvidersPage() {
   const providers = useApp((s) => s.providers);
   const [query, setQuery] = useState("");
   const [flowId, setFlowId] = useState<string | null>(null);

@@ -1,11 +1,12 @@
-import type { Connector, ConnectorInput, ConnectorKind, ConnectorStatus } from "@soloagent/client";
+import type { Connector, ConnectorAccess, ConnectorInput, ConnectorKind, ConnectorLimits, ConnectorStatus } from "@soloagent/client";
 import { type Db, newId } from "../db.ts";
+import { cleanAccess, cleanLimits } from "../team.ts";
 import type { Sealer } from "../secrets.ts";
 import { DRIVERS, kindInfo } from "./kinds.ts";
 import type { ConnectorDriver, InboundMessage } from "./types.ts";
 
 type Row = { id: string; kind: ConnectorKind; data: string; secrets: string | null; created_at: number; updated_at: number };
-type Data = { name: string; enabled: boolean; agentId: string | null; config: Record<string, string> };
+type Data = { name: string; enabled: boolean; agentId: string | null; config: Record<string, string>; access?: ConnectorAccess; limits?: ConnectorLimits };
 
 export const SECRET_MASK = "••••••••";
 
@@ -56,7 +57,14 @@ export class ConnectorManager {
     const now = Date.now();
     const id = newId(input.kind.slice(0, 3));
     const { config, secrets } = this.#split(input.kind, input.config ?? {}, {});
-    const data: Data = { name: input.name?.trim() || info.name, enabled: input.enabled ?? true, agentId: input.agentId ?? null, config };
+    const data: Data = {
+      name: input.name?.trim() || info.name,
+      enabled: input.enabled ?? true,
+      agentId: input.agentId ?? null,
+      config,
+      access: cleanAccess(input.access),
+      limits: cleanLimits(input.limits),
+    };
     this.#db.run(
       "INSERT INTO connectors (id, kind, data, secrets, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
       id,
@@ -81,6 +89,8 @@ export class ConnectorManager {
       enabled: input.enabled ?? data.enabled,
       agentId: input.agentId === undefined ? data.agentId : input.agentId,
       config: { ...data.config, ...config },
+      access: cleanAccess(input.access, cleanAccess(data.access)),
+      limits: cleanLimits(input.limits, cleanLimits(data.limits)),
     };
     this.#db.run(
       "UPDATE connectors SET data = ?, secrets = ?, updated_at = ? WHERE id = ?",
@@ -220,6 +230,8 @@ export class ConnectorManager {
       status: status.status,
       statusDetail: status.detail,
       identity: status.identity,
+      access: cleanAccess(data.access),
+      limits: cleanLimits(data.limits),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

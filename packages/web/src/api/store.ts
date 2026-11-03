@@ -5,6 +5,7 @@ import type {
   Connector,
   ConnectorKindInfo,
   LoginFlowState,
+  Me,
   Overview,
   ProviderInfo,
   ServerEvent,
@@ -27,6 +28,8 @@ export type AppState = {
   overview: Overview | null;
   activity: ActivityItem[];
   flows: Record<string, LoginFlowState>;
+  /** Who is signed in (Teams). */
+  me: Me | null;
 };
 
 const initial = (): AppState => ({
@@ -40,6 +43,7 @@ const initial = (): AppState => ({
   overview: null,
   activity: [],
   flows: {},
+  me: null,
 });
 
 let state: AppState = initial();
@@ -200,9 +204,9 @@ function onEvent(event: ServerEvent) {
   }
 }
 
-export function startSession(version: string) {
+export function startSession(me: Me) {
   endSession();
-  state = { ...initial(), version };
+  state = { ...initial(), version: me.version, me };
   stream = client.connect();
   let wasLive = false;
   offStream = [
@@ -261,6 +265,11 @@ export const local = {
     onEvent({ type: "thread.deleted", threadId });
   },
 };
+
+/** Admins (the admin token, or a user with the admin role) manage agents, providers, connectors, and the team. */
+export function useIsAdmin(): boolean {
+  return useApp((s) => s.me?.actor.role === "admin");
+}
 
 export function agentById(id: string | null | undefined): Agent | undefined {
   return id ? state.agents?.find((a) => a.id === id) : undefined;
