@@ -8,10 +8,10 @@ const server = await startServer({ dataDir, port });
 const publicUrl = process.env.SOLOAGENT_PUBLIC_URL ?? (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : server.url);
 
 console.log(`
-  ✦ soloagent is up — ${publicUrl}
+  soloagent is up — ${publicUrl}
     data      ${dataDir}
     token     ${process.env.SOLOAGENT_TOKEN ? "(from SOLOAGENT_TOKEN)" : server.solo.adminToken}
-    terminal  npx soloagent --url ${publicUrl} --token <token>
+    terminal  soloagent connect ${publicUrl} --token <token>
 `);
 
 let closing = false;

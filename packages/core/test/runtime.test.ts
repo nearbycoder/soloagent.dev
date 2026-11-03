@@ -125,3 +125,21 @@ test("a scheduled reminder survives a restart and fires afterwards", async () =>
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("a changed SOLOAGENT_SECRET marks connectors as needing tokens instead of crashing", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "solo-test-"));
+  try {
+    const first = await SoloAgent.open({ dataDir: dir, secret: "one", adminToken: "t", connectors: false, demo: false, log: () => {} });
+    first.connectors.create({ kind: "webhook", enabled: true, config: { secret: "s3cret-value" } });
+    await new Promise((r) => setTimeout(r, 50));
+    await first.close();
+    const second = await SoloAgent.open({ dataDir: dir, secret: "two", adminToken: "t", demo: false, log: () => {} });
+    await new Promise((r) => setTimeout(r, 100));
+    const [hook] = second.connectors.list();
+    assert.equal(hook!.status, "error");
+    assert.match(hook!.statusDetail ?? "", /decrypt/);
+    await second.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

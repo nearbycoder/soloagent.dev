@@ -1,6 +1,5 @@
-// Shared behavior: copy buttons, scroll reveal, docs table-of-contents highlighting.
+// Shared behavior: copy buttons, tabs, docs table-of-contents highlighting.
 (() => {
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---- Copy to clipboard ----
   const copyText = async (text) => {
@@ -52,24 +51,29 @@
     }, 1600);
   });
 
-  // ---- Scroll reveal ----
-  const reveals = document.querySelectorAll(".reveal");
-  if (reduceMotion || !("IntersectionObserver" in window)) {
-    reveals.forEach((el) => el.classList.add("in"));
-  } else {
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("in");
-            io.unobserve(entry.target);
-          }
-        }
-      },
-      { rootMargin: "0px 0px -8% 0px", threshold: 0.08 },
-    );
-    reveals.forEach((el) => io.observe(el));
-  }
+  // ---- Tabs ----
+  document.querySelectorAll("[data-tabs]").forEach((root) => {
+    const tabs = [...root.querySelectorAll('[role="tab"]')];
+    const select = (tab) => {
+      for (const t of tabs) {
+        const on = t === tab;
+        t.setAttribute("aria-selected", String(on));
+        t.tabIndex = on ? 0 : -1;
+        document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+      }
+    };
+    root.addEventListener("click", (event) => {
+      const tab = event.target.closest('[role="tab"]');
+      if (tab) select(tab);
+    });
+    root.addEventListener("keydown", (event) => {
+      const i = tabs.indexOf(document.activeElement);
+      if (i < 0 || (event.key !== "ArrowRight" && event.key !== "ArrowLeft")) return;
+      const next = tabs[(i + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+      select(next);
+      next.focus();
+    });
+  });
 
   // ---- Docs: highlight the current section in the table of contents ----
   const toc = document.querySelector("[data-toc]");

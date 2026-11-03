@@ -1,13 +1,13 @@
 <!doctype html>
-<html lang="en" class="no-js">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Docs — soloagent</title>
   <meta name="description" content="Documentation for soloagent: getting started, deploying on Railway, providers and subscriptions, agents and skills, Slack/Discord/Telegram/webhook connectors, the terminal UI, the HTTP API and SDK, durability, and security.">
   <link rel="canonical" href="https://soloagent.dev/docs/">
-  <meta name="theme-color" content="#07070b" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#fbfbfd" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
@@ -26,42 +26,35 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/site.css">
   <link rel="stylesheet" href="/css/docs.css">
-  <script>document.documentElement.classList.replace("no-js", "js");</script>
 </head>
 <body>
 <a class="skip" href="#content">Skip to content</a>
-<div class="noise" aria-hidden="true"></div>
 
-<header class="nav">
+<header class="header">
   <div class="wrap">
-    <a class="brand" href="/" aria-label="soloagent home">
-      <img class="brand-mark" src="/icon.svg" alt="" width="28" height="28">
-      <span>soloagent</span>
-    </a>
-    <nav class="nav-links" aria-label="Primary">
-      <a class="opt" href="/#durable">Features</a>
-      <a class="opt" href="/#quickstart">Quickstart</a>
+    <a class="brand" href="/" aria-label="soloagent home"><img src="/icon.svg" alt="" width="22" height="22">soloagent</a>
+    <nav class="nav" aria-label="Primary">
+      <a href="/#durability">Durability</a>
+      <a href="/#channels">Channels</a>
+      <a href="/#developers">Developers</a>
+      <a href="/#self-host">Self-hosting</a>
       <a href="/docs/" aria-current="page">Docs</a>
     </nav>
-    <div class="nav-right">
-      <a class="btn btn-sm" href="https://github.com/nearbycoder/soloagent.dev" rel="noopener">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>
-        <span>GitHub</span>
-      </a>
-      <a class="btn btn-sm btn-primary btn-deploy-sm" href="/deploy">Deploy</a>
+    <div class="header-actions">
+      <a class="btn btn-ghost btn-sm" href="https://github.com/nearbycoder/soloagent.dev" rel="noopener">GitHub</a>
+      <a class="btn btn-primary btn-sm" href="/deploy">Deploy</a>
     </div>
   </div>
 </header>
 
 <div class="docs-hero">
-  <div class="bg-grid" aria-hidden="true"></div>
   <div class="wrap">
-    <span class="eyebrow">Documentation</span>
-    <h1>soloagent docs</h1>
-    <p class="lede">Everything you need to run durable agents on your own server and talk to them from chat apps, the web, and the terminal.</p>
+    <p class="crumb"><a href="/">soloagent</a> / Documentation</p>
+    <h1>Documentation</h1>
+    <p class="lede">Install soloagent, connect models and chat platforms, and integrate with the HTTP API.</p>
   </div>
 </div>
 
@@ -112,8 +105,12 @@
     <!-- ========== GETTING STARTED ========== -->
     <section id="getting-started">
       <h2><a href="#getting-started">Getting started</a></h2>
-      <p>soloagent needs <b>Node 22 or newer</b>. The fastest way to try it is the terminal UI, which starts an embedded local server for you:</p>
-      <div class="code code-float"><button class="copy" type="button">copy</button><pre><code><span class="cmd">npx soloagent</span></code></pre></div>
+      <p>soloagent needs <b>Node 22.19 or newer</b>. Clone the repository, install dependencies, and link the <code>soloagent</code> command. The terminal UI starts an embedded local server for you, with its data in <code>~/.soloagent</code>:</p>
+      <div class="code code-float"><button class="copy" type="button">copy</button><pre><code><span class="cmd">git clone https://github.com/nearbycoder/soloagent.dev</span>
+<span class="cmd">cd soloagent.dev</span>
+<span class="cmd">npm install && npm link -w @soloagent/cli</span>
+<span class="cmd">soloagent</span></code></pre></div>
+      <p>To use the web dashboard locally, run <code>npm run build</code> once and then <code>soloagent serve</code>. It listens on <code>http://localhost:7420</code> and prints the admin token on start.</p>
       <p>A fresh install has one agent and the built-in <b>demo model</b>, so you can look around without any account. The demo model only echoes and explains; it's there so the whole product works before you connect a real model.</p>
 
       <h3>Connect a real model</h3>
@@ -173,10 +170,10 @@
         <li>
           <h4>Find the token in the logs</h4>
           <p>After the deploy, open the service logs. soloagent prints a banner with its URL and token:</p>
-          <div class="code"><div class="code-head"><span>deploy logs</span></div><pre><code>  <span class="t-k">✦</span> soloagent is up — https://solo-production.up.railway.app
+          <div class="code"><div class="code-head"><span>deploy logs</span></div><pre><code>  soloagent is up — https://solo-production.up.railway.app
     data      /data
     token     solo_••••••••••••••••••••••••
-    terminal  npx soloagent --url https://solo-production.up.railway.app --token &lt;token&gt;</code></pre></div>
+    terminal  soloagent connect https://solo-production.up.railway.app --token &lt;token&gt;</code></pre></div>
           <p>If you set <code>SOLOAGENT_TOKEN</code>, the log says <code>(from SOLOAGENT_TOKEN)</code> instead of printing it.</p>
         </li>
         <li>
@@ -365,7 +362,7 @@ settings:
     <!-- ========== TUI ========== -->
     <section id="tui">
       <h2><a href="#tui">Terminal UI</a></h2>
-      <p><code>npx soloagent</code> opens a full-screen terminal UI built on <code>pi-tui</code>. With no arguments it runs an embedded local server; with <code>soloagent connect &lt;url&gt; --token …</code> it talks to a remote one. It streams answers live and shows tool calls as they run.</p>
+      <p><code>soloagent</code> opens a full-screen terminal UI built on <code>pi-tui</code>. With no arguments it runs an embedded local server; with <code>soloagent connect &lt;url&gt; --token …</code> it talks to a remote one. It streams answers live and shows tool calls as they run.</p>
       <h3>Keybindings</h3>
       <div class="table-wrap">
         <table class="keys">
@@ -507,9 +504,9 @@ stream.<span class="t-f">close</span>();</code></pre></div>
 
 <footer class="footer">
   <div class="wrap">
-    <div class="footer-bottom" style="margin-top:0;border-top:0;padding-top:0">
-      <a class="brand" href="/"><img class="brand-mark" src="/icon.svg" alt="" width="24" height="24"><span>soloagent</span></a>
-      <span>© 2026 soloagent contributors · <a href="https://github.com/nearbycoder/soloagent.dev" rel="noopener">GitHub</a> · MIT</span>
+    <div class="footer-base" style="margin-top:0;border-top:0;padding-top:0">
+      <span>© 2026 soloagent contributors · MIT license</span>
+      <span><a href="https://github.com/nearbycoder/soloagent.dev" rel="noopener">GitHub</a> · <a href="https://github.com/nearbycoder/soloagent.dev/issues" rel="noopener">Report an issue</a></span>
     </div>
   </div>
 </footer>

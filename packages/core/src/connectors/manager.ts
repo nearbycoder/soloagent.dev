@@ -47,8 +47,7 @@ export class ConnectorManager {
     const row = this.#row(id);
     if (!row) return {};
     const data = JSON.parse(row.data) as Data;
-    const secrets = row.secrets ? (JSON.parse(this.#sealer.open(row.secrets)) as Record<string, string>) : {};
-    return { ...data.config, ...secrets };
+    return { ...data.config, ...this.#secrets(row) };
   }
 
   create(input: ConnectorInput): Connector {
@@ -75,7 +74,7 @@ export class ConnectorManager {
     const row = this.#row(id);
     if (!row) throw new Error("Connector not found");
     const data = JSON.parse(row.data) as Data;
-    const currentSecrets = row.secrets ? (JSON.parse(this.#sealer.open(row.secrets)) as Record<string, string>) : {};
+    const currentSecrets = this.#secrets(row);
     const { config, secrets } = input.config ? this.#split(row.kind, input.config, currentSecrets) : { config: data.config, secrets: currentSecrets };
     const next: Data = {
       name: input.name?.trim() || data.name,
@@ -106,7 +105,7 @@ export class ConnectorManager {
   }
 
   async startAll() {
-    await Promise.all(this.list().filter((c) => c.enabled).map((c) => this.restart(c.id)));
+    await Promise.all(this.list().filter((c) => c.enabled).map((c) => this.restart(c.id).catch((error) => this.#setStatus(c.id, "error", String(error)))));
   }
 
   async stopAll() {
@@ -123,7 +122,15 @@ export class ConnectorManager {
     }
     const missing = kindInfo(connector.kind)!.fields.filter((f) => !f.optional && !this.config(id)[f.key]);
     if (missing.length) {
-      this.#setStatus(id, "error", `Missing ${missing.map((f) => f.label).join(", ")}`);
+      const row = this.#row(id);
+      const unreadable = row?.secrets && Object.keys(this.#secrets(row)).length === 0 && row.secrets.length > 60;
+      this.#setStatus(
+        id,
+        "error",
+        unreadable
+          ? "Saved tokens can't be decrypted (SOLOAGENT_SECRET changed?). Enter them again."
+          : `Missing ${missing.map((f) => f.label).join(", ")}`,
+      );
       return this.get(id);
     }
     this.#setStatus(id, "starting");
@@ -182,6 +189,16 @@ export class ConnectorManager {
     return { config, secrets };
   }
 
+  /** Sealed secrets, or {} when they were sealed with another SOLOAGENT_SECRET (the user re-enters them). */
+  #secrets(row: Row): Record<string, string> {
+    if (!row.secrets) return {};
+    try {
+      return JSON.parse(this.#sealer.open(row.secrets)) as Record<string, string>;
+    } catch {
+      return {};
+    }
+  }
+
   #row(id: string): Row | undefined {
     return this.#db.get<Row>("SELECT * FROM connectors WHERE id = ?", id);
   }
@@ -189,12 +206,7 @@ export class ConnectorManager {
   #public(row: Row): Connector {
     const data = JSON.parse(row.data) as Data;
     const info = kindInfo(row.kind);
-    let secrets: Record<string, string> = {};
-    try {
-      secrets = row.secrets ? (JSON.parse(this.#sealer.open(row.secrets)) as Record<string, string>) : {};
-    } catch {
-      secrets = {};
-    }
+    const secrets = this.#secrets(row);
     const config: Record<string, string> = { ...data.config };
     for (const field of info?.fields ?? []) if (field.secret && secrets[field.key]) config[field.key] = SECRET_MASK;
     const status = this.#status.get(row.id) ?? { status: "stopped" as const };
