@@ -205,6 +205,7 @@ npm run dev:web      # Vite dev server for the GUI (proxies /api)
 npm test             # end-to-end runtime tests on Pi's faux provider
 npm run typecheck
 npm run build:npm    # bundle the publishable `soloagent` package into dist/npm
+# soloagent.dev deploys from site/ on Vercel automatically when a push to main changes it
 git tag v0.x.y && git push --tags   # CI builds the release tarball, Docker image, and (with NPM_TOKEN) publishes to npm
 ```
 

@@ -1,4 +1,5 @@
-// Fingerprints site CSS/JS and icon references (?v=<content hash>) so a new page never loads stale assets.
+// Fingerprints site CSS/JS, image, and icon references (?v=<content hash>) so a new page never loads stale assets.
+// Vercel runs this as the site's build step on every push that touches site/ (root directory: site).
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
