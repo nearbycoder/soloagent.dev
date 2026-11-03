@@ -137,6 +137,29 @@ export function toLive(docs: Readonly<Record<string, unknown>>): LiveState {
   };
 }
 
+/**
+ * One plain line from a markdown answer, for thread previews and the activity feed: no code, tables, headings,
+ * emphasis, or link syntax.
+ */
+export function plainPreview(markdown: string, max = 140): string {
+  const text = markdown
+    .replace(/```[\s\S]*?(```|$)/g, " ")
+    .split("\n")
+    .filter((line) => !/^\s*\|?\s*:?-{3,}/.test(line))
+    .map((line) => (/^\s*\|/.test(line) ? line.replace(/\|/g, " ") : line))
+    .join(" ")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/(^|\s)#{1,6}\s+/g, "$1")
+    .replace(/(^|\s)>\s+/g, "$1")
+    .replace(/(\*\*|\*|`)(\S(?:.*?\S)?)\1/g, "$2")
+    // Underscore emphasis only at word edges, so snake_case names survive.
+    .replace(/(^|\s)(__|_)(\S(?:.*?\S)?)\2(?=\s|[.,!?;:]|$)/g, "$1$3")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+}
+
 export function sourceLabel(source: Source): string {
   return { web: "Web", tui: "Terminal", api: "API", slack: "Slack", discord: "Discord", telegram: "Telegram", webhook: "Webhook", schedule: "Schedule", agent: "Agent" }[source];
 }

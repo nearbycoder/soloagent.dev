@@ -89,7 +89,11 @@ export function Automations({ editId }: { editId?: string }) {
           <EmptyState
             icon={<Repeat />}
             title="No automations yet"
-            description="Create one here, or ask an agent with the Schedule skill: “every weekday at 9 post the open incidents here”."
+            description={
+              isAdmin
+                ? "Create one here, or ask an agent with the Schedule skill: “every weekday at 9 post the open incidents here”."
+                : "Ask an agent with the Schedule skill, for example “every weekday at 9 post the open incidents here”, or ask an admin to set one up."
+            }
             action={
               isAdmin && (
                 <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => navigate("/automations/new")}>

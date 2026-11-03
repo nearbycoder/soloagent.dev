@@ -13,6 +13,7 @@ import { cn } from "../lib/cn.ts";
 import { contextWindow, cost, fullDate, perMillion, pluralize, shortTime, slugify } from "../lib/format.ts";
 import { linkHandler, navigate } from "../lib/router.ts";
 import { confirm, toast } from "../lib/toast.ts";
+import { shortcut } from "../lib/keys.ts";
 
 export const GLYPHS = ["●", "◆", "✦", "▲", "■", "★", "⚡", "λ", "∞", "§", "☾", "☀", "✿", "⌘", "♪", "❖"];
 export const EMOJI = ["🤖", "🧠", "🦊", "🐙", "🦉", "🚀", "🔮", "🧪", "📚", "🛠️", "🎨", "💼", "🧭", "🌱", "🐝", "🍀"];
@@ -798,7 +799,7 @@ function MemoryPanel({ agent, readOnly }: { agent: Agent; readOnly: boolean }) {
           className="text-[13px]"
         />
         <div className="flex items-center justify-end gap-2">
-          <span className="mr-auto text-[11.5px] text-faint">⌘↵ to add</span>
+          <span className="mr-auto text-[11.5px] text-faint [@media(pointer:coarse)]:invisible">{shortcut("↵")} to add</span>
           <Button size="sm" variant="primary" loading={adding} disabled={!draft.trim()} icon={<Plus className="size-3.5" />} onClick={add}>
             Add memory
           </Button>

@@ -20,7 +20,8 @@ import {
   X,
 } from "lucide-react";
 import type { Agent, Approval, Attachment, LiveState, Message, ToolCallInfo } from "@soloagent/client";
-import { ApprovalWaiting } from "../../components/ApprovalActions.tsx";
+import { explainError } from "@soloagent/client";
+import { approvalArgs, ApprovalWaiting } from "../../components/ApprovalActions.tsx";
 import { AgentAvatar, SourceBadge } from "../../components/brand.tsx";
 import { Markdown } from "../../components/Markdown.tsx";
 import { CopyButton } from "../../components/ui.tsx";
@@ -213,6 +214,8 @@ export const AssistantMessageView = memo(function AssistantMessageView({
   results,
   live,
   thinkingMs,
+  repeats = 1,
+  onRetry,
 }: {
   message: AssistantMessage;
   agent: Agent | undefined;
@@ -220,6 +223,10 @@ export const AssistantMessageView = memo(function AssistantMessageView({
   results: Map<string, ToolMessage>;
   live: LiveState;
   thinkingMs?: number;
+  /** The same error, this many times in a row (provider retries), shown once. */
+  repeats?: number;
+  /** Offered on the thread's last message when it failed: sends the last request again. */
+  onRetry?: () => void;
 }) {
   return (
     <AssistantRow agent={agent} head={head} header={<AssistantHeader agent={agent} model={message.model} at={message.at} extra={<UsageHint message={message} />} />}>
@@ -247,14 +254,7 @@ export const AssistantMessageView = memo(function AssistantMessageView({
       {message.stopReason === "aborted" ? (
         <StoppedNote />
       ) : (
-        message.error && (
-          <div className="mt-2 flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-[13px] text-danger">
-            <CircleAlert className="mt-0.5 size-4 shrink-0" />
-            <span className="min-w-0 break-words" title={message.error}>
-              {friendlyError(message.error)}
-            </span>
-          </div>
-        )
+        message.error && <ErrorBox error={message.error} repeats={repeats} onRetry={onRetry} />
       )}
       {message.text && (
         <div className="mt-1 flex h-6 items-center gap-0.5 opacity-0 transition-opacity group-hover/msg:opacity-100">
@@ -357,6 +357,39 @@ function friendlyError(text: string): string {
   }
 }
 
+function ErrorBox({ error, repeats, onRetry }: { error: string; repeats: number; onRetry?: () => void }) {
+  const explained = explainError(error);
+  const detail = friendlyError(error);
+  return (
+    <div className="mt-2 flex items-start gap-2.5 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2.5 text-[13px]">
+      <CircleAlert className="mt-0.5 size-4 shrink-0 text-danger" />
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-danger">{explained ?? detail}</p>
+        {explained && (
+          <p className="mt-0.5 break-words font-mono text-[11.5px] leading-relaxed text-muted" title={error}>
+            {detail}
+          </p>
+        )}
+        {(repeats > 1 || onRetry) && (
+          <div className="mt-2 flex items-center gap-3">
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-danger/30 bg-surface px-2.5 text-[12px] font-medium text-fg transition-colors hover:bg-surface-2"
+              >
+                <RotateCcw className="size-3.5" />
+                Try again
+              </button>
+            )}
+            {repeats > 1 && <span className="text-[12px] text-subtle">Failed {repeats} times in a row</span>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function StoppedNote({ className }: { className?: string }) {
   return (
     <p className={cn("mt-1.5 flex items-center gap-1.5 text-[12px] text-subtle", className)}>
@@ -379,7 +412,7 @@ export function FailureNotice({ failure }: { failure: NonNullable<LiveState["fai
     <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-danger/25 bg-danger-soft px-3.5 py-2.5 text-[13px]">
       <CircleAlert className="mt-0.5 size-4 shrink-0 text-danger" />
       <div className="min-w-0">
-        <p className="font-medium text-danger">{humanizeReason(failure.reason)}</p>
+        <p className="font-medium text-danger">{(failure.detail && explainError(failure.detail)) ?? humanizeReason(failure.reason)}</p>
         {failure.detail && (
           <p className="mt-0.5 whitespace-pre-wrap break-words text-[12.5px] text-muted" title={failure.detail}>
             {friendlyError(failure.detail)}
@@ -527,7 +560,10 @@ export function ToolCard({
         <ChevronRight className={cn("size-3.5 shrink-0 text-faint transition-transform", open && "rotate-90")} />
       </button>
       {waiting && !open && args && (
-        <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words border-t border-border bg-code px-3 py-2 font-mono text-[12px] leading-relaxed text-muted">{args}</pre>
+        <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words border-t border-border bg-code px-3 py-2 font-mono text-[12px] leading-relaxed text-muted">
+          {call.name === "bash" && <span className="select-none text-faint">$ </span>}
+          {approvalArgs({ tool: call.name, args: call.args })}
+        </pre>
       )}
       {waiting && approval && <ApprovalWaiting approval={approval} />}
       {open && (

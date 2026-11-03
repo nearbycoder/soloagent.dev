@@ -333,7 +333,7 @@ export function PageHeader({ title, description, actions, icon }: { title: React
   return (
     <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
-        <h1 className="font-display flex items-center gap-2.5 text-[26px] font-semibold text-fg">
+        <h1 className="font-display flex items-center gap-2.5 text-balance text-[26px] font-semibold text-fg">
           {icon}
           {title}
         </h1>

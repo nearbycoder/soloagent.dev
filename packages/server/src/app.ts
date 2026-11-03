@@ -387,11 +387,13 @@ export function createApp({ solo, webDir, updates: updateChecker }: AppOptions) 
     const actor = actorOf(c);
     return actor.kind === "user" ? actor.name : by?.trim() || "admin";
   };
-  api.post("/approvals/:id/approve", async (c) => {
+  // Deciding runs (or blocks) a tool on the server, so it is an admin's call in the dashboard and API. Chat apps use
+  // each connection's approver list.
+  api.post("/approvals/:id/approve", adminOnly, async (c) => {
     const body = await decisionBody(c);
     return c.json(solo.decideApproval(c.req.param("id"), { approve: true, by: decider(c, body.by), via: body.via === "tui" || body.via === "api" ? body.via : "dashboard" }));
   });
-  api.post("/approvals/:id/deny", async (c) => {
+  api.post("/approvals/:id/deny", adminOnly, async (c) => {
     const body = await decisionBody(c);
     return c.json(
       solo.decideApproval(c.req.param("id"), { approve: false, by: decider(c, body.by), reason: body.reason, via: body.via === "tui" || body.via === "api" ? body.via : "dashboard" }),

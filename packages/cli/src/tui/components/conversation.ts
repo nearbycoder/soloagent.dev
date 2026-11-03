@@ -12,6 +12,7 @@ import {
   visibleWidth,
 } from "@earendil-works/pi-tui";
 import type { Agent, LiveState, Message, ToolCallInfo } from "@soloagent/client";
+import { explainError } from "@soloagent/client";
 import { bytes, clock, oneLine, SOURCE_LABEL, sourceIcon, summarizeArgs, words } from "../format.ts";
 import type { AssistantMessage, EventMessage, Notice, Pending, ToolMessage, UserMessage, ViewModel } from "../model.ts";
 import { agentColor, bold, c, italic, markdownTheme, spinnerFrame, thinkingMarkdownTheme } from "../theme.ts";
@@ -129,6 +130,8 @@ class AssistantBlock implements Component {
   message: AssistantMessage;
   results: Map<string, ToolMessage>;
   showHeader = true;
+  /** The same error this many times in a row; set by the conversation. */
+  repeats = 1;
   #md = new MarkdownCache();
   #thinking = new MarkdownCache(true);
   #rows = new Map<number, string>();
@@ -156,8 +159,15 @@ class AssistantBlock implements Component {
     }
     if (m.text.trim()) lines.push(...this.#md.render(m.text, inner).map((l) => INDENT + l));
     if (m.error) {
-      const stopped = m.stopReason === "aborted";
-      lines.push(...wrapWith(stopped ? "◼ Stopped" : `✗ ${sanitize(m.error)}`, width, INDENT, stopped ? c.dim : c.red));
+      if (m.stopReason === "aborted") lines.push(...wrapWith("◼ Stopped", width, INDENT, c.dim));
+      else {
+        const explained = explainError(m.error);
+        const times = this.repeats > 1 ? ` (failed ${this.repeats} times in a row)` : "";
+        if (explained) {
+          lines.push(...wrapWith(`✗ ${explained}${times}`, width, INDENT, c.red));
+          lines.push(...wrapWith(sanitize(m.error), width, `${INDENT}  `, c.dim));
+        } else lines.push(...wrapWith(`✗ ${sanitize(m.error)}${times}`, width, INDENT, c.red));
+      }
     }
     for (const call of m.toolCalls) {
       this.#rows.set(lines.length, call.id);
@@ -359,7 +369,10 @@ class LiveBlock implements Component {
     }
     if (live.retry) lines.push(...wrapWith(`↻ Retrying: ${oneLine(live.retry.error)}`, width, INDENT, c.yellow));
     // A run the user stopped already shows "◼ Stopped" on its message.
-    if (!live.busy && live.failure && !/abort|stop|cancel/i.test(live.failure.reason)) {
+    // Skip it when the last message already shows the same error.
+    const lastError = lastAssistant(vm.state.messages)?.error;
+    const shown = !!lastError && !!live.failure?.detail && (live.failure.detail.includes(lastError) || lastError.includes(live.failure.detail));
+    if (!live.busy && live.failure && !shown && !/abort|stop|cancel/i.test(live.failure.reason)) {
       lines.push(...wrapWith(`✗ Run failed: ${live.failure.reason}${live.failure.detail ? ` — ${oneLine(live.failure.detail)}` : ""}`, width, INDENT, c.red));
     }
     return fitAll(lines, width);
@@ -449,9 +462,19 @@ export class Conversation extends Container {
       const trailing = vm.pending.length ? (notices.get(lastId) ?? []) : [];
       if (vm.pending.length) notices.delete(lastId);
       let previous: Message | undefined;
+      // Provider retries leave the same error several times in a row: show it once, with a count.
+      const errorOnly = (m: Message | undefined) => (m?.kind === "assistant" && m.error && !m.text.trim() && m.toolCalls.length === 0 && m.stopReason !== "aborted" ? m.error : undefined);
+      let lastErrorBlock: AssistantBlock | undefined;
       for (const m of messages) {
         if (m.kind === "tool" && calls.has(m.callId)) continue;
+        const error = errorOnly(m);
+        if (error && lastErrorBlock && errorOnly(previous) === error) {
+          lastErrorBlock.repeats++;
+          continue;
+        }
         const block = this.#block(m, results);
+        lastErrorBlock = error && block instanceof AssistantBlock ? block : undefined;
+        if (lastErrorBlock) lastErrorBlock.repeats = 1;
         if (block instanceof AssistantBlock) block.showHeader = previous?.kind !== "assistant" || previous.agentId !== block.message.agentId;
         add(block);
         previous = m;

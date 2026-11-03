@@ -31,6 +31,7 @@ import { Dot, Kbd, Spinner } from "./ui.tsx";
 import { UpdateNotice } from "./UpdateNotice.tsx";
 import { Overview } from "../pages/Overview.tsx";
 import { Chat } from "../pages/chat/Chat.tsx";
+import { shortcut } from "../lib/keys.ts";
 
 const Agents = lazy(() => import("../pages/Agents.tsx").then((m) => ({ default: m.Agents })));
 const Providers = lazy(() => import("../pages/Providers.tsx").then((m) => ({ default: m.Providers })));
@@ -158,6 +159,7 @@ export function Shell({ onSignOut }: { onSignOut: () => void }) {
           </button>
         </header>
 
+        <OfflineBanner />
         <main className="min-h-0 flex-1">
           <Suspense
             fallback={
@@ -240,7 +242,7 @@ function SidebarContent({
             <button
               type="button"
               aria-label="Collapse sidebar"
-              title="Collapse sidebar (⌘\)"
+              title={`Collapse sidebar (${shortcut("\\")})`}
               onClick={onToggleCollapse}
               className="grid size-8 place-items-center rounded-md text-faint hover:bg-surface-2 hover:text-fg"
             >
@@ -268,7 +270,7 @@ function SidebarContent({
         <button
           type="button"
           onClick={onSearch}
-          title={collapsed ? "Search (⌘K)" : undefined}
+          title={collapsed ? `Search (${shortcut("K")})` : undefined}
           className={cn(
             "flex h-8 items-center gap-2 rounded-lg text-[13px] text-subtle transition-colors hover:bg-surface-2 hover:text-fg",
             collapsed ? "w-full justify-center" : "px-2.5",
@@ -278,7 +280,7 @@ function SidebarContent({
           {!collapsed && (
             <>
               <span className="flex-1 text-left">Search</span>
-              <Kbd>⌘K</Kbd>
+              <Kbd className="[@media(pointer:coarse)]:hidden">{shortcut("K")}</Kbd>
             </>
           )}
         </button>
@@ -289,6 +291,12 @@ function SidebarContent({
           const active = route.page === item.page;
           const badge =
             item.page === "chat" && busy > 0 ? busy : item.page === "connections" && connectorErrors > 0 ? connectorErrors : item.page === "approvals" ? approvals : 0;
+          const badgeLabel =
+            item.page === "chat"
+              ? `${badge} ${badge === 1 ? "thread" : "threads"} working`
+              : item.page === "approvals"
+                ? `${badge} waiting for approval`
+                : `${badge} ${badge === 1 ? "connection has" : "connections have"} an error`;
           return (
             <a
               key={item.page}
@@ -306,9 +314,11 @@ function SidebarContent({
               {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
               {badge > 0 &&
                 (collapsed ? (
-                  <span className={cn("absolute right-1.5 top-1.5 size-1.5 rounded-full", item.page === "chat" ? "bg-accent-text" : item.page === "approvals" ? "bg-warning" : "bg-danger")} />
+                  <span title={badgeLabel} aria-label={badgeLabel} className={cn("absolute right-1.5 top-1.5 size-1.5 rounded-full", item.page === "chat" ? "bg-accent-text" : item.page === "approvals" ? "bg-warning" : "bg-danger")} />
                 ) : (
                   <span
+                    title={badgeLabel}
+                    aria-label={badgeLabel}
                     className={cn(
                       "grid h-4.5 min-w-4.5 place-items-center rounded-full px-1 text-[10.5px] font-semibold tabular-nums",
                       item.page === "chat" ? "bg-accent-soft text-accent-text" : item.page === "approvals" ? "bg-warning-soft text-warning" : "bg-danger-soft text-danger",
@@ -364,7 +374,7 @@ function SidebarContent({
             <button
               type="button"
               aria-label="Expand sidebar"
-              title="Expand sidebar (⌘\)"
+              title={`Expand sidebar (${shortcut("\\")})`}
               onClick={onToggleCollapse}
               className="grid size-7 place-items-center rounded-md text-subtle hover:bg-surface-2 hover:text-fg"
             >
@@ -373,6 +383,29 @@ function SidebarContent({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * A clear, full-width notice when the live connection has been down for a few seconds. Brief blips (a deploy, a
+ * laptop waking up) reconnect before it shows.
+ */
+function OfflineBanner() {
+  const status = useApp((s) => s.status);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    if (status !== "reconnecting") return setShow(false);
+    const timer = setTimeout(() => setShow(true), 3000);
+    return () => clearTimeout(timer);
+  }, [status]);
+  if (!show) return null;
+  return (
+    <div role="status" className="flex shrink-0 items-center justify-center gap-2 border-b border-warning/30 bg-warning-soft px-4 py-1.5 text-center text-[12.5px] text-warning">
+      <Spinner className="size-3.5" />
+      <span>
+        <span className="font-medium">Can't reach the server.</span> Reconnecting — what you type is kept, but nothing sends until it's back.
+      </span>
     </div>
   );
 }

@@ -23,6 +23,8 @@ export const client = new AppClient({ baseUrl: "" });
 
 export function errorMessage(error: unknown): string {
   if (error instanceof SoloApiError) return error.message;
+  // fetch() rejects with browser-specific wording ("Failed to fetch", "Load failed", "NetworkError…") when the server is unreachable.
+  if (error instanceof TypeError && /fetch|load failed|network/i.test(error.message)) return "Can't reach the server. Check that soloagent is running, then try again.";
   if (error instanceof Error) return error.message;
   return String(error);
 }

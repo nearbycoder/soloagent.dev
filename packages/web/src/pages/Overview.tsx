@@ -77,7 +77,7 @@ export function Overview() {
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[13px] font-medium text-subtle">{greeting()}</p>
-          <h1 className="font-display mt-1 text-[30px] font-semibold text-fg">Your agents at a glance</h1>
+          <h1 className="font-display mt-1 text-balance text-[30px] font-semibold text-fg">Your agents at a glance</h1>
         </div>
         <div className="flex gap-2">
           {isAdmin && (
@@ -99,7 +99,7 @@ export function Overview() {
           label="Connections"
           value={overview ? `${overview.connectorsConnected}/${overview.connectorsTotal}` : null}
           icon={<Plug />}
-          to="/connections"
+          to={isAdmin ? "/connections" : undefined}
           sub={overview ? (overview.connectorsTotal === 0 ? "none yet" : overview.connectorsConnected === overview.connectorsTotal ? "all connected" : "some offline") : undefined}
           tone={overview && overview.connectorsTotal > 0 && overview.connectorsConnected < overview.connectorsTotal ? "warning" : undefined}
         />
@@ -107,7 +107,7 @@ export function Overview() {
           label="Providers"
           value={providers ? num(realProviders) : null}
           icon={<KeyRound />}
-          to="/providers"
+          to={isAdmin ? "/providers" : undefined}
           sub={providers && realProviders === 0 ? "demo model only" : "connected"}
         />
         <Stat label="Messages today" value={overview ? num(overview.messagesToday) : null} icon={<MessageSquare />} to="/activity" />
@@ -225,12 +225,16 @@ export function LiveDot() {
   );
 }
 
-function Stat({ label, value, icon, sub, to, tone }: { label: string; value: string | null; icon: ReactNode; sub?: string; to: string; tone?: "warning" }) {
+/** A number tile. With `to` it links to the page behind it; without (pages a member can't open) it's static. */
+function Stat({ label, value, icon, sub, to, tone }: { label: string; value: string | null; icon: ReactNode; sub?: string; to?: string; tone?: "warning" }) {
+  const Tag = to ? "a" : "div";
   return (
-    <a
-      href={to}
-      onClick={linkHandler(to)}
-      className="group relative flex flex-col rounded-xl border border-border bg-surface p-4 shadow-sm transition-[border-color,box-shadow] duration-200 hover:border-border-strong hover:shadow-md"
+    <Tag
+      {...(to ? { href: to, onClick: linkHandler(to) } : {})}
+      className={cn(
+        "group relative flex flex-col rounded-xl border border-border bg-surface p-4 shadow-sm",
+        to && "transition-[border-color,box-shadow] duration-200 hover:border-border-strong hover:shadow-md",
+      )}
     >
       <div className="flex items-center justify-between">
         <span className="text-[12.5px] font-medium text-subtle">{label}</span>
@@ -242,7 +246,7 @@ function Stat({ label, value, icon, sub, to, tone }: { label: string; value: str
         <span className={cn("mt-2 text-[24px] font-semibold tabular-nums tracking-[-0.02em]", tone === "warning" ? "text-warning" : "text-fg")}>{value}</span>
       )}
       <span className="mt-0.5 h-4 truncate text-[12px] text-faint">{sub}</span>
-    </a>
+    </Tag>
   );
 }
 

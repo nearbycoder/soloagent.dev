@@ -413,7 +413,7 @@
       <p>When a call is denied, the agent gets an error result such as <code>Denied by ann: not on prod</code> and carries on, usually by explaining or trying another way. Stopping the run cancels the request.</p>
       <h3>Where to approve</h3>
       <ul>
-        <li><b>Dashboard.</b> The tool card in the thread shows <i>Waiting for approval</i> with the arguments and <b>Approve</b> / <b>Deny</b> buttons. Deny takes an optional reason, which the agent sees. The <b>Approvals</b> page lists every waiting request across threads, with a count in the sidebar, and the recent decisions.</li>
+        <li><b>Dashboard.</b> The tool card in the thread shows <i>Waiting for approval</i> with the arguments and <b>Approve</b> / <b>Deny</b> buttons. Deny takes an optional reason, which the agent sees. Deciding is for admins; members see the request and who it waits on. The <b>Approvals</b> page lists every waiting request across threads, with a count in the sidebar, and the recent decisions.</li>
         <li><b>Chat apps.</b> In Slack, Discord, and Telegram threads, the agent posts a message with <b>Approve</b> and <b>Deny</b> buttons. Once someone decides, the message changes to show the outcome and who decided.</li>
         <li><b>TUI.</b> The tool line shows <i>waiting for approval</i>. <code>/approve</code> approves the current thread's waiting call; <code>/deny [reason]</code> denies it.</li>
         <li><b>API.</b> <code>GET /api/approvals?status=pending</code>, then <code>POST /api/approvals/:id/approve</code> or <code>POST /api/approvals/:id/deny</code> with <code>{ "reason": "…" }</code>. Both take an optional <code>by</code>, the name recorded as the decider (default <code>dashboard</code>).</li>
@@ -596,7 +596,7 @@ settings:
             <thead><tr><th>Role</th><th>Can</th></tr></thead>
             <tbody>
               <tr><td>Member</td><td>Chat, view agents and conversations, see usage and activity.</td></tr>
-              <tr><td>Admin</td><td>Everything a member can, plus manage providers, connectors, agents, the team, and the admin token.</td></tr>
+              <tr><td>Admin</td><td>Everything a member can, plus approve or deny tool calls, and manage providers, connectors, MCP servers, agents, automations, the team, and the admin token.</td></tr>
             </tbody>
           </table>
         </div>

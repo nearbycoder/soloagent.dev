@@ -72,7 +72,7 @@ export function Team() {
     <Page narrow>
       <PageHeader
         title="Team"
-        description="People who can sign in to this dashboard. Admins manage agents, providers, connections, and the team. Members chat, view agents, and see usage."
+        description="People who can sign in to this dashboard. Admins approve tool calls and manage agents, providers, connections, and the team. Members chat, view agents, and see usage."
       />
 
       <InviteForm onCreated={(created) => setInvites((list) => [created.invite, ...(list ?? [])])} />
@@ -192,7 +192,7 @@ function InviteForm({ onCreated }: { onCreated: (created: CreatedInvite) => void
               onChange={setRole}
               options={[
                 { value: "member", label: "Member", title: "Chat, view agents, see usage" },
-                { value: "admin", label: "Admin", title: "Also manage agents, providers, connections, and the team" },
+                { value: "admin", label: "Admin", title: "Also approve tool calls and manage agents, providers, connections, and the team" },
               ]}
             />
           </Field>

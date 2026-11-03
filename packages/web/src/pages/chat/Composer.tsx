@@ -8,6 +8,7 @@ import { Kbd } from "../../components/ui.tsx";
 import { cn } from "../../lib/cn.ts";
 import { fileSize, MAX_FILE_BYTES, MAX_FILES, PREVIEWABLE } from "../../lib/files.ts";
 import { toast } from "../../lib/toast.ts";
+import { ALT, shortcut } from "../../lib/keys.ts";
 
 type Pending = { id: number; file: File; preview?: string };
 let pendingId = 0;
@@ -18,6 +19,7 @@ export function Composer({
   draftKey,
   agent,
   busy,
+  waiting,
   queued,
   disabled,
   onSend,
@@ -29,6 +31,8 @@ export function Composer({
   draftKey: string;
   agent: Agent | undefined;
   busy: boolean;
+  /** The run is paused on an approval. */
+  waiting?: boolean;
   queued?: number;
   disabled?: boolean;
   onSend: (text: string, mode: "steer" | "followUp", files: File[]) => Promise<boolean>;
@@ -245,8 +249,11 @@ export function Composer({
       <div className="mt-2 flex h-4 items-center justify-center gap-3 text-[11.5px] text-faint">
         {busy ? (
           <span className="flex items-center gap-1.5">
-            <span className="text-accent-text">Working</span> · <Kbd className="h-4 text-[10px]">↵</Kbd> steers the run ·
-            <Kbd className="h-4 text-[10px]">⌥↵</Kbd> queues a follow-up
+            {waiting ? <span className="text-warning">Waiting for approval</span> : <span className="text-accent-text">Working</span>}
+            {/* Keyboard hints only where there is a keyboard. */}
+            <span className="hidden items-center gap-1.5 sm:flex">
+              · <Kbd className="h-4 text-[10px]">↵</Kbd> steers the run · <Kbd className="h-4 text-[10px]">{shortcut("↵", ALT)}</Kbd> queues a follow-up
+            </span>
             {queued ? <span className="text-muted">· {queued} queued</span> : null}
           </span>
         ) : (

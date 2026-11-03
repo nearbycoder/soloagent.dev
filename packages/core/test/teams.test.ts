@@ -318,6 +318,8 @@ test("members can chat and read, but only admins manage; the admin token stays t
       ["POST", "/invites", { role: "admin" }],
       ["POST", "/admin-token/rotate", undefined],
       ["POST", "/mcp-servers", { id: "gh", transport: "http", url: "https://example.com/mcp" }],
+      ["POST", "/approvals/apr_x/approve", {}],
+      ["POST", "/approvals/apr_x/deny", { reason: "no" }],
       ["POST", `/agents/${soloAgentId}/memories`, { text: "x" }],
       ["DELETE", `/agents/${soloAgentId}/memories?confirm=all`, undefined],
     ] as const) {

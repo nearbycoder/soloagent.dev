@@ -69,7 +69,14 @@ export function Connections({ editId }: { editId?: string }) {
       )}
 
       <section>
-        <SectionHeader title={connectors?.length ? "Add another" : "Connect a platform"} description="Setup takes about two minutes. No public URL needed for Slack, Discord, or Telegram." />
+        <SectionHeader
+          title={connectors?.length ? "Add another" : "Connect a platform"}
+          description={
+            connectors?.length
+              ? "Setup takes about two minutes. No public URL needed for Slack, Discord, or Telegram."
+              : "Your agents already work here and in the terminal. Connect a platform to reach them from chat too — about two minutes, no public URL needed."
+          }
+        />
         {!kinds ? (
           <div className="grid gap-3 sm:grid-cols-2">
             {[0, 1, 2, 3].map((i) => (
@@ -107,12 +114,6 @@ export function Connections({ editId }: { editId?: string }) {
           </div>
         )}
       </section>
-
-      {connectors?.length === 0 && kinds && (
-        <Card className="mt-10 border-dashed bg-transparent shadow-none">
-          <EmptyState icon={<Plug />} title="Nothing connected yet" description="Your agents already work in this web app and the terminal. Add a connection to reach them from chat platforms too." />
-        </Card>
-      )}
 
       {editId === "new" && createKind && kinds && (
         <ConnectorEditor key={`new-${createKind}`} kinds={kinds} kind={createKind} onKindChange={setCreateKind} onClose={closeEditor} />

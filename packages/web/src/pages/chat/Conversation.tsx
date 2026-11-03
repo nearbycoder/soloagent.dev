@@ -127,7 +127,10 @@ export function Conversation({ threadId }: { threadId: string }) {
     );
   }
 
-  const items = buildTimeline(view.messages, paired, agentMap, view.thinkingMs, results, view.live);
+  // "Try again" on a failed last message sends the request that led to it once more.
+  const lastUser = [...view.messages].reverse().find((m) => m.kind === "user");
+  const retry = lastUser?.kind === "user" && lastUser.text && !view.live.busy ? () => void send(lastUser.text, "followUp", []) : undefined;
+  const items = buildTimeline(view.messages, paired, agentMap, view.thinkingMs, results, view.live, retry);
   const lastTurn = (() => {
     for (let i = view.messages.length - 1; i >= 0; i--) {
       const m = view.messages[i]!;
@@ -211,6 +214,7 @@ export function Conversation({ threadId }: { threadId: string }) {
         draftKey={threadId}
         agent={agent}
         busy={view.live.busy}
+        waiting={!!view.live.approvals?.some((a) => a.status === "pending")}
         queued={view.live.queued}
         disabled={!view.loaded}
         onSend={send}
@@ -229,11 +233,26 @@ function buildTimeline(
   thinkingMs: Map<string, number>,
   results: Map<string, ToolMessage>,
   live: ReturnType<typeof useThread>["live"],
+  onRetry?: () => void,
 ): ReactNode[] {
   const out: ReactNode[] = [];
   let prev: Message | undefined;
   let lastDay = "";
+  // Provider retries leave the same error several times in a row: show it once, with a count.
+  const errorOnly = (m: Message | undefined) => m?.kind === "assistant" && !!m.error && !m.text && m.toolCalls.length === 0 ? m.error : undefined;
+  const repeats = new Map<string, number>();
+  const skip = new Set<string>();
+  for (let i = 0; i < messages.length; i++) {
+    const error = errorOnly(messages[i]);
+    if (!error) continue;
+    let j = i + 1;
+    while (j < messages.length && errorOnly(messages[j]) === error) skip.add(messages[j++]!.id);
+    if (j - i > 1) repeats.set(messages[i]!.id, j - i);
+    i = j - 1;
+  }
+  const lastId = [...messages].reverse().find((m) => m.kind !== "tool" && !skip.has(m.id))?.id;
   for (const message of messages) {
+    if (skip.has(message.id)) continue;
     // Some entries (resets, compactions) can arrive without a timestamp; they belong to the current day.
     const day = message.at > 0 ? dayLabel(message.at) : lastDay;
     if (day && day !== lastDay) {
@@ -258,6 +277,8 @@ function buildTimeline(
             results={results}
             live={live}
             thinkingMs={thinkingMs.get(message.id)}
+            repeats={repeats.get(message.id)}
+            onRetry={message.id === lastId && message.error && message.stopReason !== "aborted" ? onRetry : undefined}
           />,
         );
         break;

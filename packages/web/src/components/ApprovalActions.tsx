@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Check, ShieldAlert, X } from "lucide-react";
 import type { Approval } from "@soloagent/client";
 import { client } from "../api/client.ts";
-import { localApproval } from "../api/store.ts";
+import { localApproval, useIsAdmin } from "../api/store.ts";
 import { cn } from "../lib/cn.ts";
 import { relativeTime } from "../lib/format.ts";
 import { toast } from "../lib/toast.ts";
@@ -10,6 +10,18 @@ import { Button, Input } from "./ui.tsx";
 
 /** Approve / Deny for a waiting tool call. Deny asks for an optional reason the agent will see. */
 export function ApprovalActions({ approval, className }: { approval: Approval; className?: string }) {
+  const isAdmin = useIsAdmin();
+  if (!isAdmin) {
+    return (
+      <p className={cn("text-[12.5px] text-subtle", className)}>
+        Waiting for an admin to decide. Auto-denied {relativeTime(approval.expiresAt)} if nobody does.
+      </p>
+    );
+  }
+  return <AdminApprovalActions approval={approval} className={className} />;
+}
+
+function AdminApprovalActions({ approval, className }: { approval: Approval; className?: string }) {
   const [denying, setDenying] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState<"approve" | "deny" | null>(null);

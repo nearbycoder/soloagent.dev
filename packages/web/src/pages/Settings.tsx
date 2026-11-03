@@ -6,6 +6,7 @@ import { confirm, toast } from "../lib/toast.ts";
 import { Badge, Button, Card, CopyField, Kbd, Page, PageHeader, Segmented, SectionHeader, Switch } from "../components/ui.tsx";
 import { duration } from "../lib/format.ts";
 import { setTheme, useTheme, type ThemePref } from "../lib/theme.ts";
+import { ALT, MOD } from "../lib/keys.ts";
 
 export function SettingsPage({ onSignOut }: { onSignOut: () => void }) {
   const version = useApp((s) => s.version);
@@ -17,7 +18,7 @@ export function SettingsPage({ onSignOut }: { onSignOut: () => void }) {
 
   return (
     <Page narrow>
-      <PageHeader title="Settings" description="Terminal access, your admin token, upgrades, and backups." />
+      <PageHeader title="Settings" description={isAdmin ? "Terminal access, your admin token, upgrades, and backups." : "Appearance, keyboard shortcuts, and your session."} />
 
       {isAdmin && (
         <section className="mb-10">
@@ -47,7 +48,7 @@ export function SettingsPage({ onSignOut }: { onSignOut: () => void }) {
 
       {isAdmin && <AdminToken />}
 
-      <UpdatesSection />
+      <UpdatesSection admin={isAdmin} />
 
       {isAdmin && <BackupSection />}
 
@@ -74,11 +75,11 @@ export function SettingsPage({ onSignOut }: { onSignOut: () => void }) {
         <SectionHeader title="Keyboard" />
         <Card className="divide-y divide-border">
           {[
-            ["Command palette", ["⌘", "K"]],
-            ["Toggle sidebar", ["⌘", "\\"]],
+            ["Command palette", [MOD, "K"]],
+            ["Toggle sidebar", [MOD, "\\"]],
             ["Send message", ["↵"]],
             ["New line", ["⇧", "↵"]],
-            ["Queue a follow-up while the agent works", ["⌥", "↵"]],
+            ["Queue a follow-up while the agent works", [ALT, "↵"]],
             ["Stop the agent", ["esc"]],
           ].map(([label, keys]) => (
             <div key={label as string} className="flex items-center justify-between px-5 py-2.5 text-[13px]">
@@ -148,6 +149,14 @@ const UPGRADE_STEPS: { id: string; label: string; steps: { text: string; command
     ],
   },
   {
+    id: "brew",
+    label: "Homebrew",
+    steps: [
+      { text: "", command: "brew upgrade soloagent" },
+      { text: "Then restart the server: stop soloagent serve and start it again." },
+    ],
+  },
+  {
     id: "docker",
     label: "Docker",
     steps: [
@@ -166,7 +175,7 @@ const UPGRADE_STEPS: { id: string; label: string; steps: { text: string; command
   },
 ];
 
-function UpdatesSection() {
+function UpdatesSection({ admin }: { admin: boolean }) {
   const version = useApp((s) => s.version);
   const update = useApp((s) => s.overview?.update);
   const [method, setMethod] = useState("npm");
@@ -174,7 +183,10 @@ function UpdatesSection() {
   const steps = UPGRADE_STEPS.find((m) => m.id === method)!;
   return (
     <section id="updates" className="mt-10 scroll-mt-6">
-      <SectionHeader title="Updates" description="Data and durable work carry over upgrades; migrations run on start. Take a backup first." />
+      <SectionHeader
+        title={admin ? "Updates" : "Version"}
+        description={admin ? "Data and durable work carry over upgrades; migrations run on start. Take a backup first." : "The soloagent release this server runs. Admins handle upgrades."}
+      />
       <Card className="divide-y divide-border">
         <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3.5">
@@ -203,6 +215,7 @@ function UpdatesSection() {
             </a>
           )}
         </div>
+        {admin && (
         <div className="p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-[13.5px] font-medium text-fg">How to upgrade</h3>
@@ -219,6 +232,7 @@ function UpdatesSection() {
             ))}
           </div>
         </div>
+        )}
       </Card>
     </section>
   );

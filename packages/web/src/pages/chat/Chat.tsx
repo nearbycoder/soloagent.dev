@@ -204,9 +204,12 @@ function ThreadRow({ thread, active }: { thread: Thread; active: boolean }) {
       >
         <div className="relative shrink-0">
           <AgentAvatar agent={agent} size="md" />
-          <span className="absolute -bottom-1 -right-1 grid size-[18px] place-items-center rounded-full border-2 border-bg-subtle bg-surface-2">
-            <SourceIcon source={thread.source} className="size-2.5" />
-          </span>
+          {/* Web is the default; only threads from elsewhere (Slack, Discord, the terminal…) get a source badge. */}
+          {thread.source !== "web" && (
+            <span className="absolute -bottom-1 -right-1 grid size-[18px] place-items-center rounded-full border-2 border-bg-subtle bg-surface-2" title={SOURCE_LABEL[thread.source]}>
+              <SourceIcon source={thread.source} className="size-2.5" />
+            </span>
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">

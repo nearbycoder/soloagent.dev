@@ -71,7 +71,7 @@ import { Sealer } from "./secrets.ts";
 import { demoProvider } from "./demo.ts";
 import { createSkills, type SkillHost } from "./skills.ts";
 import { Ledger, listAllows, TeamStore } from "./team.ts";
-import { EVENT_ENTRY, MESSAGE_ENTRY, type EventEntryData, type MessageEntryData, textOf, toLive, toMessages, usageOf } from "./transcript.ts";
+import { EVENT_ENTRY, MESSAGE_ENTRY, plainPreview, type EventEntryData, type MessageEntryData, textOf, toLive, toMessages, usageOf } from "./transcript.ts";
 
 export const VERSION = "0.2.0";
 
@@ -1114,9 +1114,9 @@ export class SoloAgent {
     if (!row) return; // a delegate's child conversation
     const text = await this.#answerText(conversationId, answerEntryId);
     const now = Date.now();
-    this.db.run("UPDATE threads SET message_count = message_count + 1, preview = ?, updated_at = ? WHERE id = ?", text.slice(0, 140), now, row.id);
+    this.db.run("UPDATE threads SET message_count = message_count + 1, preview = ?, updated_at = ? WHERE id = ?", plainPreview(text), now, row.id);
     const agent = this.agents.get(row.agent_id);
-    this.activity({ type: "reply", text: `@${agent?.handle ?? "agent"}: ${text.slice(0, 120)}`, agentId: row.agent_id, threadId: row.id });
+    this.activity({ type: "reply", text: `@${agent?.handle ?? "agent"}: ${plainPreview(text, 120)}`, agentId: row.agent_id, threadId: row.id });
     const thread = this.thread(row.id);
     if (thread) this.emit({ type: "thread.updated", thread });
     if (row.connector_id) await this.#deliver(row, text || "_(no text answer)_");

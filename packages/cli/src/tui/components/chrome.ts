@@ -30,7 +30,8 @@ export function renderHeader(vm: ViewModel, width: number, rule: boolean): strin
   const title = thread ? oneLine(thread.title) : c.dim("new conversation");
 
   const right: string[] = [];
-  if (vm.isBusy()) right.push(`${c.accent(spinnerFrame())} ${c.accentBright("working")}`);
+  if (vm.state.live.approvals?.some((a) => a.status === "pending")) right.push(c.yellow("⏸ waiting for approval"));
+  else if (vm.isBusy()) right.push(`${c.accent(spinnerFrame())} ${c.accentBright("working")}`);
   const where = vm.conn.embedded ? "local" : vm.conn.mode === "local" ? `local ${portOf(vm.conn.url)}` : `remote · ${vm.conn.label}`;
   if (vm.connected) right.push(`${c.green("●")} ${c.muted(where)}`);
   else if (vm.everConnected) right.push(`${c.yellow("◌")} ${c.yellow("reconnecting…")}`);

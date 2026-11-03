@@ -165,7 +165,7 @@ In any chat: `@coder fix the build` or `coder: fix the build` picks an agent; ot
 - **Access lists.** Each connector can limit which people (platform id or name), channels (id or `#name`), and agents it serves. Empty means everyone. People who aren't allowed get one short reply, and the attempt is logged in Activity. Webhooks apply only the agent list.
 - **Workspace safety.** Agents with the `workspace` skill aren't reachable from Slack, Discord, or Telegram unless the agent's chat access is turned on.
 - **Budgets and rate limits.** Set a daily USD budget or message limit per agent, and messages per person per hour per connector. Over a limit, chat gets a friendly reply and the API returns `429`. Spend is recorded for every provider response.
-- **Users and roles.** Invite people from **Team** with a one-time link (7 days). Members chat, view agents, and see usage; admins also manage providers, connectors, agents, and the team. The admin token stays the superuser for the CLI and API, and can be rotated from Settings unless it comes from `SOLOAGENT_TOKEN`.
+- **Users and roles.** Invite people from **Team** with a one-time link (7 days). Members chat, view agents, and see usage; admins also approve tool calls and manage providers, connectors, MCP servers, agents, and the team. The admin token stays the superuser for the CLI and API, and can be rotated from Settings unless it comes from `SOLOAGENT_TOKEN`.
 
 Details: [soloagent.dev/docs#teams](https://soloagent.dev/docs/#teams).
 

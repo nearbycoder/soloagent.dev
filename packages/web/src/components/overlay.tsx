@@ -303,7 +303,8 @@ export function MenuLabel({ children }: { children: ReactNode }) {
 export function Toaster() {
   const toasts = useToasts();
   return createPortal(
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[80] flex flex-col items-center gap-2 p-4 sm:inset-x-auto sm:right-0 sm:items-end">
+    // Top on phones (clear of the composer and the keyboard), bottom-right on desktop but above the chat composer.
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-[80] flex flex-col items-center gap-2 p-4 sm:inset-x-auto sm:bottom-28 sm:right-0 sm:top-auto sm:items-end">
       {toasts.map((t) => (
         <div
           key={t.id}
