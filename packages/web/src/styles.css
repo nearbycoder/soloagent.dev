@@ -28,9 +28,6 @@
   --accent-soft: rgb(210 245 60 / 0.12);
   --accent-text: #d2f53c;
   --accent-line: #d2f53c;
-  /* The mark inverts on dark surfaces so its tile never disappears. */
-  --mark-tile: #d2f53c;
-  --mark-glyph: #15140f;
   --success: #8fd16a;
   --success-soft: rgb(143 209 106 / 0.12);
   --warning: #f0b27a;
@@ -74,8 +71,6 @@
   --accent-soft: rgb(210 245 60 / 0.38);
   --accent-text: #4f6800;
   --accent-line: #15140f;
-  --mark-tile: #15140f;
-  --mark-glyph: #d2f53c;
   --success: #3f7a12;
   --success-soft: rgb(63 122 18 / 0.1);
   --warning: #9a5b00;
