@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest a connector, skill, provider, or improvement.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The problem or workflow, not the solution yet. "I want my agents to … but today I have to …"
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like soloagent to do?
+      description: How you picture it working. Commands, screens, or API shapes are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds
+      description: Anything you've tried or other tools that do this well.
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you like to work on this?
+      options:
+        - "No, just suggesting it"
+        - "Yes, with some guidance"
+        - "Yes, I can open a PR"

@@ -1,0 +1,81 @@
+name: Bug report
+description: Something in soloagent doesn't work the way the docs say it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! **Security issues go through [private vulnerability reporting](https://github.com/nearbycoder/soloagent.dev/security/advisories/new), not here.**
+        Please remove tokens, API keys, and bot tokens from anything you paste.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+      placeholder: "I mentioned @coder in Slack and…"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. soloagent serve
+        2. Open the dashboard, create an agent with …
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: soloagent version
+      description: "`soloagent --version`, the version in the dashboard's Settings page, or the Docker image tag."
+      placeholder: "0.1.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How are you running it?
+      options:
+        - Installer / npm (soloagent serve or the TUI)
+        - Homebrew
+        - Docker / docker compose
+        - Railway
+        - Render
+        - Fly.io
+        - systemd / bare Linux server
+        - From source
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Web dashboard
+        - Terminal UI / CLI
+        - Slack
+        - Discord
+        - Telegram
+        - Webhooks
+        - Providers / logins
+        - Agents / skills
+        - Durability (restarts, reminders, resumes)
+        - API / SDK
+        - Install / deploy
+        - Docs / site
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Node.js version (`node --version`), browser if it's a dashboard issue, and the model provider involved.
+      placeholder: "macOS 26, Node 24.11, Chrome 142, Anthropic (Claude Max login)"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Server output (`docker logs soloagent`, the `soloagent serve` terminal) or browser console errors. Remove secrets first.
+      render: text

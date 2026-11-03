@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/og.png" alt="soloagent" width="820">
+  <img src="assets/demo.gif" alt="The soloagent dashboard: starting a new chat and watching the agent stream its answer" width="820">
 </p>
 
 ---
@@ -55,6 +55,12 @@ soloagent            # terminal UI with a private local server
 soloagent serve      # web dashboard on http://localhost:7420 (soloagent token prints the login token)
 ```
 
+With **Homebrew** (macOS and Linux):
+
+```bash
+brew install nearbycoder/soloagent/soloagent
+```
+
 The installer downloads the latest release and installs it with npm. To do it yourself (Windows included; `--allow-remote=root` lets npm 12 install from a URL):
 
 ```bash
@@ -74,6 +80,11 @@ Then sign in to a model provider from the dashboard's **Providers** page, or in 
 ## Deploy
 
 soloagent needs a long-running process, a persistent directory, and a port. It runs as a single instance.
+
+<!-- TODO(railway-template): create the Railway template (2 minutes, see docs/railway-template.md), then replace
+     TEMPLATE_CODE below, move the button into the Railway row of the table, and delete this comment.
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template/TEMPLATE_CODE?utm_medium=integration&utm_source=button&utm_campaign=soloagent)
+-->
 
 | Where | How |
 |---|---|
@@ -205,11 +216,16 @@ npm run dev:web      # Vite dev server for the GUI (proxies /api)
 npm test             # end-to-end runtime tests on Pi's faux provider
 npm run typecheck
 npm run build:npm    # bundle the publishable `soloagent` package into dist/npm
-# soloagent.dev deploys from site/ on Vercel automatically when a push to main changes it
+node scripts/bump-version.mjs 0.x.y # bump every version and the changelog, then tag v0.x.y (see docs/releasing.md)
 git tag v0.x.y && git push --tags   # CI builds the release tarball, Docker image, and (with NPM_TOKEN) publishes to npm
+# soloagent.dev deploys from site/ on Vercel automatically when a push to main changes it
 ```
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the project layout, code style, and PR checklist, and [docs/releasing.md](docs/releasing.md) for what a `v*` tag publishes (GitHub release, Docker image, npm with `NPM_TOKEN`, Homebrew with `HOMEBREW_TAP_TOKEN`).
+
 ## Security
+
+Report vulnerabilities privately; see [SECURITY.md](SECURITY.md).
 
 - Every API call needs the admin token, except inbound webhooks, which use their own secret; the dashboard keeps the token in an httpOnly cookie.
 - Provider credentials, bot tokens, and webhook secrets are sealed with AES-256-GCM using `SOLOAGENT_SECRET`, or a generated secret in the data directory.
