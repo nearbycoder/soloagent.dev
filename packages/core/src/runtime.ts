@@ -1329,22 +1329,37 @@ export class SoloAgent {
       connectorsTotal: connectors.length,
       providersConfigured: (await this.providers.configured()).length,
       messagesToday: this.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM activity WHERE type = 'message' AND at >= ?", startOfDay.getTime())?.n ?? 0,
-      usage: sumUsage(Object.values(usage.models).map((u) => usageOf(u as never) ?? ZERO)),
+      usage: sumUsage(Object.entries(usage.models).map(([model, u]) => this.#priced(model, u))),
       activity: this.recentActivity(30),
       version: VERSION,
       uptimeMs: Date.now() - this.startedAt,
     };
   }
 
+  /**
+   * Usage for one "provider/model" key, priced from the catalog when the provider reported no price (subscriptions,
+   * self-hosted gateways). Matches how spend and budgets are recorded, so every page shows the same cost.
+   */
+  #priced(key: string, raw: unknown): Usage {
+    const usage = usageOf(raw as never) ?? ZERO;
+    const tokens = usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
+    if (usage.cost > 0 || tokens === 0) return usage;
+    const slash = key.indexOf("/");
+    const model = slash > 0 ? this.providers.models.getModel(key.slice(0, slash), key.slice(slash + 1)) : undefined;
+    if (!model) return usage;
+    const cost = calculateCost(model, { ...usage, totalTokens: tokens, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } as never).total;
+    return { ...usage, cost };
+  }
+
   async usage(): Promise<UsageSummary> {
     const total = await this.harness.usage(ctx);
-    const byModel = Object.entries(total.models).map(([model, u]) => ({ model, usage: usageOf(u as never) ?? ZERO }));
+    const byModel = Object.entries(total.models).map(([model, u]) => ({ model, usage: this.#priced(model, u) }));
     const perAgent = new Map<string, { usage: Usage[]; threads: number }>();
     for (const row of this.db.all<{ conversation_id: number; agent_id: string }>("SELECT conversation_id, agent_id FROM threads")) {
       const doc = await this.harness.snapshot(UsageDoc, cid(row.conversation_id), ctx).catch(() => undefined);
       const bucket = perAgent.get(row.agent_id) ?? { usage: [], threads: 0 };
       bucket.threads++;
-      for (const u of Object.values(doc?.models ?? {})) bucket.usage.push(usageOf(u as never) ?? ZERO);
+      for (const [model, u] of Object.entries(doc?.models ?? {})) bucket.usage.push(this.#priced(model, u));
       perAgent.set(row.agent_id, bucket);
     }
     return {

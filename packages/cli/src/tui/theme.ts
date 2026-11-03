@@ -8,6 +8,7 @@ import {
   type SelectListTheme,
   colorToHex,
 } from "@earendil-works/pi-tui";
+import { highlightCode } from "./highlight.ts";
 
 export type Style = (text: string) => string;
 
@@ -37,23 +38,26 @@ export const underline: Style = (t) => `\x1b[4m${t}\x1b[24m`;
 export const strike: Style = (t) => `\x1b[9m${t}\x1b[29m`;
 export const inverse: Style = (t) => `\x1b[7m${t}\x1b[27m`;
 
-/** The soloagent palette. Violet accent, cool neutrals that read on dark and light terminals. */
+/**
+ * The soloagent palette: the same ink / lime system as the dashboard's dark theme and soloagent.dev, so the
+ * terminal and the browser feel like one product. Warm neutrals; lime for focus and activity.
+ */
 export const palette = {
-  accent: "#8b5cf6",
-  accentBright: "#a78bfa",
-  accentSoft: "#c4b5fd",
-  accentDeep: "#6d28d9",
+  accent: "#c3e82a",
+  accentBright: "#d2f53c",
+  accentSoft: "#e2f59a",
+  accentDeep: "#7f9e12",
   /** The mark's lime, slightly deepened so it still reads on light terminals. */
   brand: "#b6dc1f",
-  muted: "#8e8ea3",
-  dim: "#6b6b80",
-  faint: "#45455a",
-  green: "#34d399",
-  yellow: "#fbbf24",
-  red: "#f87171",
-  blue: "#60a5fa",
-  cyan: "#22d3ee",
-  pink: "#f472b6",
+  muted: "#bdbbb0",
+  dim: "#8d8b80",
+  faint: "#5e5c52",
+  green: "#8fd16a",
+  yellow: "#f0b27a",
+  red: "#f2857a",
+  blue: "#8fb8e8",
+  cyan: "#7cc9c4",
+  pink: "#e89ac0",
 } as const;
 
 export const c = {
@@ -94,13 +98,24 @@ export function agentColor(hex: string | undefined): Style {
   }
 }
 
+/** Whether the next fence the renderer draws closes a block (fences come in open/close pairs). */
+let fenceOpen = false;
+
 export const markdownTheme: MarkdownTheme = {
   heading: (t) => bold(c.accentBright(t)),
   link: (t) => underline(c.blue(t)),
   linkUrl: (t) => c.dim(t),
   code: (t) => c.accentSoft(t),
   codeBlock: (t) => t,
-  codeBlockBorder: (t) => c.faint(t),
+  // Fences become a light frame: "╭─ ts" above the code, "╰─" below, a rail beside it.
+  codeBlockBorder: (t) => {
+    const lang = t.replace(/^`+/, "").trim();
+    // A fence with a language always opens; a bare fence closes an open block or opens an unlabeled one.
+    fenceOpen = lang ? true : !fenceOpen;
+    return c.faint(fenceOpen ? `╭─${lang ? ` ${lang}` : ""}` : "╰─");
+  },
+  codeBlockIndent: c.faint("│ "),
+  highlightCode: (code, lang) => highlightCode(code, lang) ?? code.split("\n").map((line) => c.accentSoft(line)),
   quote: (t) => italic(c.muted(t)),
   quoteBorder: (t) => c.accent(t),
   hr: (t) => c.faint(t),

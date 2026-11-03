@@ -8,7 +8,7 @@ import { webhookDriver } from "./webhook.ts";
 export const SLACK_MANIFEST = `display_information:
   name: Solo
   description: Your agents, on soloagent.dev
-  background_color: "#0b0b12"
+  background_color: "#15140f"
 features:
   app_home:
     messages_tab_enabled: true

@@ -279,6 +279,7 @@ function AgentSwitcher({ agent, onSelect }: { agent: Agent | undefined; onSelect
         aria-haspopup="menu"
         aria-expanded={open}
         title="Switch agent for this thread"
+        aria-label={`Answering: ${agent?.name ?? "no agent"}. Switch agent`}
         className="flex h-8 min-w-0 items-center gap-2 rounded-full border border-transparent pl-1 pr-2.5 text-[12.5px] font-medium text-muted transition-colors hover:border-border hover:bg-surface-2 hover:text-fg"
       >
         <AgentAvatar agent={agent} size="sm" className="rounded-full" />

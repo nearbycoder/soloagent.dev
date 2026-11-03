@@ -206,6 +206,10 @@ test("spend is recorded per response and a daily dollar budget stops the next me
     assert.equal(today.runs, 1);
     assert.equal(today.usd, rows[0]!.cost);
     assert.equal(solo.dailyUsage(7).at(-1)!.usage.cost, rows[0]!.cost);
+    // The Usage page and Overview price unpriced tokens the same way, so every page agrees.
+    const summary = await solo.usage();
+    assert.ok(Math.abs(summary.total.cost - rows[0]!.cost) < 1e-9, `usage ${summary.total.cost} vs spend ${rows[0]!.cost}`);
+    assert.ok(Math.abs((await solo.overview()).usage.cost - rows[0]!.cost) < 1e-9);
 
     await assert.rejects(
       solo.send(thread.id, { text: "again", author: { name: "ann", source: "web" } }),

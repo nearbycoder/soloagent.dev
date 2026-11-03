@@ -23,10 +23,10 @@ function wordmark(): string[] {
     for (let r = 0; r < 3; r++) rows[r] += glyph[r] + (i < letters.length - 1 ? " " : "");
   });
   const width = rows[0]!.length;
-  // Violet gradient, column by column.
+  // Lime gradient, column by column, like the mark.
   return rows.map((row) =>
     [...row]
-      .map((ch, x) => (ch === " " ? ch : fg(blend(palette.accentSoft, palette.accentDeep, x / Math.max(1, width - 1)))(ch)))
+      .map((ch, x) => (ch === " " ? ch : fg(blend(palette.accentBright, palette.accentDeep, x / Math.max(1, width - 1)))(ch)))
       .join(""),
   );
 }
