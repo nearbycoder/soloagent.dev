@@ -16,5 +16,9 @@
     "@slack/bolt": "^5.1.0",
     "discord.js": "^14.28.0",
     "grammy": "^1.46.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.2",
+    "ws": "^8.22.1"
   }
 }

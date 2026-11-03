@@ -115,7 +115,16 @@ type ThreadRow = {
 type ThreadMeta = { target?: ReplyTarget };
 
 /** A connector reply that is being streamed into a placeholder message. */
-type Outbound = { handle?: PostHandle; target: ReplyTarget; lastText: string; lastEdit: number; timer?: ReturnType<typeof setTimeout>; typing?: ReturnType<typeof setInterval> };
+type Outbound = {
+  handle?: PostHandle;
+  /** Settles once the placeholder post has (or has not) produced `handle`. */
+  placeholder?: Promise<void>;
+  target: ReplyTarget;
+  lastText: string;
+  lastEdit: number;
+  timer?: ReturnType<typeof setTimeout>;
+  typing?: ReturnType<typeof setInterval>;
+};
 
 const ctx: Context = BACKGROUND_CONTEXT;
 /** soloagent stores Pi's branded ids as plain numbers. */
@@ -915,7 +924,7 @@ export class SoloAgent {
         outbound.typing = setInterval(() => void driver.typing?.(message.target).catch(() => {}), 8_000);
       }
       if (driver.edit) {
-        driver
+        outbound.placeholder = driver
           .post(message.target, `${agent.avatar} _thinking…_`)
           .then((handle) => {
             outbound.handle = handle;
@@ -1122,6 +1131,13 @@ export class SoloAgent {
     if (!driver) return;
     const target = outbound?.target ?? (JSON.parse(row.meta ?? "{}") as ThreadMeta).target;
     if (!target) return;
+    // A quick answer can beat the placeholder post: wait for it (briefly), so the answer replaces the placeholder
+    // instead of arriving as a second message under a "thinking…" that never goes away.
+    if (outbound?.placeholder) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([outbound.placeholder, new Promise<void>((resolve) => (timer = setTimeout(resolve, 10_000)))]);
+      clearTimeout(timer);
+    }
     const parts = chunk(markdown, driver.maxLength);
     let first = 0;
     if (outbound?.handle && driver.edit) {

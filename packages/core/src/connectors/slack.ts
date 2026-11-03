@@ -73,7 +73,16 @@ export const slackDriver: DriverFactory = (config, host): ConnectorDriver => {
       if (!appToken.startsWith("xapp-")) throw new Error("App-level token must start with xapp- (enable Socket Mode)");
       // Bolt verifies the token in its constructor with a promise nobody awaits, so a bad token
       // would surface as an unhandled rejection. Defer it and await init() where errors are caught.
-      app = new App({ token: botToken, appToken, socketMode: true, logLevel: LogLevel.ERROR, deferInitialization: true });
+      // Testing: SOLOAGENT_SLACK_API_URL points the Web API (and Socket Mode's apps.connections.open) at a local fake.
+      const slackApiUrl = process.env.SOLOAGENT_SLACK_API_URL || undefined;
+      app = new App({
+        token: botToken,
+        appToken,
+        socketMode: true,
+        logLevel: LogLevel.ERROR,
+        deferInitialization: true,
+        ...(slackApiUrl ? { clientOptions: { slackApiUrl: slackApiUrl.endsWith("/") ? slackApiUrl : `${slackApiUrl}/` } } : {}),
+      });
       await app.init();
       const auth = await app.client.auth.test();
       botUserId = auth.user_id ?? "";

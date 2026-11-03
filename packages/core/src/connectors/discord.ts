@@ -11,13 +11,22 @@ import {
   type Message,
 } from "discord.js";
 import { approvalAction, parseApprovalAction } from "../approvals.ts";
-import type { ConnectorDriver, DriverFactory } from "./types.ts";
+import type { ConnectorDriver, ConnectorHost, DriverFactory, InboundMessage, ReplyTarget } from "./types.ts";
 
 /**
  * Discord over the gateway. Answers @mentions and replies to the bot in servers, and every DM.
  * Each Discord thread is its own conversation; in a regular channel the channel is.
  */
-export const discordDriver: DriverFactory = (config, host): ConnectorDriver => {
+export const discordDriver: DriverFactory = (config, host) =>
+  createDiscordDriver(config, host, () =>
+    new Client({
+      intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages],
+      partials: [Partials.Channel, Partials.Message],
+    }),
+  );
+
+/** The driver around any discord.js-shaped client. Tests pass a stub; production a real gateway Client. */
+export function createDiscordDriver(config: Record<string, string>, host: ConnectorHost, makeClient: () => Client): ConnectorDriver {
   const token = config.botToken ?? "";
   let client: Client | undefined;
 
@@ -33,45 +42,20 @@ export const discordDriver: DriverFactory = (config, host): ConnectorDriver => {
 
     async start() {
       if (!token) throw new Error("Bot token is required");
-      client = new Client({
-        intents: [
-          GatewayIntentBits.Guilds,
-          GatewayIntentBits.GuildMessages,
-          GatewayIntentBits.MessageContent,
-          GatewayIntentBits.DirectMessages,
-        ],
-        partials: [Partials.Channel, Partials.Message],
-      });
+      client = makeClient();
       const ready = new Promise<void>((resolve) => client!.once(Events.ClientReady, () => resolve()));
 
       client.on(Events.MessageCreate, async (message: Message) => {
-        if (message.author.bot || !client?.user) return;
+        const botUserId = client?.user?.id;
+        if (message.author.bot || !botUserId) return;
         const isDirect = message.channel.type === ChannelType.DM;
-        const mentioned = message.mentions.users.has(client.user.id);
         let repliedToBot = false;
-        if (message.reference?.messageId && !mentioned && !isDirect) {
+        if (message.reference?.messageId && !message.mentions.users.has(botUserId) && !isDirect) {
           const ref = await message.fetchReference().catch(() => undefined);
-          repliedToBot = ref?.author.id === client.user.id;
+          repliedToBot = ref?.author.id === botUserId;
         }
-        if (!isDirect && !mentioned && !repliedToBot) return;
-        const text = message.content.replace(new RegExp(`<@!?${client.user.id}>`, "g"), "").trim();
-        const name = message.member?.displayName ?? message.author.globalName ?? message.author.username;
-        const channelName = "name" in message.channel && message.channel.name ? `#${message.channel.name}` : "channel";
-        const location = isDirect ? `DM with ${name}` : `${message.guild?.name ?? "server"} ${channelName}`;
-        host.receive({
-          externalKey: message.channelId,
-          location,
-          title: isDirect ? `DM with ${name}` : `${channelName} · ${text.slice(0, 48)}`,
-          author: { name, id: message.author.id, source: "discord", avatarUrl: message.author.displayAvatarURL({ size: 64 }) },
-          text,
-          target: { channelId: message.channelId, replyTo: message.id },
-          isDirect,
-          ...(isDirect ? {} : { channel: { id: message.channelId, name: channelName === "channel" ? undefined : channelName, parent: parentOf(message) } }),
-          // Attachments are on Discord's public CDN; the runtime downloads them.
-          ...(message.attachments.size
-            ? { attachments: [...message.attachments.values()].map((a) => ({ name: a.name, mimeType: a.contentType ?? "", size: a.size, url: a.url })) }
-            : {}),
-        });
+        const inbound = discordInbound(message, botUserId, repliedToBot);
+        if (inbound) host.receive(inbound);
       });
 
       // Approvals: Approve / Deny buttons on approval messages.
@@ -103,11 +87,7 @@ export const discordDriver: DriverFactory = (config, host): ConnectorDriver => {
 
     async post(target, markdown) {
       const channel = await fetchChannel(target.channelId!);
-      const sent = await channel.send({
-        content: markdown,
-        reply: target.replyTo ? { messageReference: target.replyTo, failIfNotExists: false } : undefined,
-        allowedMentions: { repliedUser: false, parse: [] },
-      });
+      const sent = await channel.send(discordReply(target, markdown));
       return { channelId: sent.channelId, messageId: sent.id };
     },
 
@@ -138,7 +118,45 @@ export const discordDriver: DriverFactory = (config, host): ConnectorDriver => {
       await channel.sendTyping();
     },
   };
-};
+}
+
+/**
+ * The InboundMessage for a Discord message, or undefined when the bot should stay quiet: it answers every DM,
+ * and in servers @mentions and replies to the bot (`repliedToBot`, which needs a fetch, so the caller works it out).
+ */
+export function discordInbound(message: Message, botUserId: string, repliedToBot: boolean): InboundMessage | undefined {
+  if (message.author.bot) return undefined;
+  const isDirect = message.channel.type === ChannelType.DM;
+  const mentioned = message.mentions.users.has(botUserId);
+  if (!isDirect && !mentioned && !repliedToBot) return undefined;
+  const text = message.content.replace(new RegExp(`<@!?${botUserId}>`, "g"), "").trim();
+  const name = message.member?.displayName ?? message.author.globalName ?? message.author.username;
+  const channelName = "name" in message.channel && message.channel.name ? `#${message.channel.name}` : "channel";
+  const location = isDirect ? `DM with ${name}` : `${message.guild?.name ?? "server"} ${channelName}`;
+  return {
+    externalKey: message.channelId,
+    location,
+    title: isDirect ? `DM with ${name}` : `${channelName} · ${text.slice(0, 48)}`,
+    author: { name, id: message.author.id, source: "discord", avatarUrl: message.author.displayAvatarURL({ size: 64 }) },
+    text,
+    target: { channelId: message.channelId, replyTo: message.id },
+    isDirect,
+    ...(isDirect ? {} : { channel: { id: message.channelId, name: channelName === "channel" ? undefined : channelName, parent: parentOf(message) } }),
+    // Attachments are on Discord's public CDN; the runtime downloads them.
+    ...(message.attachments.size
+      ? { attachments: [...message.attachments.values()].map((a) => ({ name: a.name, mimeType: a.contentType ?? "", size: a.size, url: a.url })) }
+      : {}),
+  };
+}
+
+/** The send options of a reply: threaded under the message it answers, never pinging anyone. */
+export function discordReply(target: ReplyTarget, markdown: string) {
+  return {
+    content: markdown,
+    reply: target.replyTo ? { messageReference: target.replyTo, failIfNotExists: false } : undefined,
+    allowedMentions: { repliedUser: false, parse: [] as [] },
+  };
+}
 
 /** A thread's parent channel, so "#eng" in an access list also covers threads inside #eng. */
 function parentOf(message: Message): { id: string; name?: string } | undefined {
