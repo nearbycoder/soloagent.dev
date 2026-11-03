@@ -1017,7 +1017,7 @@ export class App implements ViewModel {
       for (const [key, text] of keys) lines.push(k(key, text, 26));
       lines.push("", c.dim(`Connected to ${this.conn.url} (${this.conn.embedded ? "embedded local server" : this.conn.mode}). Mouse: drag to select & copy, click links.`));
       return lines;
-    });
+    }, 96);
   }
 
   async #usage() {

@@ -293,7 +293,7 @@ function NewChat({ agentId }: { agentId?: string }) {
                 <AgentAvatar agent={agent} size="xl" className="relative" />
               </div>
               <h2 className="mt-5 text-[22px] font-semibold tracking-[-0.02em] text-fg">Chat with {agent.name}</h2>
-              <p className="mt-1.5 max-w-md text-[13.5px] leading-relaxed text-subtle">{agent.description || `@${agent.handle} is ready when you are.`}</p>
+              <p className="mt-1.5 max-w-md text-balance text-[13.5px] leading-relaxed text-subtle">{agent.description || `@${agent.handle} is ready when you are.`}</p>
               <p className="mt-2 font-mono text-[11.5px] text-faint">
                 @{agent.handle} · {agent.model ? `${agent.model.provider}/${agent.model.modelId}` : "no model selected"}
               </p>

@@ -80,7 +80,7 @@ export function Usage() {
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Tile label="Total cost" value={cost(usage.total.cost)} sub="at list API prices" hero />
-            <Tile label="Total tokens" value={tokens(totalTokens(usage.total))} sub={`${num(totalTokens(usage.total))} exact`} />
+            <Tile label="Total tokens" value={tokens(totalTokens(usage.total))} sub={tokens(totalTokens(usage.total)) === num(totalTokens(usage.total)) ? "every model and agent" : `${num(totalTokens(usage.total))} exact`} />
             <Tile label="Output tokens" value={tokens(usage.total.output)} sub={`${tokens(promptTokens(usage.total))} prompt tokens`} />
             <Tile label="Cache-read share" value={pct(cacheShare(usage.total))} sub="of prompt tokens served from cache" />
           </div>

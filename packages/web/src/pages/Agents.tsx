@@ -138,7 +138,9 @@ export function Agents({ editId }: { editId?: string }) {
                   ))}
                 </div>
                 <SpendMeter spend={spend?.find((s) => s.agentId === agent.id)} budget={agent.budget} className="relative mt-3" />
-                <div className="relative mt-4 flex items-center justify-between border-t border-border pt-3">
+                {/* Pins the footer to the bottom, so footers line up across a row of cards. */}
+                <div className="min-h-4 flex-1" />
+                <div className="relative flex items-center justify-between border-t border-border pt-3">
                   <span className="text-[12px] text-faint">
                     {count === 1 ? "1 thread" : `${count} threads`}
                     {agent.skills.includes("memory") || memories > 0 ? ` · ${pluralize(memories, "memory", "memories")}` : ""}

@@ -103,7 +103,13 @@ export function Overview() {
           sub={overview ? (overview.connectorsTotal === 0 ? "none yet" : overview.connectorsConnected === overview.connectorsTotal ? "all connected" : "some offline") : undefined}
           tone={overview && overview.connectorsTotal > 0 && overview.connectorsConnected < overview.connectorsTotal ? "warning" : undefined}
         />
-        <Stat label="Providers" value={overview ? num(overview.providersConfigured) : null} icon={<KeyRound />} to="/providers" sub="configured" />
+        <Stat
+          label="Providers"
+          value={providers ? num(realProviders) : null}
+          icon={<KeyRound />}
+          to="/providers"
+          sub={providers && realProviders === 0 ? "demo model only" : "connected"}
+        />
         <Stat label="Messages today" value={overview ? num(overview.messagesToday) : null} icon={<MessageSquare />} to="/activity" />
         <Stat
           label="Total cost"

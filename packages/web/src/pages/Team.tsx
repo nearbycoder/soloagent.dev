@@ -182,7 +182,7 @@ function InviteForm({ onCreated }: { onCreated: (created: CreatedInvite) => void
             <p className="mt-1 text-[13px] leading-relaxed text-subtle">Create a one-time link. They open it, choose a name and password, and they're in.</p>
           </div>
         </div>
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
           <Field label="Name" htmlFor="invite-name" hint="Optional. They can change it when they join.">
             <Input id="invite-name" value={name} placeholder="Ann" onChange={(e) => setName(e.target.value)} />
           </Field>

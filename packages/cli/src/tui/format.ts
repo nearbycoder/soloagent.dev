@@ -16,7 +16,7 @@ export function relTime(at: number, now = Date.now()): string {
 export function clock(at: number): string {
   const d = new Date(at);
   const today = new Date();
-  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   if (d.toDateString() === today.toDateString()) return time;
   return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${time}`;
 }

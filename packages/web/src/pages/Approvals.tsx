@@ -185,6 +185,9 @@ function ApprovalCard({ approval }: { approval: Approval }) {
   );
 }
 
+/** Where a decision came from, as shown after "Approved by Josh". The dashboard, timeouts, and the system say nothing. */
+const VIA: Record<string, string> = { slack: "in Slack", discord: "in Discord", telegram: "in Telegram", tui: "in the terminal", api: "via the API" };
+
 function DecidedRow({ approval }: { approval: Approval }) {
   const agents = useAgentMap();
   const agent = approval.agentId ? agents.get(approval.agentId) : undefined;
@@ -201,7 +204,7 @@ function DecidedRow({ approval }: { approval: Approval }) {
         </p>
         <p className="mt-0.5 truncate text-[12px] text-subtle">
           {approvalStatusText(approval)}
-          {approval.decidedVia && approval.decidedVia !== "dashboard" && approval.decidedVia !== "timeout" && approval.decidedVia !== "system" ? ` in ${approval.decidedVia}` : ""}
+          {approval.decidedVia && VIA[approval.decidedVia] ? ` ${VIA[approval.decidedVia]}` : ""}
           {thread ? ` · ${thread.title}` : ""}
         </p>
       </div>

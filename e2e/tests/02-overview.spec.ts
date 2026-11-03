@@ -6,7 +6,8 @@ test("the overview renders stats, setup steps, agents, and activity", async ({ p
   const main = page.getByRole("main");
   await expect(main.getByRole("heading", { name: "Your agents at a glance", level: 1 })).toBeVisible();
   await expect(main.getByRole("link", { name: /^Agents \d+/ })).toBeVisible();
-  await expect(main.getByRole("link", { name: /^Providers 1 configured/ })).toBeVisible();
+  // Only the demo model: the stat counts real providers and says so.
+  await expect(main.getByRole("link", { name: /^Providers 0 demo model only/ })).toBeVisible();
   await expect(main.getByRole("heading", { name: "Get set up" })).toBeVisible();
   await expect(main.getByRole("heading", { name: "Solo", level: 3 })).toBeVisible();
   await expect(main.getByText("@solo·solo-demo")).toBeVisible();

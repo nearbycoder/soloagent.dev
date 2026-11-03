@@ -718,9 +718,9 @@ function usePreview(cron: string, timezone: string): PreviewState {
 function PreviewBox({ preview, timezone }: { preview: PreviewState; timezone: string }) {
   const format = useMemo(() => {
     try {
-      return new Intl.DateTimeFormat(undefined, { timeZone: timezone, weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+      return new Intl.DateTimeFormat(undefined, { timeZone: timezone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
     } catch {
-      return new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+      return new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
     }
   }, [timezone]);
   return (

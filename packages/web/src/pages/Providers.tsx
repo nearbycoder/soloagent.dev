@@ -82,7 +82,7 @@ function ProvidersPage() {
   return (
     <Page>
       <PageHeader
-        title="Subscriptions & keys"
+        title="Providers"
         description="Run agents on the subscriptions you already pay for, or bring API keys from 30+ providers. Credentials are stored on your server only."
         actions={providers && <Badge tone={configuredCount ? "success" : "neutral"}>{configuredCount ? `${configuredCount} connected` : "None connected"}</Badge>}
       />
@@ -113,7 +113,7 @@ function ProvidersPage() {
                       </Badge>
                     )}
                   </div>
-                  <p className="relative mt-3 text-[12px] text-faint">
+                  <p className="relative mt-auto pt-3 text-[12px] text-faint">
                     {provider.models.length} models
                     {connected && provider.configured?.type === "api_key" && " · via API key"}
                   </p>
@@ -129,7 +129,7 @@ function ProvidersPage() {
                       </>
                     ) : (
                       <Button size="sm" variant="secondary" className="w-full" icon={<LogIn className="size-3.5" />} loading={starting === provider.id} onClick={() => startLogin(provider)}>
-                        <span className="truncate">{provider.oauth?.label ?? "Sign in"}</span>
+                        <span className="truncate">Sign in</span>
                       </Button>
                     )}
                   </div>

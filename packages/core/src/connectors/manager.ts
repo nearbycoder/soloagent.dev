@@ -151,7 +151,7 @@ export class ConnectorManager {
         "error",
         unreadable
           ? "Saved tokens can't be decrypted (SOLOAGENT_SECRET changed?). Enter them again."
-          : `Missing ${missing.map((f) => f.label).join(", ")}`,
+          : `Missing ${missing.map((f) => f.label.charAt(0).toLowerCase() + f.label.slice(1)).join(", ")}`,
       );
       return this.get(id);
     }

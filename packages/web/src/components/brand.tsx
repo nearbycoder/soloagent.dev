@@ -28,6 +28,8 @@ export function SoloMark({ className }: { className?: string }) {
       </defs>
       <path d={SQUIRCLE} fill={`url(#${id}t)`} />
       <path d={SQUIRCLE_RIM} fill="none" stroke={`url(#${id}r)`} strokeWidth="1.2" />
+      {/* On the dark theme the ink tile meets an ink background: a faint outline keeps its shape. */}
+      <path d={SQUIRCLE_RIM} fill="none" stroke="currentColor" strokeWidth="1.2" className="text-transparent dark:text-white/20" />
       <path d="M26.25 17.01 A8.6 8.6 0 1 0 32 32.00 A8.6 8.6 0 1 1 24.41 44.64" fill="none" stroke={`url(#${id}l)`} strokeWidth="8.4" strokeLinecap="round" />
       <circle cx="39.97" cy="20.18" r="4.7" fill={`url(#${id}l)`} />
     </svg>

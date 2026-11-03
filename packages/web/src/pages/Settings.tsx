@@ -17,7 +17,7 @@ export function SettingsPage({ onSignOut }: { onSignOut: () => void }) {
 
   return (
     <Page narrow>
-      <PageHeader title="Settings" />
+      <PageHeader title="Settings" description="Terminal access, your admin token, upgrades, and backups." />
 
       {isAdmin && (
         <section className="mb-10">
@@ -29,8 +29,8 @@ export function SettingsPage({ onSignOut }: { onSignOut: () => void }) {
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-[14px] font-semibold text-fg">Connect the TUI</h3>
-                <p className="mt-1 text-[13px] leading-relaxed text-subtle">Run this anywhere with Node 22+. Replace the token placeholder with your admin token.</p>
-                <CopyField value={`npx soloagent --url ${origin} --token <token>`} className="mt-3" />
+                <p className="mt-1 text-[13px] leading-relaxed text-subtle">Run this anywhere soloagent is installed (Homebrew, the installer, or npm). Replace the token placeholder with your admin token.</p>
+                <CopyField value={`soloagent --url ${origin} --token <token>`} className="mt-3" />
                 <div className="mt-4 rounded-lg border border-border bg-surface-2/50 p-3 text-[12.5px] leading-relaxed text-subtle">
                   <p className="font-medium text-fg">Where's my token?</p>
                   <p className="mt-1">

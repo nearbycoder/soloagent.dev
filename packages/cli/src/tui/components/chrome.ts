@@ -63,23 +63,6 @@ export function renderHeader(vm: ViewModel, width: number, rule: boolean): strin
 export function renderFooter(vm: ViewModel, width: number, overlay: string | undefined): string[] {
   const message = vm.footerMessage();
   const k = (key: string, label: string) => `${c.muted(key)} ${c.dim(label)}`;
-  let hints: string;
-  if (message) {
-    const tone = message.tone === "error" ? c.red : message.tone === "warn" ? c.yellow : message.tone === "success" ? c.green : c.accentBright;
-    hints = tone(message.text);
-  } else if (overlay === "picker") {
-    hints = [k("type", "to filter"), k("↑↓", "move"), k("enter", "choose"), k("esc", "close")].join(c.faint(" · "));
-  } else if (overlay === "login") {
-    hints = [k("enter", "submit"), k("esc", "cancel sign-in")].join(c.faint(" · "));
-  } else if (overlay) {
-    hints = [k("↑↓ pgup pgdn", "scroll"), k("esc", "close")].join(c.faint(" · "));
-  } else if (vm.isBusy()) {
-    hints = [k("enter", "steer"), k("esc", "stop"), k("ctrl+t", "thinking"), k("ctrl+o", "tool output"), k("ctrl+p", "threads")].join(c.faint(" · "));
-  } else {
-    hints = [k("/", "commands"), k("ctrl+p", "threads"), k("ctrl+b", "sidebar"), k("ctrl+t", "thinking"), k("ctrl+o", "tools"), k("ctrl+c", "quit")].join(
-      c.faint(" · "),
-    );
-  }
 
   const usage = totalUsage(vm.state.messages);
   let right = "";
@@ -90,6 +73,26 @@ export function renderFooter(vm: ViewModel, width: number, overlay: string | und
     if (usage.cost > 0) parts.push(money(usage.cost));
     if (model?.contextWindow && usage.lastContext > 0) parts.push(`${Math.min(100, Math.round((usage.lastContext / model.contextWindow) * 100))}% ctx`);
     right = `${c.dim(parts.join("  "))} `;
+  }
+
+  if (message) {
+    const tone = message.tone === "error" ? c.red : message.tone === "warn" ? c.yellow : message.tone === "success" ? c.green : c.accentBright;
+    return [spread(` ${tone(message.text)}`, right, width)];
+  }
+  let items: string[];
+  if (overlay === "picker") items = [k("type", "to filter"), k("↑↓", "move"), k("enter", "choose"), k("esc", "close")];
+  else if (overlay === "login") items = [k("enter", "submit"), k("esc", "cancel sign-in")];
+  else if (overlay) items = [k("↑↓ pgup pgdn", "scroll"), k("esc", "close")];
+  else if (vm.isBusy()) items = [k("enter", "steer"), k("esc", "stop"), k("ctrl+t", "thinking"), k("ctrl+o", "tool output"), k("ctrl+p", "threads")];
+  else items = [k("/", "commands"), k("ctrl+p", "threads"), k("ctrl+b", "sidebar"), k("ctrl+t", "thinking"), k("ctrl+o", "tools"), k("ctrl+c", "quit")];
+  // Narrow terminals drop whole hints from the end instead of cutting one in half.
+  const room = width - visibleWidth(right) - 2;
+  const sep = c.faint(" · ");
+  let hints = "";
+  for (const item of items) {
+    const next = hints ? hints + sep + item : item;
+    if (visibleWidth(next) > room) break;
+    hints = next;
   }
   return [spread(` ${hints}`, right, width)];
 }

@@ -12,6 +12,9 @@ import {
   Moon,
   Plug,
   Plus,
+  Repeat,
+  ShieldCheck,
+  Wrench,
   Search,
   Settings,
   Users,
@@ -36,7 +39,7 @@ type Item = {
 };
 
 /** Pages members don't see. */
-const ADMIN_PAGES = new Set(["p-providers", "p-connections", "p-team"]);
+const ADMIN_PAGES = new Set(["p-providers", "p-connections", "p-tools", "p-team"]);
 
 export function CommandPalette({ open, onClose, onSignOut }: { open: boolean; onClose: () => void; onSignOut: () => void }) {
   const [query, setQuery] = useState("");
@@ -63,7 +66,10 @@ export function CommandPalette({ open, onClose, onSignOut }: { open: boolean; on
       { id: "p-agents", group: "Go to", label: "Agents", icon: <Bot />, run: go("/agents") },
       { id: "p-providers", group: "Go to", label: "Providers", icon: <KeyRound />, run: go("/providers"), keywords: "subscriptions keys models login claude chatgpt copilot" },
       { id: "p-connections", group: "Go to", label: "Connections", icon: <Plug />, run: go("/connections"), keywords: "slack discord telegram webhook connectors" },
+      { id: "p-tools", group: "Go to", label: "Tools", icon: <Wrench />, run: go("/tools"), keywords: "mcp servers github linear integrations" },
       { id: "p-activity", group: "Go to", label: "Activity", icon: <Activity />, run: go("/activity"), keywords: "tasks schedules log" },
+      { id: "p-approvals", group: "Go to", label: "Approvals", icon: <ShieldCheck />, run: go("/approvals"), keywords: "approve deny pending tool calls" },
+      { id: "p-automations", group: "Go to", label: "Automations", icon: <Repeat />, run: go("/automations"), keywords: "cron recurring schedule standup digest" },
       { id: "p-usage", group: "Go to", label: "Usage", icon: <ChartNoAxesColumn />, run: go("/usage"), keywords: "cost tokens spend" },
       { id: "p-team", group: "Go to", label: "Team", icon: <Users />, run: go("/team"), keywords: "users members invites roles" },
       { id: "p-settings", group: "Go to", label: "Settings", icon: <Settings />, run: go("/settings"), keywords: "tui terminal theme" },

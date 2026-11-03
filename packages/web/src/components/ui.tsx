@@ -344,10 +344,16 @@ export function PageHeader({ title, description, actions, icon }: { title: React
   );
 }
 
-export function Page({ children, className, wide, narrow }: { children: ReactNode; className?: string; wide?: boolean; narrow?: boolean }) {
+/**
+ * Every page shares one container, so titles line up as you move around. `narrow` caps the content width for
+ * forms and long text but keeps the same left edge. (`wide` is accepted for older call sites; it's the default.)
+ */
+export function Page({ children, className, narrow }: { children: ReactNode; className?: string; wide?: boolean; narrow?: boolean }) {
   return (
     <div className="h-full overflow-y-auto">
-      <div className={cn("mx-auto w-full px-4 pb-16 pt-6 sm:px-8 sm:pt-10", wide ? "max-w-7xl" : narrow ? "max-w-3xl" : "max-w-6xl", className)}>{children}</div>
+      <div className="mx-auto w-full max-w-7xl px-4 pb-16 pt-6 sm:px-8 sm:pt-10">
+        <div className={cn(narrow && "max-w-3xl", className)}>{children}</div>
+      </div>
     </div>
   );
 }
