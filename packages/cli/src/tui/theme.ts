@@ -71,8 +71,8 @@ export const c = {
   cyan: fg(palette.cyan),
 };
 
-/** The soloagent mark in text form: one live agent. */
-export const BRAND = "●";
+/** The soloagent mark in text form: a bold "s" on a lime chip, so it reads on dark terminals. */
+export const BRAND = "\x1b[48;2;210;245;60m\x1b[38;2;21;20;15m\x1b[1m s \x1b[22m\x1b[39m\x1b[49m";
 
 /** A color between two hex colors, 0..1. Used for the wordmark gradient. */
 export function blend(a: string, b: string, t: number): string {

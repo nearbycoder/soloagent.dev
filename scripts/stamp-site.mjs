@@ -1,4 +1,4 @@
-// Fingerprints site CSS/JS references (?v=<content hash>) so a new page never loads stale assets.
+// Fingerprints site CSS/JS and icon references (?v=<content hash>) so a new page never loads stale assets.
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -9,7 +9,10 @@ const hash = (path) => createHash("sha256").update(readFileSync(join(site, path)
 
 for (const page of pages) {
   const file = join(site, page);
-  const html = readFileSync(file, "utf8").replace(/((?:href|src)="\/((?:css|js)\/[^"?]+))(?:\?v=[^"]*)?"/g, (_, attr, path) => `${attr}?v=${hash(path)}"`);
+  const html = readFileSync(file, "utf8").replace(
+    /((?:href|src)="\/((?:css|js)\/[^"?]+|icon\.svg|favicon\.ico|apple-touch-icon\.png))(?:\?v=[^"]*)?"/g,
+    (_, attr, path) => `${attr}?v=${hash(path)}"`,
+  );
   writeFileSync(file, html);
 }
 console.log("stamped", pages.join(", "));

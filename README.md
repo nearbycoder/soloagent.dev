@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="assets/icon.svg" width="72" height="72" alt="soloagent">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+    <img src="assets/logo.svg" height="48" alt="soloagent">
+  </picture>
 </p>
-
-<h1 align="center">soloagent</h1>
 
 <p align="center">
   <b>All your agents. One control plane.</b><br>
