@@ -6,6 +6,36 @@ All notable changes to soloagent are documented here. The format follows [Keep a
 
 - _Nothing yet. Add entries under Added / Changed / Fixed / Removed / Security as you go._
 
+## [0.2.1] - 2026-11-03
+
+### Added
+
+- Chat: an image viewer for attachments, a **Try again** button on failed answers, and plain-language explanations for common provider errors (rate limits, bad credentials, overload, context length, quota, network).
+- A banner when the dashboard can't reach the server.
+- Terminal UI: syntax-highlighted, framed code blocks.
+- Homebrew in the dashboard's upgrade instructions.
+
+### Changed
+
+- The terminal UI uses the same ink and lime palette as the dashboard and soloagent.dev.
+- Every dashboard page shares one layout width, so titles line up between pages. The command palette lists every page.
+- Retried provider errors show once, with a count, in the dashboard and the TUI.
+- Thread previews and the activity feed show plain text instead of raw markdown.
+- Keyboard shortcuts read Ctrl/Alt off Apple devices and are hidden on touch screens.
+- Members see their version instead of upgrade steps, and no links or actions they can't use.
+
+### Fixed
+
+- Usage and Overview priced tokens from subscriptions and gateways at $0 while budgets and the per-day chart showed real spend. All of them now agree.
+- Empty file uploads are rejected, and an image that can't load falls back to a file card.
+- Settings suggested `npx soloagent`, which can't work; it now shows `soloagent --url … --token …`.
+- Network failures read "Can't reach the server…" instead of "Failed to fetch". Notices no longer cover the chat's send button.
+- The Slack app manifest uses the current brand color.
+
+### Security
+
+- Approving or denying a tool call in the dashboard or API is admin-only. Members see who a request waits on. Chat apps still use each connection's approver list.
+
 ## [0.2.0] - 2026-11-03
 
 ### Added
@@ -75,7 +105,8 @@ First public release.
 
 - Connectors whose sealed tokens can't be decrypted (because `SOLOAGENT_SECRET` changed) are marked as needing new tokens instead of crashing the server on boot.
 
-[Unreleased]: https://github.com/nearbycoder/soloagent.dev/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/nearbycoder/soloagent.dev/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/nearbycoder/soloagent.dev/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/nearbycoder/soloagent.dev/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/nearbycoder/soloagent.dev/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/nearbycoder/soloagent.dev/releases/tag/v0.1.0
