@@ -444,3 +444,10 @@
     font-size: 24px;
   }
 }
+
+/* Long inline code (URLs, one-line configs) wraps instead of pushing the page sideways. */
+.prose p > code,
+.prose li > code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

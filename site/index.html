@@ -27,7 +27,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Martian+Mono:wdth,wght@75..112.5,400..700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/site.css?v=4ea4e5271b">
-  <link rel="stylesheet" href="/css/home.css?v=c5e8a4b150">
+  <link rel="stylesheet" href="/css/home.css?v=3f7f96865c">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -62,8 +62,8 @@
       <div class="hero-row">
         <p class="hero-lede">Run AI agents on your Claude, ChatGPT, or Copilot subscription, or on any API key, and talk to them wherever your team already works. Every turn and tool call goes on the record before you see it, so work survives crashes, restarts, and deploys.</p>
         <div class="hero-actions">
-          <a class="btn btn-lime" href="/docs/#getting-started">Get started <span class="arrow">→</span></a>
-          <a class="btn" href="/deploy">Deploy on Railway</a>
+          <a class="btn btn-lime" href="/docs/#install">Get started <span class="arrow">→</span></a>
+          <a class="btn" href="#self-host">Run it anywhere</a>
         </div>
       </div>
 
@@ -309,32 +309,85 @@ solo.<span class="t-f">connect</span>().<span class="t-f">subscribe</span>(threa
     </div>
   </section>
 
-  <!-- ─────────────── §07 Self-host ─────────────── -->
+  <!-- ─────────────── §07 Run it anywhere ─────────────── -->
   <section class="sec" id="self-host">
     <div class="wrap sec-grid">
-      <div class="rail"><span class="label">§07</span><span class="label">Self-host</span></div>
+      <div class="rail"><span class="label">§07</span><span class="label">Run it anywhere</span></div>
       <div class="sec-body">
-        <h2>Your keys, your data, your server.</h2>
-        <p class="sec-lede">soloagent is a single Node.js service with a single data directory. Deploy it to Railway in a few minutes, or run it anywhere with Docker or Node 22.19+.</p>
-        <ol class="steps">
-          <li><span class="step-no">01</span><h3>Deploy</h3><p>Create a Railway service from the repo and attach a volume at <code>/data</code>. The Dockerfile does the rest.</p></li>
-          <li><span class="step-no">02</span><h3>Configure</h3><p>Set <code>SOLOAGENT_TOKEN</code> for access and <code>SOLOAGENT_SECRET</code> to seal credentials.</p></li>
-          <li><span class="step-no">03</span><h3>Connect</h3><p>Sign in to a model provider, create agents, then add Slack, Discord, or Telegram.</p></li>
-        </ol>
-        <div class="local">
-          <div>
-            <h3>Or run it on your machine.</h3>
-            <p>The terminal UI starts an embedded server with its data in <code>~/.soloagent</code>. <code>soloagent serve</code> adds the web dashboard on port 7420.</p>
+        <h2>Your laptop, your server, or one click.</h2>
+        <p class="sec-lede">soloagent is one Node.js process with one data directory. Try it locally in a minute, then run the same thing wherever your team can reach it: a Docker host, Railway, Render, Fly.io, or a plain Linux box.</p>
+        <div class="anywhere">
+          <div class="tabs" data-tabs>
+            <div class="tab-list" role="tablist" aria-label="Ways to run soloagent">
+              <button role="tab" aria-selected="true" aria-controls="run-local" id="tab-local">local</button>
+              <button role="tab" aria-selected="false" aria-controls="run-docker" id="tab-docker" tabindex="-1">docker</button>
+              <button role="tab" aria-selected="false" aria-controls="run-railway" id="tab-railway" tabindex="-1">railway</button>
+              <button role="tab" aria-selected="false" aria-controls="run-render" id="tab-render" tabindex="-1">render</button>
+              <button role="tab" aria-selected="false" aria-controls="run-fly" id="tab-fly" tabindex="-1">fly.io</button>
+            </div>
+            <div class="code tab-panel" role="tabpanel" id="run-local" aria-labelledby="tab-local">
+              <div class="code-head"><span>macOS · Linux · WSL — needs Node 22.19+</span><button class="copy" type="button" data-copy="curl -fsSL https://soloagent.dev/install.sh | sh">copy</button></div>
+              <pre><code><span class="cmd">curl -fsSL https://soloagent.dev/install.sh | sh</span>
+
+<span class="t-c"># then</span>
+<span class="cmd">soloagent</span>          <span class="t-c"># terminal UI with a private local server</span>
+<span class="cmd">soloagent serve</span>    <span class="t-c"># web dashboard on localhost:7420</span>
+
+<span class="t-c"># Windows, or no installer: npm does the same</span>
+<span class="cmd">npm i -g \</span>
+    https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz</code></pre>
+            </div>
+            <div class="code tab-panel" role="tabpanel" id="run-docker" aria-labelledby="tab-docker" hidden>
+              <div class="code-head"><span>any docker host · amd64 + arm64</span><button class="copy" type="button" data-copy="docker run -d --name soloagent -p 7420:7420 -v soloagent:/data ghcr.io/nearbycoder/soloagent.dev">copy</button></div>
+              <pre><code><span class="cmd">docker run -d --name soloagent -p 7420:7420 \</span>
+    -v soloagent:/data ghcr.io/nearbycoder/soloagent.dev
+<span class="cmd">docker logs soloagent | grep token</span>
+
+<span class="t-c"># or with compose (VPS, NAS, Coolify, Dokploy)</span>
+<span class="cmd">curl -fsSLO https://raw.githubusercontent.com/nearbycoder/soloagent.dev/main/docker-compose.yml</span>
+<span class="cmd">docker compose up -d</span></code></pre>
+            </div>
+            <div class="code tab-panel" role="tabpanel" id="run-railway" aria-labelledby="tab-railway" hidden>
+              <div class="code-head"><span>railway</span></div>
+              <pre><code><span class="t-c"># 1. New project → Deploy from GitHub repo → soloagent.dev</span>
+<span class="t-c"># 2. Add a volume mounted at /data</span>
+<span class="t-c"># 3. Set SOLOAGENT_TOKEN and SOLOAGENT_SECRET, generate a domain</span>
+
+<span class="t-c"># or from the CLI, in a clone of the repo</span>
+<span class="cmd">railway init && railway up</span>
+<span class="cmd">railway volume add --mount-path /data</span>
+<span class="cmd">railway domain</span></code></pre>
+            </div>
+            <div class="code tab-panel" role="tabpanel" id="run-render" aria-labelledby="tab-render" hidden>
+              <div class="code-head"><span>render blueprint · render.yaml</span></div>
+              <pre><code><span class="t-c"># one click: a Docker service, a 1 GB disk at /data,</span>
+<span class="t-c"># a health check, and a generated token and secret</span>
+
+<span class="t-k">→</span> render.com/deploy?repo=github.com/nearbycoder/soloagent.dev
+
+<span class="t-c"># disks need a paid instance (Starter or above)</span></code></pre>
+            </div>
+            <div class="code tab-panel" role="tabpanel" id="run-fly" aria-labelledby="tab-fly" hidden>
+              <div class="code-head"><span>fly.io · fly.toml</span></div>
+              <pre><code><span class="cmd">git clone https://github.com/nearbycoder/soloagent.dev && cd soloagent.dev</span>
+<span class="cmd">fly launch --copy-config --no-deploy</span>
+<span class="cmd">fly volumes create soloagent_data --size 1</span>
+<span class="cmd">fly secrets set SOLOAGENT_TOKEN=$(openssl rand -hex 24) \</span>
+    SOLOAGENT_SECRET=$(openssl rand -hex 32)
+<span class="cmd">fly deploy</span></code></pre>
+            </div>
           </div>
-          <div class="code">
-            <div class="code-head"><span>shell</span><button class="copy" type="button" data-copy="git clone https://github.com/nearbycoder/soloagent.dev
-cd soloagent.dev
-npm install && npm link -w @soloagent/cli
-soloagent">copy</button></div>
-            <pre><code><span class="cmd">git clone https://github.com/nearbycoder/soloagent.dev</span>
-<span class="cmd">cd soloagent.dev</span>
-<span class="cmd">npm install && npm link -w @soloagent/cli</span>
-<span class="cmd">soloagent</span></code></pre>
+          <div class="anywhere-side">
+            <ul class="leaders">
+              <li><span>Your machine</span><i></i><span>installer · npm · npx</span></li>
+              <li><span>Any Docker host</span><i></i><span>amd64 · arm64</span></li>
+              <li><span>Railway</span><i></i><span>repo + volume</span></li>
+              <li><span>Render</span><i></i><span>one-click blueprint</span></li>
+              <li><span>Fly.io</span><i></i><span>fly.toml</span></li>
+              <li><span>Linux server</span><i></i><span>systemd unit</span></li>
+            </ul>
+            <p class="note"><b>What it needs.</b> A long-running process, a persistent directory, and a port. Serverless platforms like Vercel functions or Cloudflare Workers can't run it.</p>
+            <p class="more"><a class="link" href="/docs/#deploy">Step-by-step deploy guides</a></p>
           </div>
         </div>
       </div>
@@ -365,7 +418,7 @@ soloagent">copy</button></div>
       <h2>Put your agents on the record.</h2>
       <div class="cta-actions">
         <a class="btn btn-ink" href="/docs/#getting-started">Read the docs <span class="arrow">→</span></a>
-        <a class="btn" href="/deploy">Deploy on Railway</a>
+        <a class="btn" href="/docs/#deploy">Self-host it</a>
         <a class="btn" href="https://github.com/nearbycoder/soloagent.dev" rel="noopener">Star on GitHub</a>
       </div>
     </div>
@@ -392,7 +445,7 @@ soloagent">copy</button></div>
         <h4>Docs</h4>
         <ul>
           <li><a href="/docs/#getting-started">Getting started</a></li>
-          <li><a href="/docs/#railway">Deploy on Railway</a></li>
+          <li><a href="/docs/#deploy">Deploy anywhere</a></li>
           <li><a href="/docs/#api">HTTP API &amp; SDK</a></li>
         </ul>
       </div>

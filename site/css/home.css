@@ -625,6 +625,7 @@
 
 .tab-list {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 10px;
 }
@@ -703,6 +704,32 @@
   margin-top: 56px;
   padding-top: 48px;
   border-top: 1px solid var(--line);
+}
+
+/* Run it anywhere */
+
+.anywhere {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 48px;
+  margin-top: 44px;
+  align-items: start;
+}
+
+.anywhere .tab-panel pre {
+  min-height: 236px;
+}
+
+.anywhere-side .leaders li {
+  font-size: 15px;
+}
+
+.anywhere-side .note {
+  margin-top: 20px;
+}
+
+.anywhere-side .more {
+  margin-top: 20px;
 }
 
 /* ── FAQ ──────────────────────────────────────────────── */
@@ -804,6 +831,7 @@
 
 @media (max-width: 900px) {
   .hero-row,
+  .anywhere,
   .split,
   .split-wide,
   .columns,

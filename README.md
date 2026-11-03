@@ -13,7 +13,7 @@
 <p align="center">
   <a href="https://soloagent.dev">soloagent.dev</a> ·
   <a href="https://soloagent.dev/docs/">Docs</a> ·
-  <a href="#deploy-on-railway">Deploy on Railway</a> ·
+  <a href="#deploy">Deploy anywhere</a> ·
   <a href="#terminal-ui">Terminal UI</a>
 </p>
 
@@ -47,47 +47,68 @@ soloagent is an open-source, self-hosted home for your AI agents. Give each agen
 
 ## Quick start
 
+**On your machine** (Node.js 22.19+):
+
+```bash
+curl -fsSL https://soloagent.dev/install.sh | sh
+soloagent            # terminal UI with a private local server
+soloagent serve      # web dashboard on http://localhost:7420 (soloagent token prints the login token)
+```
+
+The installer runs `npm install -g` on the latest release, so on Windows or without curl:
+
+```bash
+npm install -g https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz
+npx -y https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz   # try once
+```
+
+**With Docker** (any OS, amd64 and arm64):
+
+```bash
+docker run -d --name soloagent -p 7420:7420 -v soloagent:/data ghcr.io/nearbycoder/soloagent.dev
+docker logs soloagent | grep token
+```
+
+Then sign in to a model provider from the dashboard's **Providers** page, or in the terminal with `/login anthropic`. Your default agent, `@solo`, switches from the built-in demo model to the real one automatically.
+
+## Deploy
+
+soloagent needs a long-running process, a persistent directory, and a port. It runs as a single instance.
+
+| Where | How |
+|---|---|
+| **Any Docker host** (VPS, home server, NAS, Coolify, Dokploy) | `docker compose up -d` with [`docker-compose.yml`](docker-compose.yml) |
+| **Railway** | New project from this repo, add a volume at `/data` ([`railway.json`](railway.json)) |
+| **Render** | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/nearbycoder/soloagent.dev) — Blueprint in [`render.yaml`](render.yaml) |
+| **Fly.io** | `fly launch --copy-config --no-deploy`, `fly volumes create soloagent_data`, `fly deploy` ([`fly.toml`](fly.toml)) |
+| **Linux server** | `npm install -g` the release plus the systemd unit in [`deploy/soloagent.service`](deploy/soloagent.service) |
+
+Serverless and edge platforms (Vercel functions, Netlify, Cloudflare Workers, Lambda) and hosts without persistent disks can't run it. Step-by-step guides for each host: [soloagent.dev/docs/#deploy](https://soloagent.dev/docs/#deploy).
+
+| Variable | Purpose |
+|---|---|
+| `SOLOAGENT_TOKEN` | Admin token for the dashboard, TUI, and API. Generated and printed on first boot if unset. |
+| `SOLOAGENT_SECRET` | Seals provider credentials and bot tokens at rest. Generated and kept in the data dir if unset; keep it stable. |
+| `SOLOAGENT_DATA_DIR` | Data directory. `/data` in the Docker image; the volume on Railway. |
+| `PORT` | HTTP port, default `7420`. |
+| `SOLOAGENT_DEMO` | `0` hides the built-in demo model. |
+
+Connect your terminal to a deployed server:
+
+```bash
+soloagent connect https://your-solo.example.com --token "$SOLOAGENT_TOKEN"
+```
+
+> **OAuth on a remote server.** Subscription logins redirect to `localhost` on the machine that started them. When the server is remote, the dashboard shows a paste box — copy the final redirect URL (or code) from your browser and paste it in.
+
+### From source
+
 ```bash
 git clone https://github.com/nearbycoder/soloagent.dev && cd soloagent.dev
-npm install
-npm run build        # builds the web GUI
-npm start            # http://localhost:7420 — the admin token is printed on start
+npm install && npm run build      # build the web dashboard
+npm start                         # http://localhost:7420
+npm link -w @soloagent/cli        # optional: the soloagent command from this checkout
 ```
-
-Or open the terminal UI, which runs a private server in-process (`~/.soloagent`):
-
-```bash
-npm run tui
-```
-
-Then sign in to a model provider from the dashboard's **Providers** page, or in the terminal with `/login anthropic`. Your default agent, `@solo`, switches from the demo model to the real one automatically.
-
-> Requires Node.js 22.19+ (the server uses `node:sqlite` and runs TypeScript directly).
-
-## Deploy on Railway
-
-soloagent is a single service with a volume.
-
-1. Create a new Railway project from this repo (**New → GitHub Repo → `nearbycoder/soloagent.dev`**). The included `Dockerfile` and `railway.json` are picked up automatically.
-2. Add a **volume** mounted at `/data`.
-3. Set variables:
-
-   | Variable | Purpose |
-   |---|---|
-   | `SOLOAGENT_TOKEN` | Admin token for the dashboard, TUI, and API. Generate one: `openssl rand -base64 32` |
-   | `SOLOAGENT_SECRET` | Seals provider credentials and bot tokens at rest. Keep it stable. |
-   | `SOLOAGENT_DATA_DIR` | Optional. Defaults to the Railway volume mount. |
-   | `SOLOAGENT_DEMO` | Optional. `0` hides the built-in demo model. |
-
-4. Generate a domain, open it, and paste your token.
-
-Connect your terminal to it:
-
-```bash
-soloagent connect https://your-solo.up.railway.app --token "$SOLOAGENT_TOKEN"
-```
-
-> **OAuth on a remote server.** Subscription logins redirect to `localhost` on the machine that started them. When the server runs on Railway, the dashboard shows a paste box — copy the final redirect URL (or code) from your browser and paste it in.
 
 ## Connect chat apps
 
@@ -181,6 +202,7 @@ npm run dev:web      # Vite dev server for the GUI (proxies /api)
 npm test             # end-to-end runtime tests on Pi's faux provider
 npm run typecheck
 npm run build:npm    # bundle the publishable `soloagent` package into dist/npm
+git tag v0.x.y && git push --tags   # CI builds the release tarball, Docker image, and (with NPM_TOKEN) publishes to npm
 ```
 
 ## Security
