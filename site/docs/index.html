@@ -116,12 +116,12 @@
       <h3 id="install">Install on your machine</h3>
       <p>With <b>Node 22.19 or newer</b>, the installer puts the <code>soloagent</code> command on your path:</p>
       <div class="code code-float"><button class="copy" type="button">copy</button><pre><code><span class="cmd">curl -fsSL https://soloagent.dev/install.sh | sh</span></code></pre></div>
-      <p>It runs <code>npm install -g</code> on the latest release, so you can also do that yourself, on any OS including Windows, or try it once without installing:</p>
+      <p>It downloads the latest release and installs it with npm, so you can also do that yourself, on any OS including Windows, or try it once without installing. <code>--allow-remote=root</code> lets npm 12 install from a release URL; older npm versions ignore it:</p>
       <div class="code"><div class="code-head"><span>npm</span><button class="copy" type="button">copy</button></div><pre><code><span class="t-c"># install</span>
-<span class="cmd">npm install -g https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz</span>
+<span class="cmd">npm install -g --allow-remote=root https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz</span>
 
 <span class="t-c"># or run once, nothing installed</span>
-<span class="cmd">npx -y https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz</span></code></pre></div>
+<span class="cmd">npx -y --allow-remote=root https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz</span></code></pre></div>
       <p>No Node? Use Docker, one command, any OS:</p>
       <div class="code code-float"><button class="copy" type="button">copy</button><pre><code><span class="cmd">docker run -d --name soloagent -p 7420:7420 -v soloagent:/data ghcr.io/nearbycoder/soloagent.dev</span></code></pre></div>
       <p>Then open <code>http://localhost:7420</code> and paste the token from <code>docker logs soloagent</code>.</p>
@@ -198,7 +198,7 @@
       <div class="sub-section" id="linux">
         <h3>Linux server with systemd</h3>
         <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">sudo useradd --system --create-home --home-dir /var/lib/soloagent soloagent</span>
-<span class="cmd">sudo npm install -g https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz</span>
+<span class="cmd">sudo npm install -g --allow-remote=root https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz</span>
 <span class="cmd">sudo curl -fsSLo /etc/systemd/system/soloagent.service https://raw.githubusercontent.com/nearbycoder/soloagent.dev/main/deploy/soloagent.service</span>
 <span class="cmd">sudo systemctl enable --now soloagent</span>
 <span class="cmd">sudo journalctl -u soloagent | grep token</span></code></pre></div>

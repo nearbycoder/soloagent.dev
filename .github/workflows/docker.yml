@@ -43,3 +43,25 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Pull the image that was just pushed and make sure it boots and answers its health check.
+  smoke:
+    needs: image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run and health-check the image
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:sha-${GITHUB_SHA::7}"
+          docker run -d --name solo -p 7420:7420 -e SOLOAGENT_TOKEN=ci-token "$image"
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:7420/healthz; then
+              echo
+              curl -fsS -H "authorization: Bearer ci-token" http://localhost:7420/api/agents | head -c 300
+              echo
+              docker logs solo | head -20
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs solo
+          exit 1

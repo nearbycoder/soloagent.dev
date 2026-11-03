@@ -25,8 +25,21 @@ node -e '
 ' || fail "Node.js $NODE_VERSION is too old; soloagent needs 22.19 or newer."
 dim "node $NODE_VERSION"
 
-dim "installing $PACKAGE"
-if ! npm install -g "$PACKAGE" --no-fund --no-audit; then
+# npm 12 refuses to install from URLs by default (allow-remote=none), so fetch the
+# tarball first and install the local file, which works on every npm version.
+TMP="$(mktemp -d 2>/dev/null || mktemp -d -t soloagent)"
+trap 'rm -rf "$TMP"' EXIT
+dim "downloading $PACKAGE"
+if command -v curl >/dev/null 2>&1; then
+  curl -fsSL "$PACKAGE" -o "$TMP/soloagent.tgz" || fail "download failed"
+elif command -v wget >/dev/null 2>&1; then
+  wget -qO "$TMP/soloagent.tgz" "$PACKAGE" || fail "download failed"
+else
+  fail "curl or wget is required to download soloagent."
+fi
+
+dim "installing with npm"
+if ! npm install -g "$TMP/soloagent.tgz" --no-fund --no-audit; then
   fail "npm install -g failed. If it was a permissions error, configure a user-level npm prefix:
   npm config set prefix ~/.npm-global && export PATH=~/.npm-global/bin:\$PATH
 then run this installer again."

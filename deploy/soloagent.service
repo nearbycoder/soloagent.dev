@@ -1,7 +1,7 @@
 # systemd unit for running soloagent directly on a Linux host (no Docker).
 #
 #   sudo useradd --system --create-home --home-dir /var/lib/soloagent soloagent
-#   sudo npm install -g https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz
+#   sudo npm install -g --allow-remote=root https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz
 #   sudo cp deploy/soloagent.service /etc/systemd/system/
 #   sudo systemctl enable --now soloagent
 #   sudo journalctl -u soloagent | grep token

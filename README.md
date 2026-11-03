@@ -55,11 +55,11 @@ soloagent            # terminal UI with a private local server
 soloagent serve      # web dashboard on http://localhost:7420 (soloagent token prints the login token)
 ```
 
-The installer runs `npm install -g` on the latest release, so on Windows or without curl:
+The installer downloads the latest release and installs it with npm. To do it yourself (Windows included; `--allow-remote=root` lets npm 12 install from a URL):
 
 ```bash
-npm install -g https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz
-npx -y https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz   # try once
+npm install -g --allow-remote=root https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz
+npx -y --allow-remote=root https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz   # try once
 ```
 
 **With Docker** (any OS, amd64 and arm64):
