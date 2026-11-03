@@ -10,6 +10,8 @@ import { ATTACHMENT_LIMITS } from "../attachments.ts";
  */
 export const telegramDriver: DriverFactory = (config, host): ConnectorDriver => {
   const token = config.botToken ?? "";
+  // Testing: SOLOAGENT_TELEGRAM_API_ROOT points the bot at another Bot API server (a local fake). Unset in production.
+  const apiRoot = process.env.SOLOAGENT_TELEGRAM_API_ROOT?.replace(/\/+$/, "") || undefined;
   let bot: Bot | undefined;
 
   async function send(chatId: string, markdown: string, extra: Record<string, unknown>) {
@@ -26,7 +28,7 @@ export const telegramDriver: DriverFactory = (config, host): ConnectorDriver => 
     if (base.size > ATTACHMENT_LIMITS.maxFileBytes) return base;
     try {
       const info = await bot!.api.getFile(file.file_id);
-      return info.file_path ? { ...base, url: `https://api.telegram.org/file/bot${token}/${info.file_path}` } : base;
+      return info.file_path ? { ...base, url: `${apiRoot ?? "https://api.telegram.org"}/file/bot${token}/${info.file_path}` } : base;
     } catch (error) {
       host.log(`telegram: could not fetch ${name}: ${(error as Error).message}`);
       return base;
@@ -38,7 +40,7 @@ export const telegramDriver: DriverFactory = (config, host): ConnectorDriver => 
 
     async start() {
       if (!token) throw new Error("Bot token is required");
-      bot = new Bot(token);
+      bot = new Bot(token, apiRoot ? { client: { apiRoot } } : undefined);
       const me = await bot.api.getMe();
       const username = me.username;
 
