@@ -390,7 +390,7 @@ function ConnectorEditor({
                   aria-pressed={k.kind === kind}
                   className={cn(
                     "flex flex-col items-center gap-2 rounded-xl border px-2 py-3 text-[12px] font-medium transition-all",
-                    k.kind === kind ? "border-accent/60 bg-accent-soft text-fg ring-3 ring-accent/10" : "border-border text-subtle hover:border-border-strong hover:text-fg",
+                    k.kind === kind ? "border-accent-line/60 bg-accent-soft text-fg ring-3 ring-accent-line/10" : "border-border text-subtle hover:border-border-strong hover:text-fg",
                   )}
                 >
                   <ConnectorTile kind={k.kind} size="sm" />

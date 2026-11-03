@@ -29,17 +29,11 @@ export function Login({ onLoggedIn, expired }: { onLoggedIn: (version: string) =
 
   return (
     <div className="relative flex h-full flex-col overflow-y-auto bg-bg">
-      {/* Backdrop: a faded grid and a soft violet glow */}
-      <div className="pointer-events-none absolute inset-0 bg-grid opacity-60 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_40%,black,transparent)]" />
-      <div className="pointer-events-none absolute left-1/2 top-[22%] h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-accent/20 blur-[120px]" />
 
       <div className="relative flex flex-1 flex-col items-center justify-center px-4 py-16">
         <div className="mb-9 flex flex-col items-center text-center">
-          <div className="relative mb-6">
-            <div className="absolute inset-0 rounded-2xl bg-accent/50 blur-xl" />
-            <SparkMark className="size-14" />
-          </div>
-          <h1 className="text-[28px] font-semibold tracking-[-0.03em] text-fg">
+          <SparkMark className="mb-6 size-14" />
+          <h1 className="font-display text-[34px] font-semibold text-fg">
             soloagent
           </h1>
           <p className="mt-2 max-w-xs text-[14px] leading-relaxed text-subtle">One control plane for all of your AI agents.</p>
@@ -56,7 +50,7 @@ export function Login({ onLoggedIn, expired }: { onLoggedIn: (version: string) =
           <div
             className={cn(
               "mt-2 flex h-10 items-center rounded-lg border bg-surface-2/60 transition-[border-color,box-shadow] focus-within:bg-surface focus-within:ring-3",
-              error ? "border-danger/60 focus-within:ring-danger/15" : "border-border focus-within:border-accent/70 focus-within:ring-accent/15",
+              error ? "border-danger/60 focus-within:ring-danger/15" : "border-border focus-within:border-accent-line/70 focus-within:ring-accent-line/15",
             )}
           >
             <input

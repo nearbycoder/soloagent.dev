@@ -9,33 +9,38 @@
 :root,
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0a0a0c;
-  --bg-subtle: #0d0d10;
-  --surface: #121215;
-  --surface-2: #17171b;
-  --surface-3: #1e1e23;
-  --overlay: #141418;
-  --border: #212126;
-  --border-strong: #2c2c33;
-  --fg: #ededf0;
-  --fg-muted: #a3a3ad;
-  --fg-subtle: #74747f;
-  --fg-faint: #4f4f58;
-  --accent: #8b5cf6;
-  --accent-hover: #9d74f8;
-  --accent-fg: #ffffff;
-  --accent-soft: rgb(139 92 246 / 0.14);
-  --accent-text: #b79cfb;
-  --success: #34d399;
-  --success-soft: rgb(52 211 153 / 0.12);
-  --warning: #fbbf24;
-  --warning-soft: rgb(251 191 36 / 0.12);
-  --danger: #f87171;
-  --danger-soft: rgb(248 113 113 / 0.12);
-  --info: #60a5fa;
-  --info-soft: rgb(96 165 250 / 0.12);
-  --ring: rgb(139 92 246 / 0.55);
-  --code-bg: #0e0e11;
+  /* soloagent ink: the same paper / ink / lime system as soloagent.dev */
+  --bg: #12110d;
+  --bg-subtle: #15140f;
+  --surface: #191813;
+  --surface-2: #201f19;
+  --surface-3: #292820;
+  --overlay: #1c1b15;
+  --border: #2c2b23;
+  --border-strong: #3d3c33;
+  --fg: #efeee6;
+  --fg-muted: #bdbbb0;
+  --fg-subtle: #8d8b80;
+  --fg-faint: #5d5b52;
+  --accent: #d2f53c;
+  --accent-hover: #c3e82a;
+  --accent-fg: #15140f;
+  --accent-soft: rgb(210 245 60 / 0.12);
+  --accent-text: #d2f53c;
+  --accent-line: #d2f53c;
+  /* The mark inverts on dark surfaces so its tile never disappears. */
+  --mark-tile: #d2f53c;
+  --mark-glyph: #15140f;
+  --success: #8fd16a;
+  --success-soft: rgb(143 209 106 / 0.12);
+  --warning: #f0b27a;
+  --warning-soft: rgb(240 178 122 / 0.12);
+  --danger: #f2857a;
+  --danger-soft: rgb(242 133 122 / 0.12);
+  --info: #8fb8e8;
+  --info-soft: rgb(143 184 232 / 0.12);
+  --ring: rgb(210 245 60 / 0.55);
+  --code-bg: #0f0e0b;
   --shadow-color: 0 0% 0%;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
   --shadow-md: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -6px rgb(0 0 0 / 0.5);
@@ -50,37 +55,41 @@
 
 [data-theme="light"] {
   color-scheme: light;
-  --bg: #ffffff;
-  --bg-subtle: #fafafa;
-  --surface: #ffffff;
-  --surface-2: #f5f5f6;
-  --surface-3: #ececef;
-  --overlay: #ffffff;
-  --border: #e8e8eb;
-  --border-strong: #d9d9de;
-  --fg: #17171a;
-  --fg-muted: #55555e;
-  --fg-subtle: #75757f;
-  --fg-faint: #a5a5ae;
-  --accent: #7c3aed;
-  --accent-hover: #6d28d9;
-  --accent-fg: #ffffff;
-  --accent-soft: rgb(124 58 237 / 0.09);
-  --accent-text: #6d28d9;
-  --success: #059669;
-  --success-soft: rgb(5 150 105 / 0.09);
-  --warning: #b45309;
-  --warning-soft: rgb(217 119 6 / 0.1);
-  --danger: #dc2626;
-  --danger-soft: rgb(220 38 38 / 0.08);
-  --info: #2563eb;
-  --info-soft: rgb(37 99 235 / 0.08);
-  --ring: rgb(124 58 237 / 0.45);
-  --code-bg: #f7f7f8;
-  --shadow-sm: 0 1px 2px rgb(16 16 24 / 0.06);
-  --shadow-md: 0 1px 2px rgb(16 16 24 / 0.05), 0 8px 24px -8px rgb(16 16 24 / 0.12);
-  --shadow-lg: 0 0 0 1px rgb(16 16 24 / 0.05), 0 24px 64px -16px rgb(16 16 24 / 0.22);
-  --scrim: rgb(16 16 24 / 0.32);
+  /* soloagent paper */
+  --bg: #f5f4ef;
+  --bg-subtle: #efeee8;
+  --surface: #fbfbf8;
+  --surface-2: #efeee7;
+  --surface-3: #e6e5dc;
+  --overlay: #fbfbf8;
+  --border: #dad8ce;
+  --border-strong: #bdbbaf;
+  --fg: #15140f;
+  --fg-muted: #47463e;
+  --fg-subtle: #74736a;
+  --fg-faint: #a9a79c;
+  --accent: #d2f53c;
+  --accent-hover: #c3e82a;
+  --accent-fg: #15140f;
+  --accent-soft: rgb(210 245 60 / 0.38);
+  --accent-text: #4f6800;
+  --accent-line: #15140f;
+  --mark-tile: #15140f;
+  --mark-glyph: #d2f53c;
+  --success: #3f7a12;
+  --success-soft: rgb(63 122 18 / 0.1);
+  --warning: #9a5b00;
+  --warning-soft: rgb(154 91 0 / 0.1);
+  --danger: #c2341f;
+  --danger-soft: rgb(194 52 31 / 0.08);
+  --info: #2d5f9e;
+  --info-soft: rgb(45 95 158 / 0.09);
+  --ring: rgb(21 20 15 / 0.55);
+  --code-bg: #efeee7;
+  --shadow-sm: 0 1px 2px rgb(21 20 15 / 0.06);
+  --shadow-md: 0 1px 2px rgb(21 20 15 / 0.05), 0 8px 24px -8px rgb(21 20 15 / 0.14);
+  --shadow-lg: 0 0 0 1px rgb(21 20 15 / 0.06), 0 24px 64px -16px rgb(21 20 15 / 0.25);
+  --scrim: rgb(21 20 15 / 0.32);
   --series-1: #2a78d6;
   --series-2: #eb6834;
   --series-3: #1baf7a;
@@ -88,8 +97,14 @@
 }
 
 @theme inline {
-  --font-sans: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display: "Martian Mono", "IBM Plex Mono", ui-monospace, monospace;
+
+  --radius-md: 5px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-2xl: 10px;
 
   --color-bg: var(--bg);
   --color-bg-subtle: var(--bg-subtle);
@@ -108,6 +123,7 @@
   --color-accent-fg: var(--accent-fg);
   --color-accent-soft: var(--accent-soft);
   --color-accent-text: var(--accent-text);
+  --color-accent-line: var(--accent-line);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
@@ -178,12 +194,12 @@
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-feature-settings: "ss01", "cv11";
+    font-feature-settings: normal;
     overflow: hidden;
   }
   ::selection {
-    background: var(--accent-soft);
-    color: var(--fg);
+    background: #d2f53c;
+    color: #15140f;
   }
   :focus-visible {
     outline: 2px solid var(--ring);
@@ -378,7 +394,7 @@
 .hljs-meta { color: var(--fg-muted); }
 .hljs-emphasis { font-style: italic; }
 .hljs-strong { font-weight: 600; }
-[data-theme="light"] .hljs-keyword, [data-theme="light"] .hljs-selector-tag, [data-theme="light"] .hljs-literal { color: #7c3aed; }
+[data-theme="light"] .hljs-keyword, [data-theme="light"] .hljs-selector-tag, [data-theme="light"] .hljs-literal { color: #4f6800; }
 [data-theme="light"] .hljs-string, [data-theme="light"] .hljs-regexp, [data-theme="light"] .hljs-addition { color: #15803d; }
 [data-theme="light"] .hljs-number, [data-theme="light"] .hljs-symbol, [data-theme="light"] .hljs-bullet { color: #c2410c; }
 [data-theme="light"] .hljs-title, [data-theme="light"] .hljs-title.function_, [data-theme="light"] .hljs-section { color: #1d4ed8; }
@@ -390,3 +406,10 @@
 .prose-sm { font-size: 13.5px; line-height: 1.65; }
 .prose-sm .code-block { margin: 0.7em 0; }
 .prose-sm pre { font-size: 12px; }
+
+/* Display type: page titles and the wordmark use the site's condensed mono. */
+.font-display {
+  font-family: var(--font-display);
+  font-stretch: 81%;
+  letter-spacing: -0.045em;
+}

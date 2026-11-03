@@ -95,7 +95,6 @@ export function Providers() {
               const connected = !!provider.configured;
               return (
                 <Card key={provider.id} className={cn("relative flex flex-col overflow-hidden p-4", connected && "border-success/30")}>
-                  {provider.featured && !connected && <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-accent/10 blur-2xl" />}
                   <div className="relative flex items-start gap-3">
                     <ProviderMark id={provider.id} name={provider.name} size="lg" />
                     <div className="min-w-0 flex-1">
@@ -382,7 +381,7 @@ function FlowSteps({ flow }: { flow: LoginFlowState }) {
             href={flow.authUrl.url}
             target="_blank"
             rel="noreferrer"
-            className="flex h-11 items-center justify-center gap-2 rounded-xl bg-accent text-[14px] font-medium text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_6px_20px_-6px_var(--accent)] transition-colors hover:bg-accent-hover"
+            className="flex h-11 items-center justify-center gap-2 rounded-lg bg-accent font-mono text-[14px] font-medium text-accent-fg transition-colors hover:bg-accent-hover"
           >
             Open sign-in page
             <ExternalLink className="size-4" />
@@ -484,7 +483,7 @@ function FlowPrompt({ flow, step }: { flow: LoginFlowState; step: number }) {
                   setValue(option.id);
                   void answer(option.id);
                 }}
-                className="flex items-start gap-3 rounded-lg border border-border bg-surface-2/40 px-3 py-2.5 text-left transition-colors hover:border-accent/50 hover:bg-accent-soft disabled:opacity-60"
+                className="flex items-start gap-3 rounded-lg border border-border bg-surface-2/40 px-3 py-2.5 text-left transition-colors hover:border-accent-line/50 hover:bg-accent-soft disabled:opacity-60"
               >
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13.5px] font-medium text-fg">{option.label}</span>

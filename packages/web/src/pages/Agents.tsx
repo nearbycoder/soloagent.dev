@@ -132,7 +132,7 @@ export function Agents({ editId }: { editId?: string }) {
           <button
             type="button"
             onClick={() => navigate("/agents/new")}
-            className="flex min-h-[196px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border-strong text-subtle transition-colors hover:border-accent/50 hover:bg-accent-soft hover:text-accent-text"
+            className="flex min-h-[196px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border-strong text-subtle transition-colors hover:border-accent-line/50 hover:bg-accent-soft hover:text-accent-text"
           >
             <Plus className="size-5" />
             <span className="text-[13px] font-medium">New agent</span>
@@ -302,7 +302,7 @@ function AgentEditor({ agent, onClose }: { agent: Agent | null; onClose: () => v
                     aria-pressed={draft.avatar === g}
                     className={cn(
                       "grid size-9 place-items-center rounded-lg border text-[16px] transition-all",
-                      draft.avatar === g ? "border-accent bg-accent-soft ring-3 ring-accent/15" : "border-border bg-surface-2/50 hover:border-border-strong hover:bg-surface-2",
+                      draft.avatar === g ? "border-accent-line bg-accent-soft ring-3 ring-accent-line/15" : "border-border bg-surface-2/50 hover:border-border-strong hover:bg-surface-2",
                     )}
                   >
                     {g}

@@ -83,7 +83,7 @@ export function Composer({
       <div
         className={cn(
           "rounded-2xl border bg-surface shadow-md transition-[border-color,box-shadow] duration-150 focus-within:shadow-lg",
-          busy ? "border-accent/35 focus-within:border-accent/60" : "border-border-strong focus-within:border-accent/50",
+          busy ? "border-accent-line/35 focus-within:border-accent-line/60" : "border-border-strong focus-within:border-accent-line/50",
         )}
       >
         <textarea

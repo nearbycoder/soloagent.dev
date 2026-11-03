@@ -75,7 +75,7 @@ export function Overview() {
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[13px] font-medium text-subtle">{greeting()}</p>
-          <h1 className="mt-1 text-[26px] font-semibold tracking-[-0.025em] text-fg">Your agents at a glance</h1>
+          <h1 className="font-display mt-1 text-[30px] font-semibold text-fg">Your agents at a glance</h1>
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" icon={<Bot className="size-4" />} onClick={() => navigate("/agents/new")}>

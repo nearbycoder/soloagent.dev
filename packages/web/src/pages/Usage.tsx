@@ -139,7 +139,6 @@ export function Usage() {
 function Tile({ label, value, sub, hero }: { label: string; value: string; sub?: string; hero?: boolean }) {
   return (
     <Card className="relative overflow-hidden p-4">
-      {hero && <div className="pointer-events-none absolute -right-8 -top-8 size-24 rounded-full bg-accent/15 blur-2xl" />}
       <p className="relative text-[12.5px] font-medium text-subtle">{label}</p>
       <p className="relative mt-2 text-[26px] font-semibold tabular-nums tracking-[-0.02em] text-fg">{value}</p>
       {sub && <p className="relative mt-0.5 truncate text-[12px] text-faint">{sub}</p>}

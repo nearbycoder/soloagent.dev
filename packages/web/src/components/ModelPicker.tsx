@@ -89,7 +89,7 @@ export function ModelPicker({ value, onChange, id }: { value: ModelRef | null; o
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex h-11 w-full items-center gap-3 rounded-lg border border-border bg-surface-2/60 px-2.5 text-left transition-[border-color,box-shadow] hover:border-border-strong focus-visible:border-accent/70 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-accent/15"
+        className="flex h-11 w-full items-center gap-3 rounded-lg border border-border bg-surface-2/60 px-2.5 text-left transition-[border-color,box-shadow] hover:border-border-strong focus-visible:border-accent-line/70 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-accent-line/15"
       >
         {current ? (
           <>

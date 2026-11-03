@@ -13,7 +13,7 @@ const buttonBase =
   "inline-flex items-center justify-center gap-1.5 whitespace-nowrap font-medium select-none transition-[background-color,color,border-color,box-shadow,opacity,transform] duration-150 active:translate-y-px disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-2 focus-visible:outline-offset-2";
 const buttonVariants: Record<ButtonVariant, string> = {
   primary:
-    "bg-accent text-accent-fg hover:bg-accent-hover shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_1px_2px_rgb(0_0_0/0.25)]",
+    "bg-accent text-accent-fg hover:bg-accent-hover font-mono font-semibold",
   secondary: "bg-surface-2 text-fg border border-border hover:bg-surface-3 hover:border-border-strong",
   outline: "bg-transparent text-fg border border-border hover:bg-surface-2 hover:border-border-strong",
   ghost: "bg-transparent text-muted hover:text-fg hover:bg-surface-2",
@@ -71,7 +71,7 @@ export const IconButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTM
 // Form controls
 
 const fieldBase =
-  "w-full rounded-lg border border-border bg-surface-2/60 text-fg text-[13.5px] transition-[border-color,box-shadow,background-color] duration-150 hover:border-border-strong focus:border-accent/70 focus:bg-surface focus:outline-none focus:ring-3 focus:ring-accent/15 disabled:opacity-60";
+  "w-full rounded-lg border border-border bg-surface-2/60 text-fg text-[13.5px] transition-[border-color,box-shadow,background-color] duration-150 hover:border-border-strong focus:border-accent-line/70 focus:bg-surface focus:outline-none focus:ring-3 focus:ring-accent-line/15 disabled:opacity-60";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean }>(function Input(
   { className, invalid, ...rest },
@@ -152,7 +152,7 @@ export function Switch({
       className={cn(
         "relative inline-flex shrink-0 items-center rounded-full border transition-colors duration-200 disabled:opacity-50",
         size === "sm" ? "h-4.5 w-8" : "h-5 w-9",
-        checked ? "border-accent bg-accent" : "border-border-strong bg-surface-3",
+        checked ? "border-accent-line bg-accent" : "border-border-strong bg-surface-3",
       )}
     >
       <span
@@ -208,7 +208,7 @@ export function Segmented<T extends string>({
 type BadgeTone = "neutral" | "accent" | "success" | "warning" | "danger" | "info";
 const badgeTones: Record<BadgeTone, string> = {
   neutral: "bg-surface-3 text-muted border-border",
-  accent: "bg-accent-soft text-accent-text border-accent/20",
+  accent: "bg-accent-soft text-accent-text border-accent-line/20",
   success: "bg-success-soft text-success border-success/20",
   warning: "bg-warning-soft text-warning border-warning/20",
   danger: "bg-danger-soft text-danger border-danger/20",
@@ -333,7 +333,7 @@ export function PageHeader({ title, description, actions, icon }: { title: React
   return (
     <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
-        <h1 className="flex items-center gap-2.5 text-[22px] font-semibold tracking-[-0.02em] text-fg">
+        <h1 className="font-display flex items-center gap-2.5 text-[26px] font-semibold text-fg">
           {icon}
           {title}
         </h1>

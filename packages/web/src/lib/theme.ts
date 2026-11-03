@@ -7,9 +7,9 @@ const listeners = new Set<() => void>();
 function read(): ThemePref {
   try {
     const value = localStorage.getItem(KEY);
-    return value === "light" || value === "system" ? value : "dark";
+    return value === "light" || value === "dark" ? value : "system";
   } catch {
-    return "dark";
+    return "system";
   }
 }
 
@@ -19,7 +19,7 @@ const media = window.matchMedia("(prefers-color-scheme: light)");
 function apply() {
   const resolved = pref === "system" ? (media.matches ? "light" : "dark") : pref;
   document.documentElement.dataset.theme = resolved;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", resolved === "light" ? "#ffffff" : "#0a0a0c");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", resolved === "light" ? "#f5f4ef" : "#12110d");
   for (const listener of listeners) listener();
 }
 

@@ -59,7 +59,7 @@ function ThreadList({ activeId }: { activeId?: string }) {
   return (
     <div className="flex min-h-0 w-full flex-col">
       <div className="flex h-14 shrink-0 items-center justify-between px-4">
-        <h1 className="text-[15px] font-semibold tracking-tight text-fg">Chats</h1>
+        <h1 className="font-display text-[17px] font-semibold text-fg">Chats</h1>
         <IconButton label="New chat" onClick={() => navigate("/chat/new")}>
           <SquarePen className="size-4" />
         </IconButton>
@@ -72,7 +72,7 @@ function ThreadList({ activeId }: { activeId?: string }) {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search threads"
             aria-label="Search threads"
-            className="h-8 w-full rounded-lg border border-border bg-surface pl-8 pr-7 text-[13px] text-fg outline-none transition-[border-color,box-shadow] focus:border-accent/60 focus:ring-3 focus:ring-accent/15"
+            className="h-8 w-full rounded-lg border border-border bg-surface pl-8 pr-7 text-[13px] text-fg outline-none transition-[border-color,box-shadow] focus:border-accent-line/60 focus:ring-3 focus:ring-accent-line/15"
           />
           {query && (
             <button type="button" aria-label="Clear search" onClick={() => setQuery("")} className="absolute right-1.5 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded text-faint hover:text-fg">
@@ -88,7 +88,7 @@ function ThreadList({ activeId }: { activeId?: string }) {
           title="Filter by source or agent"
           className={cn(
             "relative grid size-8 shrink-0 place-items-center rounded-lg border transition-colors",
-            filterCount ? "border-accent/40 bg-accent-soft text-accent-text" : "border-border bg-surface text-subtle hover:text-fg",
+            filterCount ? "border-accent-line/40 bg-accent-soft text-accent-text" : "border-border bg-surface text-subtle hover:text-fg",
           )}
         >
           <ListFilter className="size-4" />
@@ -274,7 +274,6 @@ function NewChat({ agentId }: { agentId?: string }) {
           ) : (
             <div className="flex animate-fade-in flex-col items-center text-center">
               <div className="relative">
-                <div className="absolute inset-0 rounded-2xl blur-2xl" style={{ background: `color-mix(in srgb, ${agent.color} 35%, transparent)` }} />
                 <AgentAvatar agent={agent} size="xl" className="relative" />
               </div>
               <h2 className="mt-5 text-[22px] font-semibold tracking-[-0.02em] text-fg">Chat with {agent.name}</h2>
@@ -293,7 +292,7 @@ function NewChat({ agentId }: { agentId?: string }) {
                       aria-pressed={a.id === agent.id}
                       className={cn(
                         "flex h-8 items-center gap-2 rounded-full border pl-1 pr-3 text-[12.5px] font-medium transition-colors",
-                        a.id === agent.id ? "border-accent/50 bg-accent-soft text-fg" : "border-border bg-surface text-muted hover:border-border-strong hover:text-fg",
+                        a.id === agent.id ? "border-accent-line/50 bg-accent-soft text-fg" : "border-border bg-surface text-muted hover:border-border-strong hover:text-fg",
                       )}
                     >
                       <AgentAvatar agent={a} size="sm" className="rounded-full" />

@@ -305,7 +305,7 @@ function ConversationHeader({ threadId, thread, agent }: { threadId: string; thr
               if (e.key === "Enter") void saveTitle();
               if (e.key === "Escape") setRenaming(false);
             }}
-            className="h-7 w-full max-w-md rounded-md border border-accent/50 bg-surface px-2 text-[14px] font-semibold text-fg outline-none ring-3 ring-accent/15"
+            className="h-7 w-full max-w-md rounded-md border border-accent-line/50 bg-surface px-2 text-[14px] font-semibold text-fg outline-none ring-3 ring-accent-line/15"
           />
         ) : (
           <button
