@@ -15,11 +15,11 @@ function portOf(url: string): string {
   }
 }
 
-/** ✦ soloagent │ ✦ Solo @solo · model │ thread title ……… ● local · ⠋ working */
+/** ● soloagent │ ✦ Solo @solo · model │ thread title ……… ● local · ⠋ working */
 export function renderHeader(vm: ViewModel, width: number, rule: boolean): string[] {
   const agent = vm.currentAgent();
   const thread = vm.currentThread();
-  const brand = ` ${c.accent(BRAND)} ${bold("soloagent")}`;
+  const brand = ` ${c.brand(BRAND)} ${bold("soloagent")}`;
 
   let agentPart = c.yellow("no agent");
   if (agent) {
@@ -42,7 +42,7 @@ export function renderHeader(vm: ViewModel, width: number, rule: boolean): strin
   const candidates = [
     [brand, agentPart, title],
     [brand, agentPart],
-    [` ${c.accent(BRAND)}`, agentPart],
+    [` ${c.brand(BRAND)}`, agentPart],
     [` ${c.accent(BRAND)}`],
   ];
   let left = candidates[candidates.length - 1]!.join(SEP);

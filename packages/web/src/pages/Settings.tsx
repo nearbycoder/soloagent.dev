@@ -29,7 +29,7 @@ export function SettingsPage({ onSignOut }: { onSignOut: () => void }) {
                 <p className="font-medium text-fg">Where's my token?</p>
                 <p className="mt-1">
                   For security the server never sends it back to the browser. It's either the value of the <code className="rounded bg-surface-3 px-1 font-mono text-[11.5px] text-muted">SOLOAGENT_TOKEN</code>{" "}
-                  environment variable, or — if that isn't set — the token printed in the server logs when it starts (look for the <span className="font-mono">✦ soloagent is up</span>{" "}
+                  environment variable, or — if that isn't set — the token printed in the server logs when it starts (look for the <span className="font-mono">soloagent is up</span>{" "}
                   banner). On Railway, find it under your service's <span className="font-medium text-muted">Variables</span> or <span className="font-medium text-muted">Deploy logs</span>.
                 </p>
               </div>

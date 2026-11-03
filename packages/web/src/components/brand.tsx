@@ -2,21 +2,24 @@ import type { Agent, ConnectorKind, Source } from "@soloagent/client";
 import { Bot, Clock, Code, Globe, Send, SquareTerminal, Webhook } from "lucide-react";
 import { cn } from "../lib/cn.ts";
 
-/** The ✦ mark: a four-point star. */
-export function SparkMark({ className }: { className?: string }) {
+/** The soloagent mark: one live agent (the dot) at work (the cursor). Lime tile, ink glyphs. */
+export function SoloMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <path d="M12 1.5c.7 5.6 4.9 9.8 10.5 10.5-5.6.7-9.8 4.9-10.5 10.5C11.3 16.9 7.1 12.7 1.5 12 7.1 11.3 11.3 7.1 12 1.5z" fill="currentColor" />
+    <svg viewBox="0 0 64 64" className={className} aria-hidden="true">
+      <rect width="64" height="64" rx="14" fill="#d2f53c" />
+      <circle cx="23" cy="32" r="11" fill="#15140f" />
+      <rect x="38" y="36" width="15" height="7" rx="1.5" fill="#15140f" />
     </svg>
   );
 }
 
+/** Kept for callers that want the glyph alone, e.g. loading states. */
+export const SparkMark = SoloMark;
+
 export function Logo({ className, compact }: { className?: string; compact?: boolean }) {
   return (
     <span className={cn("inline-flex items-center gap-2 font-semibold tracking-[-0.02em] text-fg", className)}>
-      <span className="grid size-6 place-items-center rounded-[7px] bg-accent text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.25),0_2px_8px_-2px_var(--accent)]">
-        <SparkMark className="size-3.5" />
-      </span>
+      <SoloMark className="size-6" />
       {!compact && <span className="text-[15px]">soloagent</span>}
     </span>
   );

@@ -1,5 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 236 48" width="236" height="48">
-  <rect y="4" width="40" height="40" rx="9" fill="#6d5ae6"/>
-  <path d="M20 11.9C20.7 20 23.8 23.1 31.9 24 23.8 24.7 20.7 27.8 20 35.9 19.3 27.8 16.2 24.7 8.1 24 16.2 23.1 19.3 20 20 11.9Z" fill="#fff"/>
-  <text x="54" y="34" font-family="IBM Plex Sans, Inter, system-ui, sans-serif" font-size="29" font-weight="600" letter-spacing="-0.4" fill="#111114">soloagent</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 48" width="250" height="48">
+  <rect y="4" width="40" height="40" rx="9" fill="#d2f53c"/>
+  <circle cx="14.4" cy="24" r="6.9" fill="#15140f"/>
+  <rect x="23.8" y="26.5" width="9.4" height="4.4" rx="1" fill="#15140f"/>
+  <text x="54" y="33" font-family="Martian Mono, IBM Plex Mono, ui-monospace, monospace" font-size="25" font-weight="600" letter-spacing="-1" fill="#15140f">soloagent</text>
 </svg>

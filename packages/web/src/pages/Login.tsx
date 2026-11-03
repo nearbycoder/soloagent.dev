@@ -37,12 +37,10 @@ export function Login({ onLoggedIn, expired }: { onLoggedIn: (version: string) =
         <div className="mb-9 flex flex-col items-center text-center">
           <div className="relative mb-6">
             <div className="absolute inset-0 rounded-2xl bg-accent/50 blur-xl" />
-            <div className="relative grid size-14 place-items-center rounded-2xl bg-gradient-to-b from-[#a07cf9] to-[#7c3aed] text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.35),0_10px_30px_-10px_#8b5cf6]">
-              <SparkMark className="size-7" />
-            </div>
+            <SparkMark className="size-14" />
           </div>
           <h1 className="text-[28px] font-semibold tracking-[-0.03em] text-fg">
-            <span className="text-accent">✦</span> soloagent
+            soloagent
           </h1>
           <p className="mt-2 max-w-xs text-[14px] leading-relaxed text-subtle">One control plane for all of your AI agents.</p>
         </div>

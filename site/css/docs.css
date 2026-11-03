@@ -1,7 +1,7 @@
 /* soloagent.dev — documentation. */
 
 .docs-hero {
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--text);
   padding: 56px 0 40px;
 }
 
@@ -20,8 +20,10 @@
 }
 
 .docs-hero h1 {
-  font-size: 38px;
-  letter-spacing: -0.025em;
+  font-family: var(--display);
+  font-stretch: 81%;
+  font-size: 48px;
+  letter-spacing: -0.055em;
 }
 
 .docs-hero .lede {
@@ -85,7 +87,8 @@
 .toc nav a.active {
   color: var(--text);
   font-weight: 500;
-  border-left-color: var(--text);
+  border-left: 3px solid var(--lime);
+  padding-left: 12px;
 }
 
 .toc-card {
@@ -132,8 +135,10 @@
 }
 
 .prose h2 {
-  font-size: 28px;
-  letter-spacing: -0.02em;
+  font-family: var(--display);
+  font-stretch: 81%;
+  font-size: 30px;
+  letter-spacing: -0.045em;
   color: var(--text);
   margin-bottom: 16px;
 }
@@ -187,13 +192,21 @@
 }
 
 .prose a:not(.btn) {
-  color: var(--accent-text);
+  color: var(--text);
+  font-weight: 500;
   text-decoration: none;
+  background: linear-gradient(var(--lime), var(--lime)) 0 100% / 100% 0.3em no-repeat;
+  transition: background-size 0.15s;
 }
 
 .prose a:not(.btn):hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  background-size: 100% 100%;
+  color: var(--ink);
+}
+
+.prose h2 a:not(.btn) {
+  background: none;
+  font-weight: inherit;
 }
 
 .prose table {
@@ -256,10 +269,9 @@
 
 .callout {
   padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--text);
+  border-left: 3px solid var(--lime);
   border-radius: 0 var(--radius) var(--radius) 0;
-  background: var(--bg-subtle);
+  background: var(--bg-muted);
   font-size: 15px;
 }
 

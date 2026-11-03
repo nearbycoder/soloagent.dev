@@ -49,7 +49,7 @@ export class Welcome implements Component {
     const available = rows - (rows >= 22 ? 2 : 1) - 3 - 1;
 
     const big = width >= MARK_WIDTH + 4 ? [...MARK.map((row) => center(row, width)), "", center(c.muted("one control plane for all of your agents"), width)] : undefined;
-    const small = [center(`${c.accent("✦")} ${bold("soloagent")}  ${c.muted("all of your agents, one place")}`, width)];
+    const small = [center(`${c.brand("●")} ${bold("soloagent")}  ${c.muted("all of your agents, one place")}`, width)];
 
     const who: string[] = [];
     if (agent) {

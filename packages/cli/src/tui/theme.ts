@@ -43,6 +43,8 @@ export const palette = {
   accentBright: "#a78bfa",
   accentSoft: "#c4b5fd",
   accentDeep: "#6d28d9",
+  /** The mark's lime, slightly deepened so it still reads on light terminals. */
+  brand: "#b6dc1f",
   muted: "#8e8ea3",
   dim: "#6b6b80",
   faint: "#45455a",
@@ -58,6 +60,7 @@ export const c = {
   accent: fg(palette.accent),
   accentBright: fg(palette.accentBright),
   accentSoft: fg(palette.accentSoft),
+  brand: fg(palette.brand),
   muted: fg(palette.muted),
   dim: fg(palette.dim),
   faint: fg(palette.faint),
@@ -68,7 +71,8 @@ export const c = {
   cyan: fg(palette.cyan),
 };
 
-export const BRAND = "✦";
+/** The soloagent mark in text form: one live agent. */
+export const BRAND = "●";
 
 /** A color between two hex colors, 0..1. Used for the wordmark gradient. */
 export function blend(a: string, b: string, t: number): string {
