@@ -25,13 +25,14 @@ export function paint(stream: NodeJS.WriteStream = process.stdout): Paint {
     return wrap(`38;2;${parseInt(m[1]!, 16)};${parseInt(m[2]!, 16)};${parseInt(m[3]!, 16)}`, "39");
   };
   return {
-    accent: hex("#8b5cf6"),
+    // The brand lime, deepened slightly so it still reads on light terminals (matches the TUI's palette.brand).
+    accent: hex("#b6dc1f"),
     bold: wrap("1", "22"),
     dim: wrap("2", "22"),
-    green: hex("#34d399"),
-    yellow: hex("#fbbf24"),
-    red: hex("#f87171"),
-    cyan: hex("#22d3ee"),
+    green: hex("#4fd68e"),
+    yellow: hex("#f4b84a"),
+    red: hex("#f57a72"),
+    cyan: hex("#7cc9c4"),
     hex,
   };
 }

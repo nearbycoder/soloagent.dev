@@ -39,8 +39,8 @@ export const strike: Style = (t) => `\x1b[9m${t}\x1b[29m`;
 export const inverse: Style = (t) => `\x1b[7m${t}\x1b[27m`;
 
 /**
- * The soloagent palette: the same ink / lime system as the dashboard's dark theme and soloagent.dev, so the
- * terminal and the browser feel like one product. Warm neutrals; lime for focus and activity.
+ * The soloagent palette: the same graphite / lime system as the dashboard's dark theme and soloagent.dev, so the
+ * terminal and the browser feel like one product. Cool neutrals; lime for focus and agent activity.
  */
 export const palette = {
   accent: "#c3e82a",
@@ -49,13 +49,13 @@ export const palette = {
   accentDeep: "#7f9e12",
   /** The mark's lime, slightly deepened so it still reads on light terminals. */
   brand: "#b6dc1f",
-  muted: "#bdbbb0",
-  dim: "#8d8b80",
-  faint: "#5e5c52",
-  green: "#8fd16a",
-  yellow: "#f0b27a",
-  red: "#f2857a",
-  blue: "#8fb8e8",
+  muted: "#b3b3bc",
+  dim: "#8b8b96",
+  faint: "#5f5f69",
+  green: "#4fd68e",
+  yellow: "#f4b84a",
+  red: "#f57a72",
+  blue: "#74aefc",
   cyan: "#7cc9c4",
   pink: "#e89ac0",
 } as const;
@@ -76,7 +76,7 @@ export const c = {
 };
 
 /** The soloagent mark in text form: a bold "s" on a lime chip, so it reads on dark terminals. */
-export const BRAND = "\x1b[48;2;210;245;60m\x1b[38;2;21;20;15m\x1b[1m s \x1b[22m\x1b[39m\x1b[49m";
+export const BRAND = "\x1b[48;2;210;245;60m\x1b[38;2;12;13;5m\x1b[1m s \x1b[22m\x1b[39m\x1b[49m";
 
 /** A color between two hex colors, 0..1. Used for the wordmark gradient. */
 export function blend(a: string, b: string, t: number): string {

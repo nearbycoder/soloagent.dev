@@ -288,8 +288,7 @@ export class App implements ViewModel {
     this.stream?.close();
     saveHistory(this.#history);
     await this.conn.close();
-    const p = (s: string) => `\x1b[38;2;139;92;246m${s}\x1b[39m`;
-    process.stdout.write(`${p(BRAND)} See you soon.${threadId ? `\x1b[2m  Resume with: soloagent --thread ${threadId}\x1b[22m` : ""}\n`);
+    process.stdout.write(`${BRAND} See you soon.${threadId ? `\x1b[2m  Resume with: soloagent --thread ${threadId}\x1b[22m` : ""}\n`);
     this.#exit?.(0);
   }
 
