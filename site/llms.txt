@@ -1,0 +1,46 @@
+# soloagent
+
+> soloagent is an open-source (MIT), self-hosted control plane for durable AI agents. Run agents on a Claude Pro/Max, ChatGPT Plus/Pro, GitHub Copilot, or SuperGrok subscription (OAuth sign-in) or on API keys for 40+ providers, and talk to them in Slack, Discord, Telegram, webhooks, a web dashboard, and a terminal UI. It is built on Pi Durable: every model turn and tool call is committed to SQLite before it is shown, so runs survive crashes, restarts, and deploys.
+
+Key facts for agents setting it up:
+
+- Install (Node.js 22.19+): `curl -fsSL https://soloagent.dev/install.sh | sh`. Homebrew: `brew install nearbycoder/soloagent/soloagent`. npm: `npm install -g --allow-remote=root https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz`.
+- Docker (any OS, amd64 and arm64): `docker run -d --name soloagent -p 7420:7420 -v soloagent:/data ghcr.io/nearbycoder/soloagent.dev`, then `docker logs soloagent | grep token` for the admin token.
+- `soloagent` opens the terminal UI with a private local server. `soloagent serve` runs the web dashboard on http://localhost:7420 in the foreground; `soloagent token` prints the admin token to sign in with.
+- A fresh install has one agent (`@solo`) and a built-in demo model, so it works before any account is connected. Signing in to model providers (dashboard Providers page, `/login <provider>` in the TUI, or `soloagent login <provider>`) is something the human should do.
+- It needs a long-running process, a persistent data directory, and a port. It runs as a single instance; serverless platforms can't run it.
+- Configuration is environment variables: `SOLOAGENT_TOKEN` (admin token), `SOLOAGENT_SECRET` (seals credentials at rest; keep it stable), `SOLOAGENT_DATA_DIR`, `PORT` (default 7420).
+- The HTTP API lives under `/api` with `Authorization: Bearer <token>`; the WebSocket is `/api/ws`. `soloagent ask "<message>" --agent <handle>` gives one-shot answers for scripts.
+
+## Docs
+
+- [Getting started](https://soloagent.dev/docs/#getting-started): install options, first run, the demo model
+- [Deploy](https://soloagent.dev/docs/#deploy): Docker and compose, Railway, Render, Fly.io, a Linux server with systemd
+- [Configuration](https://soloagent.dev/docs/#configuration): every environment variable
+- [Providers & subscriptions](https://soloagent.dev/docs/#providers): OAuth sign-in, API keys, remote-server logins
+- [Agents & skills](https://soloagent.dev/docs/#agents): memory, web, delegate, schedule, and workspace skills
+- [Tools (MCP)](https://soloagent.dev/docs/#mcp): connecting Model Context Protocol servers over stdio or HTTP
+- [Approvals](https://soloagent.dev/docs/#approvals): pausing risky tool calls until a human approves
+- [Connectors](https://soloagent.dev/docs/#connectors): Slack, Discord, Telegram, and webhook setup
+- [Chat routing & commands](https://soloagent.dev/docs/#routing): `@agent` mentions, `!agents`, `!reset`, `!stop`, `!help`
+- [Teams & access](https://soloagent.dev/docs/#teams): access lists, budgets and rate limits, users and roles
+- [Files & images](https://soloagent.dev/docs/#files): sharing files with agents from every channel
+- [Automations](https://soloagent.dev/docs/#automations): recurring cron schedules as durable tasks
+- [Terminal UI](https://soloagent.dev/docs/#tui): commands and keybindings
+- [HTTP API & SDK](https://soloagent.dev/docs/#api): REST routes, the WebSocket stream, the TypeScript client
+- [Durability](https://soloagent.dev/docs/#durability): what survives a restart and why
+- [Backups & upgrades](https://soloagent.dev/docs/#backups): `soloagent backup`, restore, export and import, upgrading
+- [Security](https://soloagent.dev/docs/#security): tokens, sessions, credential sealing, the workspace skill
+
+## Source
+
+- [README](https://github.com/nearbycoder/soloagent.dev/blob/main/README.md): overview, quick start, deploy table, CLI reference
+- [Installer script](https://soloagent.dev/install.sh): what `curl … | sh` runs
+- [GitHub repository](https://github.com/nearbycoder/soloagent.dev): source, issues, releases
+
+## Optional
+
+- [Changelog](https://github.com/nearbycoder/soloagent.dev/blob/main/CHANGELOG.md): release notes
+- [Security policy](https://github.com/nearbycoder/soloagent.dev/blob/main/SECURITY.md): reporting vulnerabilities
+- [Contributing](https://github.com/nearbycoder/soloagent.dev/blob/main/CONTRIBUTING.md): project layout and PR checklist
+- [Pi by Earendil](https://github.com/earendil-works/pi): the agent toolkit soloagent is built on

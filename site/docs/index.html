@@ -6,11 +6,11 @@
   <title>Docs — soloagent</title>
   <meta name="description" content="Documentation for soloagent: installing it locally, deploying with Docker, Railway, Render, Fly.io, or systemd, providers and subscriptions, agents and skills, Slack/Discord/Telegram/webhook connectors, the terminal UI, the HTTP API and SDK, durability, and security.">
   <link rel="canonical" href="https://soloagent.dev/docs/">
-  <meta name="theme-color" content="#12110d" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f5f4ef" media="(prefers-color-scheme: light)">
-  <link rel="icon" href="/icon.svg?v=e38c0d06bd" type="image/svg+xml">
-  <link rel="icon" href="/favicon.ico?v=86b07e01ff" sizes="48x48">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=ec9525541f">
+  <meta name="theme-color" content="#08080a" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#fbfbfc" media="(prefers-color-scheme: light)">
+  <link rel="icon" href="/icon.svg?v=c1089e2ef2" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico?v=6ca635c456" sizes="48x48">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=8b20ad1ec2">
 
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="soloagent">
@@ -25,43 +25,76 @@
   <meta name="twitter:description" content="Install, deploy anywhere, connectors, TUI, HTTP API and SDK.">
   <meta name="twitter:image" content="https://soloagent.dev/og.png">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Martian+Mono:wdth,wght@75..112.5,400..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/site.css?v=6165a4e842">
-  <link rel="stylesheet" href="/css/docs.css?v=fd17d5d0b7">
+  <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt">
+
+  <link rel="preload" href="/fonts/geist-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/geist-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/css/site.css?v=a321ce460a">
+  <link rel="stylesheet" href="/css/docs.css?v=959b9ebfbc">
+  <script>document.documentElement.classList.add("js")</script>
 </head>
-<body>
+<body class="docs">
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m7 11 2-2-2-2"/><path d="M11 13h4"/><rect width="18" height="18" x="3" y="3" rx="2"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01"/><path d="M6 18h.01"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/></symbol>
+  <symbol id="i-github" viewBox="0 0 16 16"><path fill="currentColor" stroke="none" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></symbol>
+</svg>
+
 <a class="skip" href="#content">Skip to content</a>
 
-<header class="header">
+<header class="header solid" data-header>
   <div class="wrap">
-    <a class="brand" href="/" aria-label="soloagent home"><img src="/icon.svg?v=e38c0d06bd" alt="" width="24" height="24">soloagent</a>
+    <a class="brand" href="/" aria-label="soloagent home"><img src="/icon.svg?v=c1089e2ef2" alt="" width="26" height="26">soloagent</a>
     <nav class="nav" aria-label="Primary">
-      <a href="/#record">durability</a>
-      <a href="/#models">models</a>
-      <a href="/#channels">channels</a>
-      <a href="/#developers">developers</a>
-      <a href="/docs/" aria-current="page">docs</a>
+      <a href="/#features">Features</a>
+      <a href="/#durability">Durability</a>
+      <a href="/#channels">Channels</a>
+      <a href="/#deploy">Deploy</a>
+      <a href="/docs/" aria-current="page">Docs</a>
     </nav>
     <div class="header-actions">
-      <a class="btn btn-ghost btn-sm" href="https://github.com/nearbycoder/soloagent.dev" rel="noopener">github</a>
-      <a class="btn btn-lime btn-sm" href="#install">install <span class="arrow">→</span></a>
+      <a class="btn btn-ghost btn-sm gh" href="https://github.com/nearbycoder/soloagent.dev" rel="noopener"><svg class="i" aria-hidden="true"><use href="#i-github"/></svg><span>GitHub</span></a>
+      <a class="btn btn-lime btn-sm hide-sm" href="#install">Install</a>
+      <details class="menu">
+        <summary aria-label="Menu"><svg class="i i-open" aria-hidden="true"><use href="#i-menu"/></svg><svg class="i i-close" aria-hidden="true"><use href="#i-x"/></svg></summary>
+        <nav class="menu-panel" aria-label="Menu">
+          <a href="/">Home</a>
+          <a href="/#features">Features</a>
+          <a href="/#durability">Durability</a>
+          <a href="/#channels">Channels</a>
+          <a href="/docs/">Docs</a>
+          <a class="btn btn-lime" href="#install">Install</a>
+        </nav>
+      </details>
     </div>
   </div>
 </header>
 
 <div class="docs-hero">
+  <div class="docs-hero-bg" aria-hidden="true"></div>
   <div class="wrap">
-    <p class="crumb label"><a href="/">soloagent</a> / docs</p>
+    <nav class="crumb" aria-label="Breadcrumb"><a href="/">soloagent</a><span aria-hidden="true">/</span><span aria-current="page">docs</span></nav>
     <h1>Documentation</h1>
     <p class="lede">Install soloagent, connect models and chat platforms, and integrate with the HTTP API.</p>
+    <div class="quick">
+      <a href="#getting-started"><span class="quick-icon"><svg class="i" aria-hidden="true"><use href="#i-terminal"/></svg></span><b>Getting started</b><span>Install, first run, the demo model</span></a>
+      <a href="#deploy"><span class="quick-icon"><svg class="i" aria-hidden="true"><use href="#i-server"/></svg></span><b>Deploy</b><span>Docker, Railway, Render, Fly.io, systemd</span></a>
+      <a href="#connectors"><span class="quick-icon"><svg class="i" aria-hidden="true"><use href="#i-plug"/></svg></span><b>Connectors</b><span>Slack, Discord, Telegram, webhooks</span></a>
+      <a href="#api"><span class="quick-icon"><svg class="i" aria-hidden="true"><use href="#i-code"/></svg></span><b>HTTP API &amp; SDK</b><span>REST, WebSocket, TypeScript client</span></a>
+    </div>
   </div>
 </div>
 
 <div class="wrap docs-layout">
   <details class="toc-mobile">
-    <summary>On this page</summary>
+    <summary><svg class="i" aria-hidden="true"><use href="#i-list"/></svg>On this page</summary>
     <nav aria-label="Table of contents (mobile)">
       <a href="#getting-started">Getting started</a>
       <a href="#deploy">Deploy</a>
@@ -133,9 +166,9 @@
       <a href="#security">Security</a>
     </nav>
     <div class="toc-card">
-      <b>Run it anywhere</b>
-      <p>Your laptop, Docker, Railway, Render, Fly.io, or a Linux box.</p>
-      <a class="btn btn-sm btn-lime" href="#deploy">Pick a host</a>
+      <span class="toc-card-icon"><svg class="i" aria-hidden="true"><use href="#i-bot"/></svg></span>
+      <b>Built for agents</b>
+      <p>Point your coding agent at <a href="/llms.txt">llms.txt</a>, a plain-text map of these docs, or hand it the <a href="/#for-agents">setup prompt</a>.</p>
     </div>
   </aside>
 
@@ -148,21 +181,21 @@
 
       <h3 id="install">Install on your machine</h3>
       <p>With <b>Node 22.19 or newer</b>, the installer puts the <code>soloagent</code> command on your path:</p>
-      <div class="code code-float"><button class="copy" type="button">copy</button><pre><code><span class="cmd">curl -fsSL https://soloagent.dev/install.sh | sh</span></code></pre></div>
+      <div class="code code-float"><button class="copy" type="button">Copy</button><pre><code><span class="cmd">curl -fsSL https://soloagent.dev/install.sh | sh</span></code></pre></div>
       <p>It downloads the latest release and installs it with npm, so you can also do that yourself, on any OS including Windows, or try it once without installing. <code>--allow-remote=root</code> lets npm 12 install from a release URL; older npm versions ignore it:</p>
-      <div class="code"><div class="code-head"><span>npm</span><button class="copy" type="button" data-copy="npm install -g --allow-remote=root https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz">copy</button></div><pre><code><span class="t-c"># install</span>
+      <div class="code"><div class="code-head"><span>npm</span><button class="copy" type="button" data-copy="npm install -g --allow-remote=root https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz">Copy</button></div><pre><code><span class="t-c"># install</span>
 <span class="cmd">npm install -g --allow-remote=root https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz</span>
 
 <span class="t-c"># or run once, nothing installed</span>
 <span class="cmd">npx -y --allow-remote=root https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz</span></code></pre></div>
       <p>On macOS or Linux with <b>Homebrew</b>, which brings its own Node:</p>
-      <div class="code code-float"><button class="copy" type="button">copy</button><pre><code><span class="cmd">brew install nearbycoder/soloagent/soloagent</span></code></pre></div>
+      <div class="code code-float"><button class="copy" type="button">Copy</button><pre><code><span class="cmd">brew install nearbycoder/soloagent/soloagent</span></code></pre></div>
       <p>No Node? Use Docker, one command, any OS:</p>
-      <div class="code code-float"><button class="copy" type="button">copy</button><pre><code><span class="cmd">docker run -d --name soloagent -p 7420:7420 -v soloagent:/data ghcr.io/nearbycoder/soloagent.dev</span></code></pre></div>
+      <div class="code code-float"><button class="copy" type="button">Copy</button><pre><code><span class="cmd">docker run -d --name soloagent -p 7420:7420 -v soloagent:/data ghcr.io/nearbycoder/soloagent.dev</span></code></pre></div>
       <p>Then open <code>http://localhost:7420</code> and paste the token from <code>docker logs soloagent</code>.</p>
 
       <h3>First run</h3>
-      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button" data-copy="soloagent">copy</button></div><pre><code><span class="t-c"># the terminal UI, with a private server and data in ~/.soloagent</span>
+      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button" data-copy="soloagent">Copy</button></div><pre><code><span class="t-c"># the terminal UI, with a private server and data in ~/.soloagent</span>
 <span class="cmd">soloagent</span>
 
 <span class="t-c"># or the web dashboard on http://localhost:7420</span>
@@ -196,7 +229,7 @@
       <div class="sub-section" id="docker">
         <h3>Docker</h3>
         <p>The image <code>ghcr.io/nearbycoder/soloagent.dev</code> is built for <code>amd64</code> and <code>arm64</code> (so Apple silicon, Raspberry Pi, and Graviton work too). The repository's <code>docker-compose.yml</code> is all you need:</p>
-        <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">curl -fsSLO https://raw.githubusercontent.com/nearbycoder/soloagent.dev/main/docker-compose.yml</span>
+        <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">Copy</button></div><pre><code><span class="cmd">curl -fsSLO https://raw.githubusercontent.com/nearbycoder/soloagent.dev/main/docker-compose.yml</span>
 <span class="cmd">docker compose up -d</span>
 <span class="cmd">docker compose logs soloagent | grep token</span></code></pre></div>
         <p>Data lives in the compose file's <code>soloagent-data</code> volume. To choose your own token and secret, put them in a <code>.env</code> file next to the compose file (see <code>.env.example</code>). Update with <code>docker compose pull &amp;&amp; docker compose up -d</code>. Self-hosted platforms such as Coolify and Dokploy can deploy the same compose file from the repository.</p>
@@ -222,7 +255,7 @@
       <div class="sub-section" id="fly">
         <h3>Fly.io</h3>
         <p>The included <code>fly.toml</code> runs one always-on machine with a volume mounted at <code>/data</code>:</p>
-        <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">git clone https://github.com/nearbycoder/soloagent.dev && cd soloagent.dev</span>
+        <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">Copy</button></div><pre><code><span class="cmd">git clone https://github.com/nearbycoder/soloagent.dev && cd soloagent.dev</span>
 <span class="cmd">fly launch --copy-config --no-deploy</span>
 <span class="cmd">fly volumes create soloagent_data --size 1</span>
 <span class="cmd">fly secrets set SOLOAGENT_TOKEN=$(openssl rand -base64 32) SOLOAGENT_SECRET=$(openssl rand -base64 32)</span>
@@ -232,7 +265,7 @@
 
       <div class="sub-section" id="linux">
         <h3>Linux server with systemd</h3>
-        <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">sudo useradd --system --create-home --home-dir /var/lib/soloagent soloagent</span>
+        <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">Copy</button></div><pre><code><span class="cmd">sudo useradd --system --create-home --home-dir /var/lib/soloagent soloagent</span>
 <span class="cmd">sudo npm install -g --allow-remote=root https://github.com/nearbycoder/soloagent.dev/releases/latest/download/soloagent.tgz</span>
 <span class="cmd">sudo curl -fsSLo /etc/systemd/system/soloagent.service https://raw.githubusercontent.com/nearbycoder/soloagent.dev/main/deploy/soloagent.service</span>
 <span class="cmd">sudo systemctl enable --now soloagent</span>
@@ -350,7 +383,7 @@
 
       <h3>Examples</h3>
       <p>GitHub's official server over stdio. It ships as a Docker image, so Docker must be available where soloagent runs. It reads a <a href="https://github.com/settings/personal-access-tokens/new" rel="noopener">personal access token</a> from its environment:</p>
-      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">curl -X POST https://solo.example.com/api/mcp-servers \</span>
+      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">Copy</button></div><pre><code><span class="cmd">curl -X POST https://solo.example.com/api/mcp-servers \</span>
   -H <span class="t-s">"authorization: Bearer $SOLOAGENT_TOKEN"</span> -H <span class="t-s">"content-type: application/json"</span> \
   -d <span class="t-s">'{
     "id": "github",
@@ -361,13 +394,13 @@
     "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "github_pat_…" }
   }'</span></code></pre></div>
       <p>Servers published to npm run with <code>npx</code>, which is also available in the soloagent Docker image. The reference filesystem server, limited to one folder:</p>
-      <div class="code"><div class="code-head"><span>json</span><button class="copy" type="button">copy</button></div><pre><code>{
+      <div class="code"><div class="code-head"><span>json</span><button class="copy" type="button">Copy</button></div><pre><code>{
   <span class="t-s">"id"</span>: <span class="t-s">"files"</span>,
   <span class="t-s">"command"</span>: <span class="t-s">"npx"</span>,
   <span class="t-s">"args"</span>: [<span class="t-s">"-y"</span>, <span class="t-s">"@modelcontextprotocol/server-filesystem"</span>, <span class="t-s">"/data/shared"</span>]
 }</code></pre></div>
       <p>A remote server over HTTP, here GitHub's hosted one:</p>
-      <div class="code"><div class="code-head"><span>json</span><button class="copy" type="button">copy</button></div><pre><code>{
+      <div class="code"><div class="code-head"><span>json</span><button class="copy" type="button">Copy</button></div><pre><code>{
   <span class="t-s">"id"</span>: <span class="t-s">"github"</span>,
   <span class="t-s">"transport"</span>: <span class="t-s">"http"</span>,
   <span class="t-s">"url"</span>: <span class="t-s">"https://api.githubcopilot.com/mcp/"</span>,
@@ -443,7 +476,7 @@
           <li><h4>Connect and invite</h4><p>Paste both tokens into a new Slack connector. Invite the bot to a channel with <code>/invite @Solo</code>, then mention it. DMs work too.</p></li>
         </ol>
         <p>The manifest turns on <b>Interactivity</b>, which the <a href="#approvals">approval</a> buttons need. Socket Mode delivers the clicks, so no request URL is needed.</p>
-        <div class="code"><div class="code-head"><span>slack-manifest.yaml</span><button class="copy" type="button">copy</button></div><pre><code>display_information:
+        <div class="code"><div class="code-head"><span>slack-manifest.yaml</span><button class="copy" type="button">Copy</button></div><pre><code>display_information:
   name: Solo
   description: Your agents, on soloagent.dev
   background_color: <span class="t-s">"#15140f"</span>
@@ -501,7 +534,7 @@ settings:
       <div class="sub-section" id="webhook">
         <h3><a href="#webhook">Webhook</a></h3>
         <p>Wire agents into anything that can send an HTTP request. Create a Webhook connector with a shared secret; callers send it in the <code>x-solo-secret</code> header.</p>
-        <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">curl -X POST https://solo.example.com/api/hooks/&lt;connector-id&gt; \</span>
+        <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">Copy</button></div><pre><code><span class="cmd">curl -X POST https://solo.example.com/api/hooks/&lt;connector-id&gt; \</span>
   -H <span class="t-s">'x-solo-secret: YOUR_SECRET'</span> \
   -H <span class="t-s">'content-type: application/json'</span> \
   -d <span class="t-s">'{"text": "@coder what changed in the last deploy?", "thread": "deploys", "user": "ci"}'</span></code></pre></div>
@@ -636,7 +669,7 @@ settings:
       <h2><a href="#automations">Automations</a></h2>
       <p>An automation is a prompt that runs on a schedule: “every weekday at 9:00, post a standup summary in #eng”, “every Monday, summarize last week's deploys”, “every hour, check the status page and alert if anything is down”. Reminders fire once; automations repeat.</p>
       <p>Create them under <b>Automations</b> in the dashboard, with <code>POST /api/automations</code>, or by asking an agent that has the Schedule skill. In Slack:</p>
-      <div class="code"><div class="code-head"><span>slack</span><button class="copy" type="button">copy</button></div><pre><code>@solo every weekday at 9 post the open incidents here</code></pre></div>
+      <div class="code"><div class="code-head"><span>slack</span><button class="copy" type="button">Copy</button></div><pre><code>@solo every weekday at 9 post the open incidents here</code></pre></div>
       <p>The agent calls <code>schedule_recurring</code>. It can also <code>list_automations</code> and <code>cancel_automation</code>.</p>
 
       <h3>Schedules</h3>
@@ -667,7 +700,7 @@ settings:
       <p>Disabling, editing, or deleting an automation cancels or reschedules its task immediately. <b>Run now</b> runs it once outside its schedule, even when it is disabled. Runs use the same path as a chat message, so the agent's model, skills, and limits apply.</p>
 
       <h3>API</h3>
-      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">curl https://solo.example.com/api/automations \</span>
+      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">Copy</button></div><pre><code><span class="cmd">curl https://solo.example.com/api/automations \</span>
   -H <span class="t-s">"authorization: Bearer $SOLOAGENT_TOKEN"</span> -H <span class="t-s">"content-type: application/json"</span> \
   -d <span class="t-s">'{
     "name": "Standup summary",
@@ -756,7 +789,7 @@ settings:
     <section id="api">
       <h2><a href="#api">HTTP API &amp; SDK</a></h2>
       <p>The dashboard and TUI use the same public API, so anything they do, your scripts can do. All routes live under <code>/api</code> and require the admin token in an <code>authorization: Bearer …</code> header (or a signed-in user's session cookie), except inbound webhooks, which carry their own secret, invite links, and <code>/api/version</code>. Only the WebSocket accepts the token as <code>?token=</code>; REST routes reject it. Requests without a valid token get <code>401</code>.</p>
-      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">curl https://solo.example.com/api/agents \</span>
+      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">Copy</button></div><pre><code><span class="cmd">curl https://solo.example.com/api/agents \</span>
   -H <span class="t-s">"authorization: Bearer $SOLOAGENT_TOKEN"</span></code></pre></div>
 
       <h3>Routes</h3>
@@ -804,7 +837,7 @@ settings:
 
       <h3>TypeScript SDK</h3>
       <p><code>@soloagent/client</code>, in <code>packages/client</code>, is a typed client for the REST API and WebSocket with no dependencies. It runs in Node 22.19+ and in browsers. It isn't on npm yet, so use it from a clone of the repository.</p>
-      <div class="code"><div class="code-head"><span>ask.ts</span><button class="copy" type="button">copy</button></div><pre><code><span class="t-k">import</span> { SoloClient } <span class="t-k">from</span> <span class="t-s">"@soloagent/client"</span>;
+      <div class="code"><div class="code-head"><span>ask.ts</span><button class="copy" type="button">Copy</button></div><pre><code><span class="t-k">import</span> { SoloClient } <span class="t-k">from</span> <span class="t-s">"@soloagent/client"</span>;
 
 <span class="t-k">const</span> solo = <span class="t-k">new</span> <span class="t-f">SoloClient</span>({
   baseUrl: <span class="t-s">"https://solo.example.com"</span>,
@@ -819,7 +852,7 @@ console.<span class="t-f">log</span>(result.answer);
 
 <span class="t-c">// Or fire and forget, and follow along live</span>
 <span class="t-k">await</span> solo.<span class="t-f">send</span>(thread.id, <span class="t-s">"Now draft release notes"</span>);</code></pre></div>
-      <div class="code"><div class="code-head"><span>stream.ts</span><button class="copy" type="button">copy</button></div><pre><code><span class="t-k">const</span> stream = solo.<span class="t-f">connect</span>(); <span class="t-c">// reconnects automatically</span>
+      <div class="code"><div class="code-head"><span>stream.ts</span><button class="copy" type="button">Copy</button></div><pre><code><span class="t-k">const</span> stream = solo.<span class="t-f">connect</span>(); <span class="t-c">// reconnects automatically</span>
 stream.<span class="t-f">subscribe</span>(thread.id);
 
 stream.<span class="t-f">on</span>((event) =&gt; {
@@ -832,7 +865,7 @@ stream.<span class="t-f">close</span>();</code></pre></div>
 
       <h3>Embed the core</h3>
       <p>The runtime, <code>@soloagent/core</code> in <code>packages/core</code>, is a library too. Open it against a data directory and use it in-process, without the HTTP server.</p>
-      <div class="code"><div class="code-head"><span>embed.ts</span><button class="copy" type="button">copy</button></div><pre><code><span class="t-k">import</span> { SoloAgent } <span class="t-k">from</span> <span class="t-s">"@soloagent/core"</span>;
+      <div class="code"><div class="code-head"><span>embed.ts</span><button class="copy" type="button">Copy</button></div><pre><code><span class="t-k">import</span> { SoloAgent } <span class="t-k">from</span> <span class="t-s">"@soloagent/core"</span>;
 
 <span class="t-k">const</span> solo = <span class="t-k">await</span> SoloAgent.<span class="t-f">open</span>({ dataDir: <span class="t-s">"./data"</span> });
 <span class="t-c">// … create agents and threads, send messages …</span>
@@ -860,13 +893,13 @@ stream.<span class="t-f">close</span>();</code></pre></div>
     <section id="backups">
       <h2><a href="#backups">Backups &amp; upgrades</a></h2>
       <p>A backup is one <code>.tar.gz</code> of the data directory: consistent snapshots of both SQLite databases, agent workspaces, uploaded files, and a <code>manifest.json</code>. It's safe to take while agents are running.</p>
-      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">soloagent backup                          # ./soloagent-backup-&lt;time&gt;.tar.gz</span>
+      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">Copy</button></div><pre><code><span class="cmd">soloagent backup                          # ./soloagent-backup-&lt;time&gt;.tar.gz</span>
 <span class="cmd">soloagent backup --out solo.tar.gz --url https://solo.example.com --token "$SOLOAGENT_TOKEN"</span>
 <span class="cmd">soloagent restore solo.tar.gz             # into ~/.soloagent/data, or --data &lt;dir&gt;</span></code></pre></div>
       <p><code>soloagent backup</code> talks to your remote server or local server if one is configured or running. Otherwise it reads <code>~/.soloagent/data</code> directly, or the directory you pass with <code>--data</code>. You can also download a backup from <b>Settings</b> in the dashboard, or <code>GET /api/backup</code>.</p>
       <p><code>soloagent restore</code> checks the archive before it touches anything: the manifest, every file's checksum, and each database's integrity. It refuses to run while a server is using that data directory, and it won't replace existing data without <code>--force</code>. With <code>--force</code>, the <code>backups/</code> folder is kept.</p>
       <p>With Docker Compose, the image has the CLI and uses <code>/data</code>:</p>
-      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">docker compose exec -T soloagent soloagent backup --out - &gt; solo.tar.gz</span>
+      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">Copy</button></div><pre><code><span class="cmd">docker compose exec -T soloagent soloagent backup --out - &gt; solo.tar.gz</span>
 <span class="cmd">docker compose stop soloagent</span>
 <span class="cmd">docker compose run --rm -v "$PWD:/backup" soloagent soloagent restore /backup/solo.tar.gz --force</span>
 <span class="cmd">docker compose start soloagent</span></code></pre></div>
@@ -882,13 +915,13 @@ stream.<span class="t-f">close</span>();</code></pre></div>
       <h3>Scheduled backups</h3>
       <p>Set <code>SOLOAGENT_BACKUP_INTERVAL</code> (<code>24h</code>, <code>6h</code>, <code>30m</code>…) and the server writes a backup to <code>&lt;data&gt;/backups/</code> on that interval, keeping the newest <code>SOLOAGENT_BACKUP_KEEP</code> (default 7). Scheduled backups never include the secret. They sit on the same disk as your data, so copy them somewhere else too.</p>
       <p>To send backups to S3 or any other object store, write to stdout with <code>--out -</code>:</p>
-      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">soloagent backup --out - | aws s3 cp - s3://my-bucket/soloagent/$(date +%F).tar.gz</span>
+      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">Copy</button></div><pre><code><span class="cmd">soloagent backup --out - | aws s3 cp - s3://my-bucket/soloagent/$(date +%F).tar.gz</span>
 <span class="cmd">aws s3 cp s3://my-bucket/soloagent/2026-11-03.tar.gz - | soloagent restore - --data /var/lib/soloagent</span></code></pre></div>
       <p>Run the first line from cron on any machine that can reach the server, with <code>SOLOAGENT_URL</code> and <code>SOLOAGENT_TOKEN</code> set.</p>
 
       <h3>Moving agents between servers</h3>
       <p>Export writes every agent's settings (instructions, model, skills, and anything else stored on the agent) to JSON. Import matches agents by handle: new handles are created, and existing ones are updated (<code>merge</code>, the default) or left alone (<code>skip-existing</code>). Import never changes which agent is the default. The dashboard's <b>Agents</b> page has the same Export and Import buttons, with a preview before anything changes.</p>
-      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">copy</button></div><pre><code><span class="cmd">soloagent agents export &gt; agents.json</span>
+      <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">Copy</button></div><pre><code><span class="cmd">soloagent agents export &gt; agents.json</span>
 <span class="cmd">soloagent agents import agents.json --dry-run</span>
 <span class="cmd">soloagent agents import agents.json --mode skip-existing</span></code></pre></div>
 
@@ -934,13 +967,13 @@ stream.<span class="t-f">close</span>();</code></pre></div>
 
 <footer class="footer">
   <div class="wrap">
-    <div class="footer-base" style="margin-top:0;border-top:0;padding-top:0">
+    <div class="footer-base footer-docs">
       <span>© 2026 soloagent contributors · MIT license</span>
-      <span><a href="https://github.com/nearbycoder/soloagent.dev" rel="noopener">GitHub</a> · <a href="https://github.com/nearbycoder/soloagent.dev/issues" rel="noopener">Report an issue</a></span>
+      <span><a href="/">Home</a> · <a href="/llms.txt">llms.txt</a> · <a href="https://github.com/nearbycoder/soloagent.dev" rel="noopener">GitHub</a> · <a href="https://github.com/nearbycoder/soloagent.dev/issues" rel="noopener">Report an issue</a></span>
     </div>
   </div>
 </footer>
 
-<script src="/js/site.js?v=1f23e72a0b" defer></script>
+<script src="/js/site.js?v=64021cb6a3" defer></script>
 </body>
 </html>
