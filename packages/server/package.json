@@ -9,9 +9,9 @@
   "dependencies": {
     "@soloagent/core": "*",
     "@soloagent/client": "*",
-    "hono": "^4.13.16",
-    "@hono/node-server": "^2.1.6",
-    "ws": "^8.22.1"
+    "hono": "^4.13.18",
+    "@hono/node-server": "^2.1.8",
+    "ws": "^8.23.0"
   },
   "scripts": {
     "dev": "node --watch src/main.ts"
