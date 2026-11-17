@@ -48,7 +48,7 @@ soloagent is an open-source, self-hosted home for your AI agents. Give each agen
 - **Tools from MCP servers.** Connect any [Model Context Protocol](https://modelcontextprotocol.io) server — GitHub, Linear, Postgres, Sentry — over stdio or HTTP, and pick which agents get its tools. Large tool sets load on demand through `tool_search`.
 - **Editable memory.** See, search, edit, and clear what each agent remembers from its Memory tab.
 - **Steer mid-run.** Messages sent while an agent works join the running work at its next step instead of waiting for it to finish.
-- **A real GUI and a real TUI.** A fast dashboard (chat with streaming, thinking, and tool cards; agent editor; subscription logins; connector setup with guides; live task graph; usage and cost) and a full-screen terminal UI built on `pi-tui`.
+- **A real GUI and a real TUI.** A fast dashboard that shows what every agent is doing right now (chat with each run as a live trace of reasoning and tool calls; a ⌘K bar that can hand a question straight to an agent; agent editor; subscription logins; connector setup with guides; live task graph; usage and cost) and a full-screen terminal UI built on `pi-tui`, in the same graphite and lime palette.
 - **Try it with zero accounts.** A built-in demo model answers until you connect a provider.
 
 ## Quick start

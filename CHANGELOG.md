@@ -4,7 +4,29 @@ All notable changes to soloagent are documented here. The format follows [Keep a
 
 ## [Unreleased]
 
-- _Nothing yet. Add entries under Added / Changed / Fixed / Removed / Security as you go._
+### Changed
+
+- A redesigned dashboard. Graphite surfaces, hairline borders, self-hosted Geist and Geist Mono (no font requests to Google), and one signal color: lime now means an agent is doing something, so the eye goes where the agents are. Every page was rebuilt on the new system, in dark and light, down to phone width.
+- Agents show what they're doing everywhere: a lime arc orbits the avatar of an agent that's working, and an amber marker flags one that's waiting on a person. The sidebar lists every agent with its live state.
+- Chat shows each run as a trace: reasoning and tool calls are steps on a rail, with live status, expandable input and output, and the run's tokens and cost on hover. Threads are grouped by day and can be filtered to the ones working or waiting. The composer shows when the agent is working or paused on an approval.
+- Overview is mission control: a one-line status of the fleet, a metric strip, agent cards with live state and today's spend, and the activity feed as an event stream.
+- Agents get a fleet summary and a sectioned editor with a searchable model picker (context and price per model, thinking and vision filters). Usage, Activity, Approvals, Providers, Connections, Tools, Automations, Team, Settings, and the sign-in and invite pages were redesigned too.
+- The terminal UI and CLI use the same graphite and lime palette as the dashboard. The CLI's leftover violet accent is gone.
+- soloagent.dev was rewritten: an animated agent run in the hero, a copyable setup prompt for coding agents, and `/llms.txt` for agents that read the docs. The docs page has a sticky table of contents. The logo's tile is graphite and the wordmark is set in Geist, on the site and in the README.
+
+### Added
+
+- The command palette (⌘K / Ctrl+K) can send a request straight to an agent: type it, or `@handle` and the request, and press Enter to start the chat.
+- Automations: templates to start from, a chip picker for schedules, and a labeled cron editor.
+- Activity: filters for the event log.
+
+### Fixed
+
+- On phones, connection cards overflowed the screen when a webhook's address was long, and provider rows showed or hid the provider name wrongly.
+- Pressing Enter on an agent card's Chat button also opened the agent editor.
+- The "connected" toast could appear twice for one sign-in.
+- Number and time fields meant to be narrow stretched to the full width of their form.
+- The chat composer now takes focus once a thread has loaded.
 
 ## [0.2.1] - 2026-11-03
 
