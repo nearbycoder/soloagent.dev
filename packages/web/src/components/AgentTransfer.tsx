@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Download, Upload } from "lucide-react";
+import { Download, FileJson, Upload } from "lucide-react";
 import type { AgentImportMode, AgentImportResult } from "@soloagent/client";
 import { client, errorMessage } from "../api/client.ts";
 import { Modal } from "./overlay.tsx";
@@ -92,10 +92,10 @@ export function AgentTransfer() {
 
   return (
     <>
-      <Button icon={<Download className="size-4" />} loading={exporting} onClick={exportAll} title="Download every agent as JSON">
+      <Button icon={<Download />} loading={exporting} onClick={exportAll} title="Download every agent as JSON">
         Export
       </Button>
-      <Button icon={<Upload className="size-4" />} onClick={() => input.current?.click()} title="Add or update agents from an export">
+      <Button icon={<Upload />} onClick={() => input.current?.click()} title="Add or update agents from an export">
         Import
       </Button>
       <input ref={input} type="file" accept="application/json,.json" className="hidden" onChange={(e) => void pick(e.target.files?.[0])} />
@@ -104,7 +104,7 @@ export function AgentTransfer() {
         open={!!file}
         onClose={close}
         title="Import agents"
-        description={file ? `${file.name} · ${file.agents.length === 1 ? "1 agent" : `${file.agents.length} agents`}, matched by handle` : undefined}
+        description={file ? `${file.agents.length === 1 ? "1 agent" : `${file.agents.length} agents`} in the file, matched to yours by @handle.` : undefined}
         footer={
           <>
             <Button variant="ghost" onClick={close}>
@@ -116,9 +116,27 @@ export function AgentTransfer() {
           </>
         }
       >
-        <div className="flex flex-col gap-4 p-5">
+        <div className="flex flex-col gap-4 px-5 pb-5 pt-1">
+          {file && (
+            <div className="flex items-center gap-2.5 rounded-lg border border-border bg-code px-3 py-2">
+              <FileJson className="size-4 shrink-0 text-subtle" />
+              <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-fg">{file.name}</span>
+              {preview && (
+                <span className="flex shrink-0 items-center gap-2 font-mono text-[11px] text-faint">
+                  {(["create", "update", "skip", "unchanged"] as const).map((action) => {
+                    const n = preview.items.filter((i) => i.action === action).length;
+                    return n ? (
+                      <span key={action} className={action === "create" ? "text-success" : action === "update" ? "text-warning" : undefined}>
+                        {n} {ACTION_LABEL[action].toLowerCase()}
+                      </span>
+                    ) : null;
+                  })}
+                </span>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[12.5px] text-subtle">{mode === "merge" ? "Existing agents take the file's values; fields it leaves out are kept." : "Agents that already exist are left alone."}</p>
+            <p className="max-w-[46ch] text-[12.5px] leading-relaxed text-subtle">{mode === "merge" ? "Existing agents take the file's values; fields it leaves out are kept." : "Agents that already exist are left alone."}</p>
             <Segmented<AgentImportMode>
               size="sm"
               value={mode}
@@ -135,25 +153,36 @@ export function AgentTransfer() {
           {previewError ? (
             <p className="rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-[13px] text-danger">{previewError}</p>
           ) : !preview ? (
-            <p className="text-[13px] text-subtle">Checking what would change…</p>
+            <p className="flex items-center gap-2 text-[13px] text-subtle">
+              <span className="size-1.5 animate-pulse-soft rounded-full bg-faint" />
+              Checking what would change…
+            </p>
           ) : (
-            <ul className="divide-y divide-border rounded-lg border border-border">
+            <ul className="max-h-[46vh] divide-y divide-border overflow-y-auto rounded-xl border border-border bg-surface/40">
               {preview.items.map((item) => (
-                <li key={item.handle} className="flex items-start gap-3 px-3 py-2.5 text-[13px]">
-                  <Badge tone={ACTION_TONE[item.action]} className="mt-px w-[72px] justify-center">
+                <li key={item.handle} className="flex items-start gap-3 px-3.5 py-3 text-[13px]">
+                  <Badge tone={ACTION_TONE[item.action]} className="mt-px w-[76px] justify-center">
                     {ACTION_LABEL[item.action]}
                   </Badge>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-fg">
-                      {item.name} <span className="font-mono text-[12px] text-subtle">@{item.handle}</span>
+                      <span className="font-medium">{item.name}</span> <span className="font-mono text-[12px] text-subtle">@{item.handle}</span>
                     </p>
-                    {item.fields.length > 0 && <p className="mt-0.5 text-[12px] text-subtle">Changes {item.fields.join(", ")}</p>}
+                    {item.fields.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {item.fields.map((field) => (
+                          <span key={field} className="rounded-md border border-border bg-surface-2 px-1.5 py-px font-mono text-[10.5px] text-muted">
+                            {field}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </li>
               ))}
             </ul>
           )}
-          <p className="text-[12px] text-faint">Importing never changes which agent is the default. Models that aren't set up on this server need a provider before those agents can answer.</p>
+          <p className="text-[12px] leading-relaxed text-faint">Importing never changes which agent is the default. Models that aren't set up on this server need a provider before those agents can answer.</p>
         </div>
       </Modal>
     </>

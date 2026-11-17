@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import type {
   ActivityItem,
   Agent,
@@ -318,4 +318,42 @@ function agentMapCache(agents: Agent[] | null) {
     lastMap = new Map((agents ?? []).map((a) => [a.id, a]));
   }
   return lastMap;
+}
+
+// ---------------------------------------------------------------------------
+// Agent presence: what each agent is doing right now, derived from the live thread list.
+
+export type AgentActivity = {
+  /** "working": a run is in progress; "approval": a tool call waits for a human; otherwise idle. */
+  presence: "idle" | "working" | "approval";
+  /** Threads with a run in progress. */
+  working: number;
+  /** Threads paused on an approval. */
+  waiting: number;
+  /** The most recently updated thread that is working or waiting, for "working in #eng-deploys". */
+  thread?: Thread;
+};
+
+const IDLE: AgentActivity = { presence: "idle", working: 0, waiting: 0 };
+
+/** Presence for every agent, keyed by agent id. Agents with nothing going on are absent: use `?? idle`. */
+export function useAgentActivity(): Map<string, AgentActivity> {
+  const threads = useApp((s) => s.threads);
+  return useMemo(() => {
+    const map = new Map<string, AgentActivity>();
+    for (const thread of threads ?? []) {
+      if (!thread.busy && !thread.waitingApproval) continue;
+      const current = map.get(thread.agentId) ?? { ...IDLE };
+      if (thread.waitingApproval) current.waiting++;
+      else current.working++;
+      if (!current.thread || thread.updatedAt > current.thread.updatedAt) current.thread = thread;
+      current.presence = current.waiting > 0 ? "approval" : "working";
+      map.set(thread.agentId, current);
+    }
+    return map;
+  }, [threads]);
+}
+
+export function idleActivity(): AgentActivity {
+  return IDLE;
 }

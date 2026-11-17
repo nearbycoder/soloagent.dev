@@ -77,7 +77,7 @@ export function Modal({
   const width = { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-2xl", xl: "max-w-4xl" }[size];
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6">
-      <div className="absolute inset-0 animate-fade-in bg-[var(--scrim)] backdrop-blur-[2px]" onClick={() => dismissable && onClose()} />
+      <div className="absolute inset-0 animate-fade-in bg-[var(--scrim)] backdrop-blur-sm" onClick={() => dismissable && onClose()} />
       <div
         ref={panel}
         data-dialog
@@ -85,16 +85,16 @@ export function Modal({
         aria-modal="true"
         tabIndex={-1}
         className={cn(
-          "relative flex max-h-[92dvh] w-full animate-scale-in flex-col overflow-hidden rounded-t-2xl border border-border bg-overlay shadow-lg outline-none sm:rounded-2xl",
+          "lit relative flex max-h-[92dvh] w-full animate-scale-in flex-col overflow-hidden rounded-t-2xl border border-border-strong bg-overlay shadow-lg outline-none sm:rounded-2xl",
           width,
           className,
         )}
       >
         {title && (
-          <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+          <div className="flex items-start justify-between gap-4 px-5 pb-3 pt-5">
             <div className="min-w-0">
-              <h2 className="text-[15px] font-semibold tracking-tight text-fg">{title}</h2>
-              {description && <p className="mt-0.5 text-[13px] text-subtle">{description}</p>}
+              <h2 className="text-[16px] font-semibold tracking-[-0.015em] text-fg">{title}</h2>
+              {description && <p className="mt-1 text-[13px] leading-relaxed text-subtle">{description}</p>}
             </div>
             {dismissable && (
               <IconButton label="Close" size="sm" onClick={onClose} className="-mr-1 mt-0.5">
@@ -104,7 +104,7 @@ export function Modal({
           </div>
         )}
         <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
-        {footer && <div className="flex items-center justify-end gap-2 border-t border-border bg-surface-2/40 px-5 py-3">{footer}</div>}
+        {footer && <div className="flex items-center justify-end gap-2 border-t border-border bg-surface-2/50 px-5 py-3">{footer}</div>}
       </div>
     </div>,
     document.body,
@@ -135,20 +135,23 @@ export function Drawer({
   if (!open) return null;
   return createPortal(
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 animate-fade-in bg-[var(--scrim)]" onClick={onClose} />
+      <div className="absolute inset-0 animate-fade-in bg-[var(--scrim)] backdrop-blur-[3px]" onClick={onClose} />
       <div
         ref={panel}
         data-dialog
         role="dialog"
         aria-modal="true"
         tabIndex={-1}
-        className={cn("relative flex h-full w-full animate-slide-in-right flex-col border-l border-border bg-overlay shadow-lg outline-none", width)}
+        className={cn(
+          "relative flex h-full w-full animate-slide-in-right flex-col bg-overlay shadow-lg outline-none sm:my-2 sm:mr-2 sm:h-[calc(100%-1rem)] sm:rounded-2xl sm:border sm:border-border-strong",
+          width,
+        )}
       >
-        <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-3.5">
+        <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-4">
           <div className="flex min-w-0 items-center gap-3">
             {icon}
             <div className="min-w-0">
-              <h2 className="truncate text-[15px] font-semibold tracking-tight text-fg">{title}</h2>
+              <h2 className="truncate text-[15.5px] font-semibold tracking-[-0.015em] text-fg">{title}</h2>
               {description && <p className="truncate text-[12.5px] text-subtle">{description}</p>}
             </div>
           </div>
@@ -157,7 +160,7 @@ export function Drawer({
           </IconButton>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
-        {footer && <div className="flex items-center gap-2 border-t border-border bg-surface-2/40 px-5 py-3">{footer}</div>}
+        {footer && <div className="flex items-center gap-2 border-t border-border bg-surface-2/50 px-5 py-3 sm:rounded-b-2xl">{footer}</div>}
       </div>
     </div>,
     document.body,
@@ -246,7 +249,7 @@ export function Popover({
     <div
       ref={panel}
       style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999, width: matchWidth ? pos?.width : undefined, visibility: pos ? "visible" : "hidden" }}
-      className={cn("fixed z-[60] animate-scale-in overflow-hidden rounded-xl border border-border bg-overlay p-1 shadow-lg", className)}
+      className={cn("fixed z-[60] animate-scale-in overflow-hidden rounded-xl border border-border-strong bg-overlay/95 p-1 shadow-lg backdrop-blur-xl", className)}
     >
       {children}
     </div>,
@@ -277,24 +280,24 @@ export function MenuItem({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
+        "flex h-8 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px] transition-colors disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
         danger ? "text-danger hover:bg-danger-soft" : "text-fg hover:bg-surface-2",
         active && "bg-surface-2",
       )}
     >
       {icon && <span className={cn(danger ? "text-danger" : "text-subtle")}>{icon}</span>}
       <span className="min-w-0 flex-1 truncate">{children}</span>
-      {hint && <span className="text-xs text-subtle">{hint}</span>}
+      {hint && <span className="text-[12px] text-faint">{hint}</span>}
     </button>
   );
 }
 
 export function MenuSeparator() {
-  return <div className="my-1 h-px bg-border" />;
+  return <div className="-mx-1 my-1 h-px bg-border" />;
 }
 
 export function MenuLabel({ children }: { children: ReactNode }) {
-  return <div className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wider text-faint">{children}</div>;
+  return <div className="label-mono px-2.5 pb-1 pt-2 text-faint">{children}</div>;
 }
 
 // ---------------------------------------------------------------------------
@@ -309,7 +312,7 @@ export function Toaster() {
         <div
           key={t.id}
           role={t.tone === "error" ? "alert" : "status"}
-          className="pointer-events-auto flex w-full max-w-sm animate-slide-up items-start gap-3 rounded-xl border border-border bg-overlay px-3.5 py-3 shadow-lg"
+          className="pointer-events-auto flex w-full max-w-sm animate-slide-up items-start gap-3 rounded-xl border border-border-strong bg-overlay/95 px-3.5 py-3 shadow-lg backdrop-blur-xl"
         >
           <span className={cn("mt-0.5", t.tone === "error" ? "text-danger" : t.tone === "success" ? "text-success" : "text-info")}>
             {t.tone === "error" ? <CircleAlert className="size-4" /> : t.tone === "success" ? <CircleCheck className="size-4" /> : <Info className="size-4" />}
@@ -348,8 +351,8 @@ export function ConfirmHost() {
     >
       {pending && (
         <div className="px-5 pb-5 pt-5">
-          <h2 className="text-[15px] font-semibold text-fg">{pending.title}</h2>
-          {pending.body && <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted">{pending.body}</p>}
+          <h2 className="text-[16px] font-semibold tracking-[-0.015em] text-fg">{pending.title}</h2>
+          {pending.body && <p className="mt-1.5 text-[13.5px] leading-relaxed text-subtle">{pending.body}</p>}
         </div>
       )}
     </Modal>

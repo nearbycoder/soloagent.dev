@@ -78,7 +78,10 @@ export function App() {
 function Splash() {
   return (
     <div className="grid h-full place-items-center bg-bg">
-      <SparkMark className="size-7 animate-pulse-soft text-accent" />
+      <div className="relative">
+        <div aria-hidden className="absolute inset-0 -z-10 scale-150 rounded-full bg-accent/20 blur-2xl" />
+        <SparkMark className="size-9 animate-pulse-soft" />
+      </div>
     </div>
   );
 }

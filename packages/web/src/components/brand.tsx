@@ -13,8 +13,8 @@ export function SoloMark({ className }: { className?: string }) {
     <svg viewBox="0 0 64 64" className={className} aria-hidden="true">
       <defs>
         <linearGradient id={`${id}t`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#2b2a22" />
-          <stop offset="1" stopColor="#0d0c09" />
+          <stop offset="0" stopColor="#2a2a30" />
+          <stop offset="1" stopColor="#0b0b0e" />
         </linearGradient>
         <linearGradient id={`${id}r`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#fff" stopOpacity="0.22" />
@@ -44,28 +44,56 @@ export const SparkMark = SoloMark;
 
 export function Logo({ className, compact }: { className?: string; compact?: boolean }) {
   return (
-    <span className={cn("inline-flex items-center gap-2 font-semibold tracking-[-0.02em] text-fg", className)}>
-      <SoloMark className="size-6" />
-      {!compact && <span className="font-display text-[16px]">soloagent</span>}
+    <span className={cn("inline-flex items-center gap-2.5 text-fg", className)}>
+      <SoloMark className="size-[26px]" />
+      {!compact && <span className="font-display text-[16px] font-semibold tracking-[-0.035em]">soloagent</span>}
     </span>
   );
 }
 
-/** Agent avatar: the glyph on a tile tinted with the agent color. */
-export function AgentAvatar({ agent, size = "md", className }: { agent: Pick<Agent, "avatar" | "color" | "name"> | undefined; size?: "xs" | "sm" | "md" | "lg" | "xl"; className?: string }) {
+/** What an agent is doing right now. See `useAgentActivity` in the store. */
+export type AgentPresence = "idle" | "working" | "approval";
+
+const AVATAR_DIMS = {
+  xs: { box: "size-4 text-[9px] rounded-[4px]", radius: 4 },
+  sm: { box: "size-6 text-[12px] rounded-md", radius: 6 },
+  md: { box: "size-8 text-[15px] rounded-lg", radius: 8 },
+  lg: { box: "size-11 text-[20px] rounded-xl", radius: 12 },
+  xl: { box: "size-14 text-[26px] rounded-2xl", radius: 16 },
+} as const;
+
+/**
+ * Agent avatar: the glyph on a tile tinted with the agent color. With `presence`, a working agent gets a lime arc
+ * orbiting the tile and one waiting on a human gets an amber marker.
+ */
+export function AgentAvatar({
+  agent,
+  size = "md",
+  className,
+  presence,
+}: {
+  agent: Pick<Agent, "avatar" | "color" | "name"> | undefined;
+  size?: "xs" | "sm" | "md" | "lg" | "xl";
+  className?: string;
+  presence?: AgentPresence;
+}) {
   const color = agent?.color ?? "#9cbf10";
-  const dims = { xs: "size-4 text-[9px] rounded", sm: "size-6 text-[12px] rounded-md", md: "size-8 text-[15px] rounded-lg", lg: "size-11 text-[20px] rounded-xl", xl: "size-14 text-[26px] rounded-2xl" }[size];
+  const dims = AVATAR_DIMS[size];
   return (
     <span
-      className={cn("grid shrink-0 place-items-center leading-none select-none", dims, className)}
+      className={cn("relative grid shrink-0 place-items-center leading-none select-none", dims.box, presence === "working" && "orbit", className)}
       style={{
-        background: `color-mix(in srgb, ${color} 18%, var(--surface-2))`,
-        color: `color-mix(in srgb, ${color} 75%, var(--fg))`,
-        boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${color} 30%, transparent)`,
+        background: `linear-gradient(180deg, color-mix(in srgb, ${color} 24%, var(--surface-2)), color-mix(in srgb, ${color} 12%, var(--surface-2)))`,
+        color: `color-mix(in srgb, ${color} 78%, var(--fg))`,
+        boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${color} 30%, transparent), inset 0 1px 0 color-mix(in srgb, ${color} 25%, transparent)`,
+        ["--orbit-radius" as string]: `${dims.radius}px`,
       }}
       aria-hidden="true"
     >
       {agent?.avatar || "●"}
+      {presence === "approval" && (
+        <span className="absolute -bottom-[3px] -right-[3px] size-2.5 rounded-full bg-warning ring-2 ring-[var(--presence-ring,var(--panel))]" />
+      )}
     </span>
   );
 }
@@ -103,7 +131,7 @@ export const KIND_STYLE: Record<ConnectorKind, { bg: string; fg: string; label: 
   slack: { bg: "#4A154B", fg: "#ffffff", label: "Slack" },
   discord: { bg: "#5865F2", fg: "#ffffff", label: "Discord" },
   telegram: { bg: "#229ED9", fg: "#ffffff", label: "Telegram" },
-  webhook: { bg: "#d2f53c", fg: "#15140f", label: "Webhook" },
+  webhook: { bg: "#2a2a31", fg: "#ededf0", label: "Webhook" },
 };
 
 /** A colored tile with the platform mark. */
@@ -113,7 +141,7 @@ export function ConnectorTile({ kind, size = "md", className }: { kind: Connecto
   const icon = { sm: "size-4", md: "size-5", lg: "size-6" }[size];
   return (
     <span
-      className={cn("grid shrink-0 place-items-center shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]", dims, className)}
+      className={cn("grid shrink-0 place-items-center shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1),0_1px_2px_rgb(0_0_0/0.25)]", dims, className)}
       style={{ background: kind === "slack" ? "#ffffff" : s.bg, color: s.fg }}
     >
       {kind === "slack" ? (
@@ -210,7 +238,11 @@ export function ProviderMark({ id, name, size = "md" }: { id: string; name: stri
   return (
     <span
       className={cn("grid shrink-0 place-items-center font-semibold select-none", dims)}
-      style={{ background: `color-mix(in srgb, ${color} 16%, var(--surface-2))`, color: `color-mix(in srgb, ${color} 80%, var(--fg))`, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${color} 28%, transparent)` }}
+      style={{
+        background: `linear-gradient(180deg, color-mix(in srgb, ${color} 20%, var(--surface-2)), color-mix(in srgb, ${color} 10%, var(--surface-2)))`,
+        color: `color-mix(in srgb, ${color} 82%, var(--fg))`,
+        boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${color} 28%, transparent)`,
+      }}
       aria-hidden="true"
     >
       {label}

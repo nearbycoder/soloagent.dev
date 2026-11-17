@@ -19,7 +19,7 @@ const media = window.matchMedia("(prefers-color-scheme: light)");
 function apply() {
   const resolved = pref === "system" ? (media.matches ? "light" : "dark") : pref;
   document.documentElement.dataset.theme = resolved;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", resolved === "light" ? "#f5f4ef" : "#12110d");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", resolved === "light" ? "#f1f1f3" : "#08080a");
   for (const listener of listeners) listener();
 }
 

@@ -5,25 +5,29 @@ import { copyText } from "../lib/clipboard.ts";
 
 // ---------------------------------------------------------------------------
 // Buttons
+//
+// `primary` is the high-contrast action on a page (Save, Create). `accent` is lime: reserve it for actions that
+// put an agent to work (New chat, Send, Run now). Everything else is secondary, outline, or ghost.
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "outline";
+type ButtonVariant = "primary" | "accent" | "secondary" | "ghost" | "danger" | "outline";
 type ButtonSize = "xs" | "sm" | "md" | "lg";
 
 const buttonBase =
-  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap font-medium select-none transition-[background-color,color,border-color,box-shadow,opacity,transform] duration-150 active:translate-y-px disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-2 focus-visible:outline-offset-2";
+  "relative inline-flex items-center justify-center gap-1.5 whitespace-nowrap font-medium select-none transition-[background-color,color,border-color,box-shadow,opacity] duration-150 disabled:opacity-45 disabled:pointer-events-none focus-visible:outline-2 focus-visible:outline-offset-2 [&_svg]:shrink-0";
 const buttonVariants: Record<ButtonVariant, string> = {
-  primary:
-    "bg-accent text-accent-fg hover:bg-accent-hover font-mono font-semibold",
-  secondary: "bg-surface-2 text-fg border border-border hover:bg-surface-3 hover:border-border-strong",
+  primary: "bg-inverse text-inverse-fg shadow-[0_1px_2px_rgb(0_0_0/0.2),inset_0_1px_0_rgb(255_255_255/0.12)] hover:bg-inverse-hover",
+  accent:
+    "bg-accent text-accent-fg shadow-[0_0_0_1px_rgb(0_0_0/0.06),0_1px_2px_rgb(0_0_0/0.18),0_8px_20px_-8px_var(--accent-glow),inset_0_1px_0_rgb(255_255_255/0.35)] hover:bg-accent-hover",
+  secondary: "bg-control text-fg border border-border shadow-xs hover:bg-control-hover hover:border-border-strong",
   outline: "bg-transparent text-fg border border-border hover:bg-surface-2 hover:border-border-strong",
   ghost: "bg-transparent text-muted hover:text-fg hover:bg-surface-2",
-  danger: "bg-danger-soft text-danger border border-transparent hover:border-danger/30",
+  danger: "bg-danger-soft text-danger border border-danger/20 hover:bg-danger/15 hover:border-danger/35",
 };
 const buttonSizes: Record<ButtonSize, string> = {
-  xs: "h-6 px-2 text-xs rounded-md",
-  sm: "h-7 px-2.5 text-[13px] rounded-md",
-  md: "h-8 px-3 text-[13px] rounded-lg",
-  lg: "h-10 px-4 text-sm rounded-lg",
+  xs: "h-6 px-2 text-[12px] rounded-md [&_svg]:size-3.5",
+  sm: "h-7 px-2.5 text-[12.5px] rounded-md [&_svg]:size-3.5",
+  md: "h-8 px-3 text-[13px] rounded-lg [&_svg]:size-4",
+  lg: "h-10 px-4 text-[14px] rounded-lg [&_svg]:size-4",
 };
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -39,7 +43,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ) {
   return (
     <button ref={ref} type={type} disabled={disabled || loading} className={cn(buttonBase, buttonVariants[variant], buttonSizes[size], className)} {...rest}>
-      {loading ? <LoaderCircle className="size-3.5 animate-spin" /> : icon}
+      {loading ? <LoaderCircle className="animate-spin" /> : icon}
       {children}
     </button>
   );
@@ -54,8 +58,8 @@ export const IconButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTM
         aria-label={label}
         title={label}
         className={cn(
-          "inline-flex shrink-0 items-center justify-center rounded-md text-subtle transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-40",
-          size === "sm" ? "size-6" : "size-8",
+          "inline-flex shrink-0 items-center justify-center rounded-lg text-subtle transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-40",
+          size === "sm" ? "size-6 rounded-md" : "size-8",
           active && "bg-surface-2 text-fg",
           className,
         )}
@@ -71,7 +75,7 @@ export const IconButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTM
 // Form controls
 
 const fieldBase =
-  "w-full rounded-lg border border-border bg-surface-2/60 text-fg text-[13.5px] transition-[border-color,box-shadow,background-color] duration-150 hover:border-border-strong focus:border-accent-line/70 focus:bg-surface focus:outline-none focus:ring-3 focus:ring-accent-line/15 disabled:opacity-60";
+  "w-full rounded-lg border border-border bg-field text-fg text-[13.5px] shadow-xs transition-[border-color,box-shadow,background-color] duration-150 hover:border-border-strong focus:border-accent-line/60 focus:outline-none focus:ring-[3px] focus:ring-focus disabled:opacity-60";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean }>(function Input(
   { className, invalid, ...rest },
@@ -79,17 +83,23 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
 ) {
   // Callers may override horizontal padding (e.g. room for an icon), so only pad sides they don't set.
   const pad = cn(!/\bpl-/.test(className ?? "") && "pl-3", !/\bpr-/.test(className ?? "") && "pr-3");
-  return <input ref={ref} className={cn(fieldBase, !/\bh-/.test(className ?? "") && "h-9", pad, invalid && "border-danger/60 focus:border-danger focus:ring-danger/15", className)} {...rest} />;
+  return (
+    <input
+      ref={ref}
+      className={cn(fieldBase, !/\bh-/.test(className ?? "") && "h-9", pad, invalid && "border-danger/60 focus:border-danger focus:ring-danger/15", className)}
+      {...rest}
+    />
+  );
 });
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea({ className, ...rest }, ref) {
-  return <textarea ref={ref} className={cn(fieldBase, "px-3 py-2 leading-relaxed resize-y", className)} {...rest} />;
+  return <textarea ref={ref} className={cn(fieldBase, "resize-y px-3 py-2 leading-relaxed", className)} {...rest} />;
 });
 
 export function Select({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <div className={cn("relative", className)}>
-      <select className={cn(fieldBase, "h-9 appearance-none pl-3 pr-8 cursor-pointer")} {...rest}>
+      <select className={cn(fieldBase, "h-9 cursor-pointer appearance-none pl-3 pr-8")} {...rest}>
         {children}
       </select>
       <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-subtle" />
@@ -123,7 +133,7 @@ export function Field({
         {aside}
       </div>
       {children}
-      {error ? <p className="text-xs text-danger">{error}</p> : hint ? <p className="text-xs leading-relaxed text-subtle">{hint}</p> : null}
+      {error ? <p className="text-[12px] text-danger">{error}</p> : hint ? <p className="text-[12px] leading-relaxed text-subtle">{hint}</p> : null}
     </div>
   );
 }
@@ -150,15 +160,16 @@ export function Switch({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        "relative inline-flex shrink-0 items-center rounded-full border transition-colors duration-200 disabled:opacity-50",
-        size === "sm" ? "h-4.5 w-8" : "h-5 w-9",
-        checked ? "border-accent-line bg-accent" : "border-border-strong bg-surface-3",
+        "relative inline-flex shrink-0 items-center rounded-full border transition-[background-color,border-color,box-shadow] duration-200 disabled:opacity-50",
+        size === "sm" ? "h-[18px] w-8" : "h-5 w-9",
+        checked ? "border-transparent bg-accent shadow-[0_0_12px_-3px_var(--accent-glow)]" : "border-border-strong bg-surface-3",
       )}
     >
       <span
         className={cn(
-          "inline-block rounded-full bg-white shadow-sm transition-transform duration-200",
+          "inline-block rounded-full shadow-[0_1px_2px_rgb(0_0_0/0.3)] transition-[transform,background-color] duration-200",
           size === "sm" ? "size-3" : "size-3.5",
+          checked ? "bg-accent-fg" : "bg-white",
           checked ? (size === "sm" ? "translate-x-[15px]" : "translate-x-[18px]") : "translate-x-[2px]",
         )}
       />
@@ -180,7 +191,7 @@ export function Segmented<T extends string>({
   className?: string;
 }) {
   return (
-    <div role="radiogroup" className={cn("inline-flex rounded-lg border border-border bg-surface-2/60 p-0.5", className)}>
+    <div role="radiogroup" className={cn("inline-flex rounded-lg border border-border bg-surface-2/70 p-0.5", className)}>
       {options.map((option) => (
         <button
           key={option.value}
@@ -190,9 +201,9 @@ export function Segmented<T extends string>({
           title={option.title}
           onClick={() => onChange(option.value)}
           className={cn(
-            "flex-1 inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-all duration-150",
-            size === "sm" ? "h-6 px-2 text-xs" : "h-7 px-3 text-[13px]",
-            value === option.value ? "bg-surface-3 text-fg shadow-sm ring-1 ring-border-strong" : "text-subtle hover:text-fg",
+            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-md font-medium transition-all duration-150 [&_svg]:size-3.5",
+            size === "sm" ? "h-6 px-2 text-[12px]" : "h-7 px-3 text-[13px]",
+            value === option.value ? "bg-control text-fg shadow-sm ring-1 ring-border-strong" : "text-subtle hover:text-fg",
           )}
         >
           {option.label}
@@ -207,8 +218,8 @@ export function Segmented<T extends string>({
 
 type BadgeTone = "neutral" | "accent" | "success" | "warning" | "danger" | "info";
 const badgeTones: Record<BadgeTone, string> = {
-  neutral: "bg-surface-3 text-muted border-border",
-  accent: "bg-accent-soft text-accent-text border-accent-line/20",
+  neutral: "bg-surface-2 text-muted border-border",
+  accent: "bg-accent-soft text-accent-text border-accent-line/25",
   success: "bg-success-soft text-success border-success/20",
   warning: "bg-warning-soft text-warning border-warning/20",
   danger: "bg-danger-soft text-danger border-danger/20",
@@ -217,7 +228,7 @@ const badgeTones: Record<BadgeTone, string> = {
 
 export function Badge({ tone = "neutral", children, className, dot }: { tone?: BadgeTone; children: ReactNode; className?: string; dot?: boolean }) {
   return (
-    <span className={cn("inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-md border px-1.5 text-[11px] font-medium", badgeTones[tone], className)}>
+    <span className={cn("inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-md border px-1.5 text-[11px] font-medium [&_svg]:size-3", badgeTones[tone], className)}>
       {dot && <span className="size-1.5 rounded-full bg-current" />}
       {children}
     </span>
@@ -226,7 +237,12 @@ export function Badge({ tone = "neutral", children, className, dot }: { tone?: B
 
 export function Kbd({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <kbd className={cn("inline-flex h-5 min-w-5 items-center justify-center rounded border border-border bg-surface-2 px-1 font-mono text-[10.5px] text-subtle", className)}>
+    <kbd
+      className={cn(
+        "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] border border-border bg-surface-2 px-1 font-mono text-[10.5px] font-medium leading-none text-subtle shadow-[inset_0_-1px_0_var(--border)]",
+        className,
+      )}
+    >
       {children}
     </kbd>
   );
@@ -244,8 +260,8 @@ export function Card({ className, children, interactive, ...rest }: React.HTMLAt
   return (
     <div
       className={cn(
-        "rounded-xl border border-border bg-surface shadow-sm",
-        interactive && "transition-[border-color,box-shadow,transform] duration-200 hover:border-border-strong hover:shadow-md",
+        "rounded-xl border border-border bg-surface shadow-card",
+        interactive && "transition-[border-color,box-shadow,background-color] duration-200 hover:border-border-strong hover:shadow-md",
         className,
       )}
       {...rest}
@@ -269,13 +285,17 @@ export function EmptyState({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col items-center justify-center px-6 py-14 text-center", className)}>
+    <div className={cn("relative isolate flex flex-col items-center justify-center overflow-hidden px-6 py-14 text-center", className)}>
+      <div aria-hidden className="bg-dots mask-radial pointer-events-none absolute inset-x-0 top-0 h-48" />
       {icon && (
-        <div className="mb-4 grid size-11 place-items-center rounded-xl border border-border bg-surface-2 text-muted shadow-sm [&_svg]:size-5">{icon}</div>
+        <div className="relative mb-5 grid size-12 place-items-center rounded-2xl border border-border-strong bg-surface-2 text-muted shadow-md [&_svg]:size-5">
+          <div aria-hidden className="absolute inset-0 -z-10 rounded-2xl bg-accent/20 blur-xl" />
+          {icon}
+        </div>
       )}
-      <h3 className="text-[15px] font-semibold text-fg">{title}</h3>
-      {description && <p className="mt-1.5 max-w-sm text-[13px] leading-relaxed text-subtle">{description}</p>}
-      {action && <div className="mt-5 flex flex-wrap items-center justify-center gap-2">{action}</div>}
+      <h3 className="relative text-[15px] font-semibold tracking-[-0.01em] text-fg">{title}</h3>
+      {description && <p className="relative mt-1.5 max-w-sm text-balance text-[13px] leading-relaxed text-subtle">{description}</p>}
+      {action && <div className="relative mt-5 flex flex-wrap items-center justify-center gap-2">{action}</div>}
     </div>
   );
 }
@@ -296,7 +316,7 @@ export function CopyButton({ text, label = "Copy", className, size = "sm", showL
       }}
       className={cn(
         "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md text-subtle transition-colors hover:bg-surface-3 hover:text-fg",
-        showLabel ? "h-7 px-2 text-xs font-medium" : size === "xs" ? "size-6" : "size-7",
+        showLabel ? "h-7 px-2 text-[12px] font-medium" : size === "xs" ? "size-6" : "size-7",
         copied && "text-success hover:text-success",
         className,
       )}
@@ -321,7 +341,7 @@ export function SectionHeader({ title, description, action, className }: { title
   return (
     <div className={cn("mb-3 flex items-end justify-between gap-4", className)}>
       <div className="min-w-0">
-        <h2 className="text-[13px] font-semibold tracking-tight text-fg">{title}</h2>
+        <h2 className="text-[14px] font-semibold tracking-[-0.01em] text-fg">{title}</h2>
         {description && <p className="mt-0.5 text-[13px] text-subtle">{description}</p>}
       </div>
       {action}
@@ -329,15 +349,34 @@ export function SectionHeader({ title, description, action, className }: { title
   );
 }
 
-export function PageHeader({ title, description, actions, icon }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; icon?: ReactNode }) {
+/** Small mono caps label: section eyebrows, metadata keys. */
+export function Eyebrow({ children, className }: { children: ReactNode; className?: string }) {
+  return <p className={cn("label-mono text-faint", className)}>{children}</p>;
+}
+
+export function PageHeader({
+  title,
+  description,
+  actions,
+  icon,
+  eyebrow,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  actions?: ReactNode;
+  icon?: ReactNode;
+  /** A short mono label above the title, e.g. the area of the app. */
+  eyebrow?: ReactNode;
+}) {
   return (
-    <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
-        <h1 className="font-display flex items-center gap-2.5 text-balance text-[26px] font-semibold text-fg">
+        {eyebrow && <Eyebrow className="mb-2.5">{eyebrow}</Eyebrow>}
+        <h1 className="font-display flex items-center gap-3 text-balance text-[26px] font-semibold leading-[1.15] text-fg">
           {icon}
           {title}
         </h1>
-        {description && <p className="mt-1 max-w-2xl text-[13.5px] leading-relaxed text-subtle">{description}</p>}
+        {description && <p className="mt-2 max-w-2xl text-pretty text-[14px] leading-relaxed text-subtle">{description}</p>}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -351,28 +390,49 @@ export function PageHeader({ title, description, actions, icon }: { title: React
 export function Page({ children, className, narrow }: { children: ReactNode; className?: string; wide?: boolean; narrow?: boolean }) {
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto w-full max-w-7xl px-4 pb-16 pt-6 sm:px-8 sm:pt-10">
+      <div className="mx-auto w-full max-w-[1200px] px-4 pb-20 pt-6 sm:px-10 sm:pt-10">
         <div className={cn(narrow && "max-w-3xl", className)}>{children}</div>
       </div>
     </div>
   );
 }
 
+type DotTone = "success" | "warning" | "danger" | "neutral" | "accent" | "info";
+const DOT_COLOR: Record<DotTone, string> = {
+  success: "bg-success",
+  warning: "bg-warning",
+  danger: "bg-danger",
+  neutral: "bg-faint",
+  accent: "bg-accent-line",
+  info: "bg-info",
+};
+
 /** A small status dot, optionally pulsing. */
-export function Dot({ tone, pulse, className }: { tone: "success" | "warning" | "danger" | "neutral" | "accent" | "info"; pulse?: boolean; className?: string }) {
-  const color = {
-    success: "bg-success",
-    warning: "bg-warning",
-    danger: "bg-danger",
-    neutral: "bg-faint",
-    accent: "bg-accent-text",
-    info: "bg-info",
-  }[tone];
+export function Dot({ tone, pulse, className }: { tone: DotTone; pulse?: boolean; className?: string }) {
+  const color = DOT_COLOR[tone];
   return (
     <span className={cn("relative inline-flex size-2 shrink-0", className)}>
       {pulse && <span className={cn("absolute inset-0 animate-ping rounded-full opacity-60", color)} />}
-      <span className={cn("relative inline-flex size-2 rounded-full", color)} />
+      <span className={cn("relative inline-flex size-2 rounded-full", color, tone === "accent" && "shadow-[0_0_8px_var(--accent-glow)]")} />
     </span>
+  );
+}
+
+/** A thin progress bar. `tone` colors the fill; past 100% it's capped. */
+export function Meter({ value, max = 1, tone = "accent", className, label }: { value: number; max?: number; tone?: "accent" | "success" | "warning" | "danger" | "neutral"; className?: string; label?: string }) {
+  const pct = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
+  const fill = { accent: "bg-accent-line", success: "bg-success", warning: "bg-warning", danger: "bg-danger", neutral: "bg-muted" }[tone];
+  return (
+    <div
+      role="meter"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={max}
+      aria-valuenow={value}
+      className={cn("h-1.5 w-full overflow-hidden rounded-full bg-surface-3", className)}
+    >
+      <div className={cn("h-full rounded-full transition-[width] duration-500 ease-out", fill)} style={{ width: `${pct * 100}%` }} />
+    </div>
   );
 }
 
@@ -421,13 +481,13 @@ export function TagInput({
       <div
         className={cn(
           fieldBase,
-          "flex min-h-9 flex-wrap items-center gap-1 px-1.5 py-1 focus-within:border-accent-line/70 focus-within:bg-surface focus-within:ring-3 focus-within:ring-accent-line/15",
+          "flex min-h-9 flex-wrap items-center gap-1 px-1.5 py-1 focus-within:border-accent-line/60 focus-within:ring-[3px] focus-within:ring-focus",
           disabled && "opacity-60",
         )}
         onClick={(e) => (e.currentTarget.querySelector("input") as HTMLInputElement | null)?.focus()}
       >
         {values.map((value) => (
-          <span key={value} className="inline-flex h-6 max-w-full items-center gap-1 rounded-md border border-border bg-surface-3 pl-2 pr-1 font-mono text-[12px] text-fg">
+          <span key={value} className="inline-flex h-6 max-w-full items-center gap-1 rounded-md border border-border bg-surface-2 pl-2 pr-1 font-mono text-[12px] text-fg">
             <span className="truncate">{value}</span>
             {!disabled && (
               <button
@@ -437,7 +497,7 @@ export function TagInput({
                   e.stopPropagation();
                   onChange(values.filter((v) => v !== value));
                 }}
-                className="grid size-4 place-items-center rounded text-subtle hover:bg-surface-2 hover:text-fg"
+                className="grid size-4 place-items-center rounded text-subtle hover:bg-surface-3 hover:text-fg"
               >
                 ×
               </button>
@@ -478,7 +538,7 @@ export function TagInput({
         />
       </div>
       {focused && offered.length > 0 && (
-        <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-border bg-[var(--overlay)] p-1 shadow-lg">
+        <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-border bg-overlay p-1 shadow-lg">
           {offered.map((s) => (
             <button
               key={s.value}

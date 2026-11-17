@@ -437,7 +437,7 @@ export function createApp({ solo, webDir, updates: updateChecker }: AppOptions) 
   } else {
     app.get("/", (c) =>
       c.html(
-        `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>soloagent</title><body style="margin:0;font:15px/1.6 system-ui,sans-serif;background:#f5f4ef;color:#15140f;display:grid;place-items:center;min-height:100vh;padding:16px;box-sizing:border-box"><div style="max-width:520px"><h1 style="font-size:22px;margin:0 0 8px">soloagent is running</h1><p style="margin:0;color:#57554c">The dashboard isn't built. Run <code>npm run build</code>, or use the terminal UI: <code>soloagent --url &lt;this server&gt; --token &lt;token&gt;</code>.</p></div>`,
+        `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>soloagent</title><body style="margin:0;font:15px/1.6 system-ui,sans-serif;background:#08080a;color:#ededf0;display:grid;place-items:center;min-height:100vh;padding:16px;box-sizing:border-box"><div style="max-width:520px"><h1 style="font-size:22px;margin:0 0 8px">soloagent is running</h1><p style="margin:0;color:#8b8b96">The dashboard isn't built. Run <code>npm run build</code>, or use the terminal UI: <code>soloagent --url &lt;this server&gt; --token &lt;token&gt;</code>.</p></div>`,
       ),
     );
   }

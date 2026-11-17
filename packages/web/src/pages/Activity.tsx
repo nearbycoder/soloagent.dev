@@ -1,35 +1,60 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlarmClock, ArrowUpRight, CircleDot, Network, Radio, X } from "lucide-react";
-import type { Schedule, TaskNode } from "@soloagent/client";
+import type { ActivityItem, Schedule, TaskNode } from "@soloagent/client";
 import { client } from "../api/client.ts";
 import { useAgentMap, useApp, useStream } from "../api/store.ts";
 import { AgentAvatar } from "../components/brand.tsx";
-import { Badge, Button, Card, Dot, EmptyState, Page, PageHeader, SectionHeader, Skeleton } from "../components/ui.tsx";
+import { Badge, Button, Card, Dot, EmptyState, Page, PageHeader, Segmented, SectionHeader, Skeleton } from "../components/ui.tsx";
 import { cn } from "../lib/cn.ts";
-import { fullDate, relativeTime } from "../lib/format.ts";
+import { clockTime, fullDate, relativeTime } from "../lib/format.ts";
 import { linkHandler } from "../lib/router.ts";
 import { confirm, toast } from "../lib/toast.ts";
 import { ActivityFeed, LiveDot } from "./Overview.tsx";
 
+/** Event log filters: each narrows the stream to related event types. */
+type Kind = "all" | "chat" | "approvals" | "system" | "errors";
+const KINDS: Record<Exclude<Kind, "all">, readonly ActivityItem["type"][]> = {
+  chat: ["message", "reply"],
+  approvals: ["approval", "access"],
+  system: ["connector", "agent", "provider", "schedule"],
+  errors: ["error"],
+};
+
 export function ActivityPage() {
+  const [kind, setKind] = useState<Kind>("all");
   return (
-    <Page wide>
-      <PageHeader title="Activity" description="What your agents are doing right now, what they plan to do later, and what they did recently." />
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="flex min-w-0 flex-col gap-8">
+    <Page>
+      <PageHeader eyebrow="Observe" title="Activity" description="What your agents are doing right now, what they plan to do later, and everything they did recently — live." />
+      <div className="grid gap-x-8 gap-y-10 xl:grid-cols-[minmax(0,1fr)_440px]">
+        <div className="flex min-w-0 flex-col gap-10">
           <TaskGraph />
           <Schedules />
         </div>
         <section className="min-w-0">
-          <SectionHeader
-            title={
-              <span className="flex items-center gap-2">
-                Recent activity <LiveDot />
-              </span>
-            }
-          />
-          <Card className="max-h-[calc(100dvh-220px)] overflow-y-auto">
-            <ActivityFeed />
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="flex items-center gap-2 text-[14px] font-semibold tracking-[-0.01em] text-fg">
+                Event log <LiveDot />
+              </h2>
+              <p className="mt-0.5 text-[13px] text-subtle">Newest first.</p>
+            </div>
+            <Segmented<Kind>
+              size="sm"
+              value={kind}
+              onChange={setKind}
+              options={[
+                { value: "all", label: "All" },
+                { value: "chat", label: "Chat", title: "Messages and replies" },
+                { value: "approvals", label: "Approvals", title: "Approvals and access" },
+                { value: "system", label: "System", title: "Connectors, agents, providers, and schedules" },
+                { value: "errors", label: "Errors" },
+              ]}
+            />
+          </div>
+          <Card className="overflow-hidden">
+            <div className="max-h-[calc(100dvh-230px)] min-h-[240px] overflow-y-auto">
+              <ActivityFeed types={kind === "all" ? undefined : KINDS[kind]} />
+            </div>
           </Card>
         </section>
       </div>
@@ -95,6 +120,8 @@ function TaskGraph() {
   const visible = useMemo(() => (tasks ? (showDone ? tasks : tasks.filter((t) => statusRank(t.status) < 3)) : null), [tasks, showDone]);
   const tree = useMemo(() => (visible ? buildTree(visible) : []), [visible]);
   const hidden = tasks && visible ? tasks.length - visible.length : 0;
+  const active = tasks?.filter((t) => statusRank(t.status) < 3).length ?? 0;
+  const running = tasks?.filter((t) => t.status === "running").length ?? 0;
 
   return (
     <section>
@@ -102,7 +129,11 @@ function TaskGraph() {
         title={
           <span className="flex items-center gap-2">
             <Network className="size-4 text-subtle" /> Live task graph
-            {tasks && <Badge>{tasks.filter((t) => statusRank(t.status) < 3).length} active</Badge>}
+            {tasks && (
+              <Badge tone={running > 0 ? "accent" : "neutral"} dot={running > 0}>
+                {active} active
+              </Badge>
+            )}
           </span>
         }
         description="Durable tasks from Pi Durable, nested by owner. Updates live."
@@ -126,11 +157,17 @@ function TaskGraph() {
         ) : tree.length === 0 ? (
           <EmptyState icon={<CircleDot />} title="Nothing running" description="When an agent works, waits on a subagent, or sleeps until a reminder, its tasks appear here." />
         ) : (
-          <ul className="p-2">
-            {tree.map((node) => (
-              <TaskRow key={node.id} node={node} depth={0} />
-            ))}
-          </ul>
+          <>
+            <div className="hidden grid-cols-[minmax(0,1fr)_auto] border-b border-border px-4 py-2 sm:grid">
+              <span className="label-mono text-faint">Task</span>
+              <span className="label-mono text-faint">Thread</span>
+            </div>
+            <ul className="p-1.5">
+              {tree.map((node) => (
+                <TaskRow key={node.id} node={node} depth={0} />
+              ))}
+            </ul>
+          </>
         )}
       </Card>
     </section>
@@ -143,12 +180,12 @@ function TaskRow({ node, depth }: { node: TreeNode; depth: number }) {
   const thread = node.threadId ? threads?.find((t) => t.id === node.threadId) : undefined;
   return (
     <li>
-      <div className="relative flex min-w-0 items-center gap-2.5 rounded-md py-1.5 pr-2 hover:bg-surface-2/50" style={{ paddingLeft: 8 + depth * 22 }}>
-        {depth > 0 && <span className="absolute top-0 h-1/2 w-3 rounded-bl-md border-b border-l border-border-strong" style={{ left: depth * 22 - 6 }} />}
+      <div className="relative flex h-9 min-w-0 items-center gap-2.5 rounded-lg pr-2.5 transition-colors hover:bg-surface-2/60" style={{ paddingLeft: 10 + depth * 22 }}>
+        {depth > 0 && <span aria-hidden className="absolute top-0 h-1/2 w-3 rounded-bl-md border-b border-l border-border-strong" style={{ left: depth * 22 - 6 }} />}
         <Dot tone={tone === "neutral" ? "neutral" : tone} pulse={node.status === "running"} />
-        <span className="shrink-0 font-mono text-[12px] text-faint">#{node.id}</span>
-        <span className="min-w-0 truncate font-mono text-[12.5px] text-fg">{node.kind}</span>
-        <Badge tone={tone === "neutral" ? "neutral" : tone} className="shrink-0">
+        <span className="shrink-0 font-mono text-[11.5px] tabular-nums text-faint">#{node.id}</span>
+        <span className={cn("min-w-0 truncate font-mono text-[12.5px]", node.status === "running" ? "text-fg" : "text-muted")}>{node.kind}</span>
+        <Badge tone={tone === "neutral" ? "neutral" : tone} className="shrink-0 font-mono">
           {node.status}
         </Badge>
         {node.detail && <span className="hidden min-w-0 truncate text-[12px] text-subtle sm:inline">{node.detail}</span>}
@@ -156,10 +193,10 @@ function TaskRow({ node, depth }: { node: TreeNode; depth: number }) {
           <a
             href={`/chat/${node.threadId}`}
             onClick={linkHandler(`/chat/${node.threadId}`)}
-            className="ml-auto flex shrink-0 items-center gap-1 text-[12px] text-subtle hover:text-fg"
+            className="ml-auto flex shrink-0 items-center gap-1 text-[12px] text-subtle transition-colors hover:text-fg"
             title={thread?.title}
           >
-            <span className="hidden max-w-[180px] truncate md:inline">{thread?.title ?? "thread"}</span>
+            <span className="hidden max-w-[200px] truncate md:inline">{thread?.title ?? "thread"}</span>
             <ArrowUpRight className="size-3.5" />
           </a>
         )}
@@ -177,6 +214,18 @@ function TaskRow({ node, depth }: { node: TreeNode; depth: number }) {
 
 // ---------------------------------------------------------------------------
 // Schedules
+
+/** "Today 9:00 AM", "Tomorrow 9:00 AM", or "Nov 21, 9:00 AM". */
+function whenLabel(at: number, now = Date.now()) {
+  const day = (x: number) => {
+    const d = new Date(x);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  };
+  const diff = Math.round((day(at) - day(now)) / 86_400_000);
+  if (diff === 0) return `Today ${clockTime(at)}`;
+  if (diff === 1) return `Tomorrow ${clockTime(at)}`;
+  return `${new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${clockTime(at)}`;
+}
 
 function Schedules() {
   const [schedules, setSchedules] = useState<Schedule[] | null>(null);
@@ -221,6 +270,7 @@ function Schedules() {
         title={
           <span className="flex items-center gap-2">
             <AlarmClock className="size-4 text-subtle" /> Schedules
+            {upcoming && upcoming.length > 0 && <Badge>{upcoming.length} upcoming</Badge>}
           </span>
         }
         description="Durable reminders and follow-ups. They fire even after restarts."
@@ -241,9 +291,16 @@ function Schedules() {
           <ul className="divide-y divide-border">
             {upcoming.map((schedule) => {
               const agent = agentMap.get(schedule.agentId);
+              const firing = schedule.status === "running";
               return (
-                <li key={schedule.taskId} className="flex items-center gap-3 px-4 py-3">
-                  <div className={cn("grid size-9 shrink-0 place-items-center rounded-lg", schedule.status === "running" ? "bg-accent-soft text-accent-text" : "bg-surface-2 text-subtle")}>
+                <li key={schedule.taskId} className="flex items-center gap-3.5 px-4 py-3.5">
+                  <div className="flex w-[92px] shrink-0 flex-col items-start">
+                    <span className={cn("font-mono text-[12px] font-medium tabular-nums", firing ? "text-accent-text" : "text-fg")} title={fullDate(schedule.at)}>
+                      {firing ? "firing now" : relativeTime(schedule.at)}
+                    </span>
+                    <span className="mt-0.5 truncate font-mono text-[10.5px] text-faint">{whenLabel(schedule.at)}</span>
+                  </div>
+                  <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg border", firing ? "border-accent-line/30 bg-accent-soft text-accent-text" : "border-border bg-surface-2 text-subtle")}>
                     <AlarmClock className="size-4" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -252,14 +309,12 @@ function Schedules() {
                       <AgentAvatar agent={agent} size="xs" />
                       {agent?.name ?? "Agent"}
                       <span className="text-faint">·</span>
-                      <span title={fullDate(schedule.at)}>{schedule.status === "running" ? "firing now" : relativeTime(schedule.at)}</span>
-                      <span className="text-faint">·</span>
-                      <a href={`/chat/${schedule.threadId}`} onClick={linkHandler(`/chat/${schedule.threadId}`)} className="hover:text-fg hover:underline">
-                        thread
+                      <a href={`/chat/${schedule.threadId}`} onClick={linkHandler(`/chat/${schedule.threadId}`)} className="inline-flex items-center gap-0.5 hover:text-fg hover:underline">
+                        thread <ArrowUpRight className="size-3" />
                       </a>
                     </p>
                   </div>
-                  <Button size="sm" variant="ghost" icon={<X className="size-3.5" />} onClick={() => cancel(schedule)} aria-label="Cancel reminder">
+                  <Button size="sm" variant="ghost" icon={<X />} onClick={() => cancel(schedule)} aria-label="Cancel reminder">
                     <span className="hidden sm:inline">Cancel</span>
                   </Button>
                 </li>

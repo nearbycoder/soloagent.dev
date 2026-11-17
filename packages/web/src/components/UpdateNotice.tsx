@@ -27,7 +27,7 @@ export function UpdateNotice({ collapsed, onNavigate }: { collapsed?: boolean; o
         onClick={linkHandler("/settings", onNavigate)}
         title={`soloagent v${latest} is available`}
         aria-label={`soloagent v${latest} is available`}
-        className="mx-auto mb-1 grid size-7 place-items-center rounded-md text-accent-text hover:bg-surface-2"
+        className="mx-auto mb-1 grid size-8 place-items-center rounded-lg text-accent-text hover:bg-surface-2"
       >
         <ArrowUpCircle className="size-4" />
       </a>
@@ -44,7 +44,7 @@ export function UpdateNotice({ collapsed, onNavigate }: { collapsed?: boolean; o
   };
 
   return (
-    <div className="mx-3 mb-2 flex items-start gap-2 rounded-lg border border-accent-line/25 bg-accent-soft px-2.5 py-2 text-[12px]">
+    <div className="mx-3 mb-2.5 flex items-start gap-2 rounded-xl border border-accent-line/25 bg-accent-soft px-3 py-2.5 text-[12px] shadow-[0_0_24px_-12px_var(--accent-glow)]">
       <ArrowUpCircle className="mt-px size-3.5 shrink-0 text-accent-text" />
       <div className="min-w-0 flex-1 leading-snug">
         <p className="font-medium text-fg">v{latest} available</p>

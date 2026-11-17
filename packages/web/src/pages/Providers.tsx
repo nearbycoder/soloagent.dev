@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, CircleCheck, CircleX, ExternalLink, KeyRound, LogIn, LogOut, Search, ShieldCheck, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowUpRight, CircleCheck, CircleX, ExternalLink, KeyRound, LoaderCircle, LogIn, LogOut, Search, ShieldCheck, Sparkles, SquareTerminal } from "lucide-react";
 import type { LoginFlowState, ProviderInfo } from "@soloagent/client";
 import { client } from "../api/client.ts";
 import { loadProviders, setFlow, useApp, useIsAdmin } from "../api/store.ts";
 import { AdminsOnly } from "./Team.tsx";
 import { ProviderMark } from "../components/brand.tsx";
 import { Modal } from "../components/overlay.tsx";
-import { Badge, Button, Card, CopyButton, CopyField, Input, Page, PageHeader, SectionHeader, Select, Skeleton, Spinner } from "../components/ui.tsx";
+import { Badge, Button, Card, CopyButton, CopyField, Input, Page, PageHeader, SectionHeader, Segmented, Select, Skeleton, Spinner } from "../components/ui.tsx";
 import { cn } from "../lib/cn.ts";
-import { clockTime } from "../lib/format.ts";
+import { clockTime, num, pluralize } from "../lib/format.ts";
 import { confirm, toast } from "../lib/toast.ts";
 
 const SUBSCRIPTION_HINT: Record<string, string> = {
@@ -27,6 +27,7 @@ export function Providers() {
 function ProvidersPage() {
   const providers = useApp((s) => s.providers);
   const [query, setQuery] = useState("");
+  const [show, setShow] = useState<"all" | "connected">("all");
   const [flowId, setFlowId] = useState<string | null>(null);
   const [starting, setStarting] = useState<string | null>(null);
 
@@ -38,13 +39,14 @@ function ProvidersPage() {
     () => (providers ?? []).filter((p) => p.oauth?.subscription).sort((a, b) => Number(b.featured) - Number(a.featured) || Number(!!b.configured) - Number(!!a.configured)),
     [providers],
   );
+  const keyable = useMemo(() => (providers ?? []).filter((p) => (p.apiKey || (p.oauth && !p.oauth.subscription)) && p.configured?.source !== "built-in"), [providers]);
   const keyed = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (providers ?? [])
-      .filter((p) => (p.apiKey || (p.oauth && !p.oauth.subscription)) && p.configured?.source !== "built-in")
+    return keyable
+      .filter((p) => show === "all" || !!p.configured)
       .filter((p) => !q || `${p.name} ${p.id}`.toLowerCase().includes(q))
       .sort((a, b) => Number(!!b.configured) - Number(!!a.configured) || Number(b.featured) - Number(a.featured) || a.name.localeCompare(b.name));
-  }, [providers, query]);
+  }, [keyable, query, show]);
   const builtIn = (providers ?? []).filter((p) => p.configured?.source === "built-in");
 
   const startLogin = async (provider: ProviderInfo) => {
@@ -78,76 +80,78 @@ function ProvidersPage() {
   };
 
   const configuredCount = (providers ?? []).filter((p) => p.configured && p.configured.source !== "built-in").length;
+  const keyedConnected = keyable.filter((p) => p.configured).length;
+  const modelCount = (providers ?? []).filter((p) => p.configured).reduce((sum, p) => sum + p.models.length, 0);
 
   return (
     <Page>
       <PageHeader
+        eyebrow="Configure"
         title="Providers"
-        description="Run agents on the subscriptions you already pay for, or bring API keys from 30+ providers. Credentials are stored on your server only."
-        actions={providers && <Badge tone={configuredCount ? "success" : "neutral"}>{configuredCount ? `${configuredCount} connected` : "None connected"}</Badge>}
+        description="Run agents on the subscriptions you already pay for, or bring API keys from 30+ providers. Credentials are sealed on your server and never reach the browser."
+        actions={
+          providers && (
+            <div className="flex items-center gap-2">
+              <Badge tone={configuredCount ? "success" : "neutral"} dot={!!configuredCount}>
+                {configuredCount ? `${configuredCount} connected` : "None connected"}
+              </Badge>
+              {modelCount > 0 && <span className="font-mono text-[11.5px] text-faint">{num(modelCount)} models ready</span>}
+            </div>
+          )
+        }
       />
 
       <section>
-        <SectionHeader title="Sign in with a subscription" description="No API key needed — use your existing plan." />
+        <SectionHeader title="Sign in with a subscription" description="No API key needed — agents run on the plan you already have." />
         {!providers ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[0, 1, 2].map((i) => (
-              <Skeleton key={i} className="h-[150px] rounded-xl" />
+              <Skeleton key={i} className="h-[168px] rounded-xl" />
             ))}
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {subscriptions.map((provider) => {
-              const connected = !!provider.configured;
-              return (
-                <Card key={provider.id} className={cn("relative flex flex-col overflow-hidden p-4", connected && "border-success/30")}>
-                  <div className="relative flex items-start gap-3">
-                    <ProviderMark id={provider.id} name={provider.name} size="lg" />
-                    <div className="min-w-0 flex-1">
-                      <h3 className="truncate text-[14px] font-semibold text-fg">{provider.name}</h3>
-                      <p className="truncate text-[12.5px] text-subtle">{SUBSCRIPTION_HINT[provider.id] ?? provider.oauth?.label}</p>
-                    </div>
-                    {connected && (
-                      <Badge tone="success" dot>
-                        Connected
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="relative mt-auto pt-3 text-[12px] text-faint">
-                    {provider.models.length} models
-                    {connected && provider.configured?.type === "api_key" && " · via API key"}
-                  </p>
-                  <div className="relative mt-3 flex gap-2">
-                    {connected ? (
-                      <>
-                        <Button size="sm" variant="secondary" className="min-w-0 flex-1" icon={<LogIn className="size-3.5" />} loading={starting === provider.id} onClick={() => startLogin(provider)}>
-                          <span className="truncate">{provider.configured?.type === "oauth" ? "Sign in again" : "Use subscription"}</span>
-                        </Button>
-                        <Button size="sm" variant="ghost" icon={<LogOut className="size-3.5" />} onClick={() => logout(provider)}>
-                          {provider.configured?.type === "oauth" ? "Sign out" : "Remove key"}
-                        </Button>
-                      </>
-                    ) : (
-                      <Button size="sm" variant="secondary" className="w-full" icon={<LogIn className="size-3.5" />} loading={starting === provider.id} onClick={() => startLogin(provider)}>
-                        <span className="truncate">Sign in</span>
-                      </Button>
-                    )}
-                  </div>
-                </Card>
-              );
-            })}
+            {subscriptions.map((provider, i) => (
+              <SubscriptionCard
+                key={provider.id}
+                provider={provider}
+                index={i}
+                starting={starting === provider.id}
+                onLogin={() => startLogin(provider)}
+                onLogout={() => logout(provider)}
+              />
+            ))}
           </div>
         )}
       </section>
 
-      <section className="mt-10">
+      <section className="mt-12">
         <SectionHeader
           title="API keys"
-          description="Paste a key from any provider."
+          description="Paste a key from any provider. Keys are encrypted at rest with AES-256-GCM."
+          className="flex-wrap"
           action={
-            <div className="relative w-56 max-w-[45vw]">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-faint" />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search providers" className="h-8 pl-8 text-[13px]" aria-label="Search providers" />
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+              <Segmented
+                size="sm"
+                value={show}
+                onChange={setShow}
+                options={[
+                  { value: "all", label: "All" },
+                  {
+                    value: "connected",
+                    label: (
+                      <>
+                        Connected <span className="font-mono text-[10.5px] text-faint">{keyedConnected}</span>
+                      </>
+                    ),
+                  },
+                ]}
+              />
+              <div className="relative min-w-0 flex-1 sm:w-56 sm:flex-none">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-faint" />
+                <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search providers" className="h-8 pl-8 text-[13px]" aria-label="Search providers" />
+              </div>
             </div>
           }
         />
@@ -162,7 +166,7 @@ function ProvidersPage() {
               ))}
             </div>
           ) : keyed.length === 0 ? (
-            <p className="px-4 py-10 text-center text-[13px] text-subtle">No providers match “{query}”.</p>
+            <p className="px-4 py-12 text-center text-[13px] text-subtle">{query ? `No providers match “${query}”.` : "No providers connected with a key yet."}</p>
           ) : (
             <ul className="divide-y divide-border">
               {keyed.map((provider) => (
@@ -173,14 +177,77 @@ function ProvidersPage() {
         </Card>
         {builtIn.length > 0 && (
           <p className="mt-4 flex items-center gap-2 text-[12.5px] text-subtle">
-            <Sparkles className="size-3.5 text-accent-text" />
-            {builtIn.map((p) => p.name).join(", ")} is built in, so you can try soloagent without any account.
+            <Sparkles className="size-3.5 text-faint" />
+            <span>
+              <span className="text-muted">{builtIn.map((p) => p.name).join(", ")}</span> is built in, so you can try soloagent without any account.
+            </span>
           </p>
         )}
       </section>
 
       {flowId && <LoginFlowModal flowId={flowId} onClose={() => setFlowId(null)} />}
     </Page>
+  );
+}
+
+function SubscriptionCard({
+  provider,
+  index,
+  starting,
+  onLogin,
+  onLogout,
+}: {
+  provider: ProviderInfo;
+  index: number;
+  starting: boolean;
+  onLogin: () => void;
+  onLogout: () => void;
+}) {
+  const connected = !!provider.configured;
+  const viaOauth = provider.configured?.type === "oauth";
+  return (
+    <Card style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }} className={cn("relative flex animate-rise flex-col overflow-hidden", connected && "border-success/25")}>
+      {connected && <div aria-hidden className="pointer-events-none absolute -right-12 -top-16 size-40 rounded-full bg-success/15 blur-3xl" />}
+      <div className="relative flex items-start gap-3 p-4 pb-3">
+        <ProviderMark id={provider.id} name={provider.name} size="lg" />
+        <div className="min-w-0 flex-1 pt-0.5">
+          <h3 className="truncate text-[14.5px] font-semibold tracking-[-0.01em] text-fg">{provider.name}</h3>
+          <p className="truncate text-[12.5px] text-subtle">{SUBSCRIPTION_HINT[provider.id] ?? provider.oauth?.label}</p>
+        </div>
+        {connected ? (
+          <Badge tone="success" dot>
+            Connected
+          </Badge>
+        ) : (
+          <span className="label-mono pt-1 text-faint">OAuth</span>
+        )}
+      </div>
+      <div className="relative mx-4 flex items-center gap-2 border-t border-border py-2.5 font-mono text-[11px] text-faint">
+        <span>{pluralize(provider.models.length, "model")}</span>
+        {connected && (
+          <>
+            <span aria-hidden>·</span>
+            <span className={viaOauth ? "text-success" : undefined}>{viaOauth ? "via subscription" : "via API key"}</span>
+          </>
+        )}
+      </div>
+      <div className="relative mt-auto flex gap-2 px-4 pb-4">
+        {connected ? (
+          <>
+            <Button size="sm" variant="secondary" className="min-w-0 flex-1" icon={<LogIn />} loading={starting} onClick={onLogin}>
+              <span className="truncate">{viaOauth ? "Sign in again" : "Use subscription"}</span>
+            </Button>
+            <Button size="sm" variant="ghost" icon={<LogOut />} onClick={onLogout}>
+              {viaOauth ? "Sign out" : "Remove key"}
+            </Button>
+          </>
+        ) : (
+          <Button size="sm" variant="secondary" className="w-full" icon={<LogIn />} loading={starting} onClick={onLogin}>
+            <span className="truncate">Sign in with {provider.name}</span>
+          </Button>
+        )}
+      </div>
+    </Card>
   );
 }
 
@@ -207,35 +274,39 @@ function KeyRow({ provider, onLogin, onLogout, starting }: { provider: ProviderI
   };
 
   return (
-    <li className="px-4 py-3">
+    <li className={cn("px-4 py-3 transition-colors", editing ? "bg-surface-2/40" : "hover:bg-surface-2/25")}>
       <div className="flex items-center gap-3">
         <ProviderMark id={provider.id} name={provider.name} />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <span className="truncate text-[13.5px] font-medium text-fg">{provider.name}</span>
             {provider.configured && (
-              <Badge tone="success" dot>
-                {provider.configured.type === "oauth" ? "Signed in" : provider.configured.source ? `Key · ${provider.configured.source}` : "Key set"}
-              </Badge>
+              <>
+                <span className="size-1.5 shrink-0 rounded-full bg-success sm:hidden" title="Connected" aria-label="Connected" />
+                <Badge tone="success" dot className="max-sm:hidden">
+                  {provider.configured.type === "oauth" ? "Signed in" : provider.configured.source ? `Key · ${provider.configured.source}` : "Key set"}
+                </Badge>
+              </>
             )}
+            {!provider.configured && provider.featured && <span className="label-mono hidden text-faint sm:inline">popular</span>}
           </div>
-          <p className="truncate text-[12px] text-faint">
-            <span className="font-mono">{provider.id}</span> · {provider.models.length} models
+          <p className="truncate font-mono text-[11px] text-faint">
+            {provider.id} · {pluralize(provider.models.length, "model")}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {provider.oauth && !provider.oauth.subscription && (
-            <Button size="sm" variant="ghost" loading={starting} onClick={onLogin} className="hidden sm:inline-flex">
+            <Button size="sm" variant="ghost" loading={starting} onClick={onLogin} className="max-sm:hidden">
               {provider.oauth.label}
             </Button>
           )}
           {provider.apiKey && (
-            <Button size="sm" variant={editing ? "ghost" : "secondary"} icon={!editing && <KeyRound className="size-3.5" />} onClick={() => setEditing((e) => !e)}>
+            <Button size="sm" variant={editing ? "ghost" : "secondary"} icon={!editing && <KeyRound />} onClick={() => setEditing((e) => !e)}>
               {editing ? "Cancel" : provider.configured ? "Replace" : "Set key"}
             </Button>
           )}
           {provider.configured && (
-            <Button size="sm" variant="ghost" onClick={onLogout} aria-label={`Remove ${provider.name} credential`} className="px-2 text-subtle hover:text-danger">
+            <Button size="sm" variant="ghost" onClick={onLogout} aria-label={`Remove ${provider.name} credential`} title="Remove credential" className="px-2 text-subtle hover:text-danger">
               <LogOut className="size-3.5" />
             </Button>
           )}
@@ -243,7 +314,20 @@ function KeyRow({ provider, onLogin, onLogout, starting }: { provider: ProviderI
       </div>
       {editing && (
         <form onSubmit={save} className="mt-3 flex animate-fade-in flex-col gap-2 sm:ml-12 sm:flex-row">
-          <Input autoFocus type="password" autoComplete="off" spellCheck={false} value={key} onChange={(e) => setKey(e.target.value)} placeholder={`${provider.name} API key`} className="font-mono" />
+          <div className="relative min-w-0 flex-1">
+            <KeyRound className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-faint" />
+            <Input
+              autoFocus
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder={`${provider.name} API key`}
+              aria-label={`${provider.name} API key`}
+              className="pl-8 font-mono text-[12.5px]"
+            />
+          </div>
           <Button type="submit" variant="primary" loading={saving} disabled={!key.trim()} className="h-9 shrink-0">
             Save key
           </Button>
@@ -275,8 +359,11 @@ export function LoginFlowModal({ flowId, onClose }: { flowId: string; onClose: (
     return () => clearInterval(id);
   }, [flowId, finished]);
 
+  // Announce once per flow, however many times the effect runs.
+  const announced = useRef(false);
   useEffect(() => {
-    if (flow?.status === "done") {
+    if (flow?.status === "done" && !announced.current) {
+      announced.current = true;
       void loadProviders(true);
       toast.success(`${provider?.name ?? "Provider"} connected`);
     }
@@ -299,9 +386,12 @@ export function LoginFlowModal({ flowId, onClose }: { flowId: string; onClose: (
       onClose={cancel}
       size="md"
       title={
-        <span className="flex items-center gap-2.5">
-          {provider && <ProviderMark id={provider.id} name={provider.name} size="sm" />}
-          {provider?.oauth?.label ?? `Sign in to ${provider?.name ?? "provider"}`}
+        <span className="flex items-center gap-3">
+          {provider && <ProviderMark id={provider.id} name={provider.name} size="md" />}
+          <span className="min-w-0">
+            <span className="block truncate">{provider?.oauth?.label ?? `Sign in to ${provider?.name ?? "provider"}`}</span>
+            {provider && <span className="block truncate font-mono text-[11px] font-normal tracking-normal text-faint">{SUBSCRIPTION_HINT[provider.id] ?? provider.id}</span>}
+          </span>
         </span>
       }
       footer={
@@ -316,7 +406,7 @@ export function LoginFlowModal({ flowId, onClose }: { flowId: string; onClose: (
         )
       }
     >
-      <div className="flex flex-col gap-5 px-5 py-5">
+      <div className="flex flex-col gap-5 px-5 pb-5 pt-2">
         {!flow ? (
           <div className="flex items-center gap-3 py-6 text-[13px] text-subtle">
             <Spinner /> Starting sign-in…
@@ -332,19 +422,21 @@ export function LoginFlowModal({ flowId, onClose }: { flowId: string; onClose: (
         )}
 
         {flow && flow.log.length > 0 && (
-          <details className="group rounded-lg border border-border bg-code" open={flow.status === "failed"}>
-            <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[12px] font-medium text-subtle hover:text-fg">
-              Log · {flow.log.length} {flow.log.length === 1 ? "line" : "lines"}
-              <span className="text-faint group-open:rotate-90">›</span>
+          <details className="group overflow-hidden rounded-xl border border-border bg-code" open={flow.status === "failed"}>
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-[12px] font-medium text-subtle transition-colors hover:text-fg">
+              <SquareTerminal className="size-3.5 text-faint" />
+              <span className="flex-1">Log</span>
+              <span className="font-mono text-[11px] font-normal text-faint">{pluralize(flow.log.length, "line")}</span>
+              <span className="text-faint transition-transform group-open:rotate-90">›</span>
             </summary>
             <ol className="max-h-44 overflow-y-auto border-t border-border px-3 py-2 font-mono text-[11.5px] leading-relaxed">
               {flow.log.map((line, i) => (
-                <li key={i} className="flex gap-2.5">
-                  <span className="shrink-0 text-faint">{clockTime(line.at)}</span>
+                <li key={i} className="flex gap-3">
+                  <span className="shrink-0 tabular-nums text-faint">{clockTime(line.at)}</span>
                   <span className="min-w-0 break-words text-muted">
                     {line.message}
                     {line.links?.map((link) => (
-                      <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="ml-1.5 text-accent-text underline underline-offset-2">
+                      <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="ml-1.5 text-fg underline decoration-border-strong underline-offset-2 hover:decoration-fg">
                         {link.label ?? link.url}
                       </a>
                     ))}
@@ -361,17 +453,18 @@ export function LoginFlowModal({ flowId, onClose }: { flowId: string; onClose: (
 
 function FlowResult({ tone, title, body }: { tone: "success" | "danger" | "neutral"; title: string; body: string }) {
   return (
-    <div className="flex flex-col items-center py-4 text-center">
+    <div className="relative flex flex-col items-center overflow-hidden py-5 text-center">
+      <div aria-hidden className="bg-dots mask-radial pointer-events-none absolute inset-0" />
       <div
         className={cn(
-          "grid size-12 animate-scale-in place-items-center rounded-full [&_svg]:size-6",
-          tone === "success" ? "bg-success-soft text-success" : tone === "danger" ? "bg-danger-soft text-danger" : "bg-surface-3 text-subtle",
+          "relative grid size-14 animate-scale-in place-items-center rounded-2xl border [&_svg]:size-6",
+          tone === "success" ? "border-success/25 bg-success-soft text-success shadow-[0_0_32px_-8px_var(--success)]" : tone === "danger" ? "border-danger/25 bg-danger-soft text-danger" : "border-border bg-surface-3 text-subtle",
         )}
       >
         {tone === "success" ? <CircleCheck /> : <CircleX />}
       </div>
-      <h3 className="mt-3 text-[15px] font-semibold text-fg">{title}</h3>
-      <p className="mt-1 max-w-sm break-words text-[13px] leading-relaxed text-subtle">{body}</p>
+      <h3 className="relative mt-4 text-[16px] font-semibold tracking-[-0.015em] text-fg">{title}</h3>
+      <p className="relative mt-1 max-w-sm break-words text-[13px] leading-relaxed text-subtle">{body}</p>
     </div>
   );
 }
@@ -387,7 +480,7 @@ function FlowSteps({ flow }: { flow: LoginFlowState }) {
             href={flow.authUrl.url}
             target="_blank"
             rel="noreferrer"
-            className="flex h-11 items-center justify-center gap-2 rounded-lg bg-accent font-mono text-[14px] font-medium text-accent-fg transition-colors hover:bg-accent-hover"
+            className="flex h-11 items-center justify-center gap-2 rounded-lg bg-inverse text-[14px] font-medium text-inverse-fg shadow-[0_1px_2px_rgb(0_0_0/0.2),inset_0_1px_0_rgb(255_255_255/0.12)] transition-colors hover:bg-inverse-hover"
           >
             Open sign-in page
             <ExternalLink className="size-4" />
@@ -400,17 +493,18 @@ function FlowSteps({ flow }: { flow: LoginFlowState }) {
       {flow.deviceCode && (
         <div className="flex flex-col gap-3">
           <StepLabel n={flow.authUrl ? 2 : 1}>Enter this code on the verification page</StepLabel>
-          <div className="flex items-center justify-center gap-3 rounded-xl border border-border bg-code px-4 py-5">
-            <span className="select-all font-mono text-[28px] font-semibold tracking-[0.18em] text-fg">{flow.deviceCode.userCode}</span>
-            <CopyButton text={flow.deviceCode.userCode} label="Copy code" />
+          <div className="relative flex items-center justify-center gap-3 overflow-hidden rounded-xl border border-dashed border-border-strong bg-code px-4 py-6">
+            <div aria-hidden className="bg-dots mask-radial pointer-events-none absolute inset-0" />
+            <span className="relative select-all font-mono text-[30px] font-semibold tracking-[0.2em] text-fg">{flow.deviceCode.userCode}</span>
+            <CopyButton text={flow.deviceCode.userCode} label="Copy code" className="relative" />
           </div>
           <a
             href={flow.deviceCode.verificationUri}
             target="_blank"
             rel="noreferrer"
-            className="flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-surface-2 text-[13.5px] font-medium text-fg transition-colors hover:border-border-strong"
+            className="flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-control text-[13.5px] font-medium text-fg shadow-xs transition-colors hover:border-border-strong hover:bg-control-hover"
           >
-            Open {new URL(flow.deviceCode.verificationUri, location.href).host}
+            Open <span className="font-mono text-[12.5px]">{new URL(flow.deviceCode.verificationUri, location.href).host}</span>
             <ArrowUpRight className="size-4" />
           </a>
         </div>
@@ -419,14 +513,14 @@ function FlowSteps({ flow }: { flow: LoginFlowState }) {
       {flow.prompt && <FlowPrompt key={`${flow.prompt.type}:${flow.prompt.message}`} flow={flow} step={(flow.authUrl ? 1 : 0) + (flow.deviceCode ? 1 : 0) + 1} />}
 
       {!flow.prompt && (
-        <div className="flex items-center gap-2.5 rounded-lg bg-surface-2/60 px-3 py-2.5 text-[12.5px] text-subtle">
-          <Spinner className="size-3.5" />
-          {nothingYet ? "Preparing sign-in…" : "Waiting for you to finish in the browser…"}
+        <div className="flex items-center gap-2.5 rounded-lg border border-border bg-surface-2/50 px-3 py-2.5 text-[12.5px] text-subtle">
+          <LoaderCircle className="size-3.5 animate-spin text-subtle" />
+          <span className={cn(!nothingYet && "shimmer-text")}>{nothingYet ? "Preparing sign-in…" : "Waiting for you to finish in the browser…"}</span>
         </div>
       )}
       <p className="flex items-start gap-2 text-[11.5px] leading-relaxed text-faint">
-        <ShieldCheck className="mt-px size-3.5 shrink-0" />
-        Tokens go straight to your soloagent server and never leave it.
+        <ShieldCheck className="mt-px size-3.5 shrink-0 text-success" />
+        Tokens go straight to your soloagent server, are encrypted at rest, and never leave it.
       </p>
     </>
   );
@@ -435,7 +529,7 @@ function FlowSteps({ flow }: { flow: LoginFlowState }) {
 function StepLabel({ n, children }: { n: number; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2.5 text-[13px] font-medium text-fg">
-      <span className="grid size-5 place-items-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent-text">{n}</span>
+      <span className="grid size-5 shrink-0 place-items-center rounded-full border border-border-strong bg-surface-2 font-mono text-[10.5px] font-semibold text-fg">{n}</span>
       {children}
     </div>
   );
@@ -472,8 +566,8 @@ function FlowPrompt({ flow, step }: { flow: LoginFlowState; step: number }) {
       <StepLabel n={step}>{isManual ? "Paste the code or the full redirect URL from your browser" : prompt.message}</StepLabel>
       {isManual && (
         <p className="-mt-1 text-[12.5px] leading-relaxed text-subtle">
-          After approving, your browser lands on a page that may not load (it points at <span className="font-mono">localhost</span>). That's expected — copy the whole URL from the address bar
-          and paste it here.
+          After approving, your browser lands on a page that may not load (it points at <span className="font-mono text-muted">localhost</span>). That's expected — copy the whole URL from the
+          address bar and paste it here.
           {prompt.message && prompt.message !== "Paste the code or the full redirect URL from your browser" && !flow.authUrl?.instructions && <span className="mt-1 block text-faint">{prompt.message}</span>}
         </p>
       )}
@@ -489,7 +583,7 @@ function FlowPrompt({ flow, step }: { flow: LoginFlowState; step: number }) {
                   setValue(option.id);
                   void answer(option.id);
                 }}
-                className="flex items-start gap-3 rounded-lg border border-border bg-surface-2/40 px-3 py-2.5 text-left transition-colors hover:border-accent-line/50 hover:bg-accent-soft disabled:opacity-60"
+                className="flex items-start gap-3 rounded-lg border border-border bg-surface-2/40 px-3 py-2.5 text-left transition-colors hover:border-border-strong hover:bg-surface-2 disabled:opacity-60"
               >
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13.5px] font-medium text-fg">{option.label}</span>

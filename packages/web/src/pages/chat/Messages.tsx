@@ -10,6 +10,8 @@ import {
   Globe,
   Info,
   LoaderCircle,
+  Minus,
+  Repeat,
   RotateCcw,
   ShieldAlert,
   Square,
@@ -19,10 +21,10 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import type { Agent, Approval, Attachment, LiveState, Message, ToolCallInfo } from "@soloagent/client";
+import type { Agent, Approval, Attachment, LiveState, Message, ToolCallInfo, Usage } from "@soloagent/client";
 import { explainError } from "@soloagent/client";
-import { approvalArgs, ApprovalWaiting } from "../../components/ApprovalActions.tsx";
-import { AgentAvatar, SourceBadge } from "../../components/brand.tsx";
+import { ApprovalWaiting } from "../../components/ApprovalActions.tsx";
+import { AgentAvatar, SourceBadge, type AgentPresence } from "../../components/brand.tsx";
 import { Markdown } from "../../components/Markdown.tsx";
 import { ImageViewer } from "../../components/ImageViewer.tsx";
 import { CopyButton } from "../../components/ui.tsx";
@@ -30,46 +32,18 @@ import { cn } from "../../lib/cn.ts";
 import { fileSize, fileUrl, PREVIEWABLE } from "../../lib/files.ts";
 import { clockTime, cost, duration, fullDate, initials, relativeTime, tokens } from "../../lib/format.ts";
 
-type AssistantMessage = Extract<Message, { kind: "assistant" }>;
-type ToolMessage = Extract<Message, { kind: "tool" }>;
+export type AssistantMessage = Extract<Message, { kind: "assistant" }>;
+export type ToolMessage = Extract<Message, { kind: "tool" }>;
 type UserMessage = Extract<Message, { kind: "user" }>;
-type EventMessage = Extract<Message, { kind: "event" }>;
+export type EventMessage = Extract<Message, { kind: "event" }>;
+/** What a run is made of: the agent's turns, tool results that had no call to pair with, and events mid-run. */
+export type RunItem = AssistantMessage | ToolMessage | EventMessage;
+type LiveTool = LiveState["tools"][number];
 
 const SELF_SOURCES = new Set(["web", "tui", "api"]);
 
 // ---------------------------------------------------------------------------
-// Layout primitives
-
-/** Assistant row: avatar gutter + content. `head` false continues a run without repeating the header. */
-function AssistantRow({ agent, head, header, children }: { agent: Agent | undefined; head: boolean; header?: ReactNode; children: ReactNode }) {
-  return (
-    <div className={cn("group/msg flex gap-3.5", head ? "mt-6" : "mt-2")}>
-      <div className="w-8 shrink-0">{head && <AgentAvatar agent={agent} size="md" />}</div>
-      <div className="min-w-0 flex-1">
-        {head && header}
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function AssistantHeader({ agent, model, at, extra }: { agent: Agent | undefined; model?: string; at?: number; extra?: ReactNode }) {
-  return (
-    <div className="mb-1 flex h-6 min-w-0 items-center gap-2">
-      <span className="truncate text-[13.5px] font-semibold text-fg">{agent?.name ?? "Agent"}</span>
-      {model && <span className="hidden truncate font-mono text-[11.5px] text-faint sm:inline">{model}</span>}
-      {at && (
-        <time className="shrink-0 text-[11.5px] text-faint" dateTime={new Date(at).toISOString()} title={fullDate(at)}>
-          {clockTime(at)}
-        </time>
-      )}
-      {extra}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Messages
+// People
 
 /** Image thumbnails (click for full size) and file chips (download) shared with a message. */
 function Attachments({ files, align }: { files: Attachment[]; align: "start" | "end" }) {
@@ -95,8 +69,15 @@ function Attachments({ files, align }: { files: Attachment[]; align: "start" | "
                 setViewing(f);
               }}
               title={`${f.name} · ${fileSize(f.size)}`}
-              className="block overflow-hidden rounded-xl border border-border bg-surface-2 transition-opacity hover:opacity-90">
-              <img src={fileUrl(f.sha256)} alt={f.name} loading="lazy" onError={() => setBroken((b) => new Set(b).add(f.sha256))} className={cn("block object-cover", images.length === 1 ? "max-h-72 max-w-full" : "size-32")} />
+              className="block overflow-hidden rounded-xl border border-border bg-surface-2 shadow-sm transition-[opacity,border-color] hover:border-border-strong hover:opacity-90"
+            >
+              <img
+                src={fileUrl(f.sha256)}
+                alt={f.name}
+                loading="lazy"
+                onError={() => setBroken((b) => new Set(b).add(f.sha256))}
+                className={cn("block object-cover", images.length === 1 ? "max-h-72 max-w-full" : "size-32")}
+              />
             </a>
           ))}
         </div>
@@ -108,11 +89,15 @@ function Attachments({ files, align }: { files: Attachment[]; align: "start" | "
           href={fileUrl(f.sha256)}
           download={f.name}
           title={`Download ${f.name}`}
-          className="flex max-w-full items-center gap-2.5 rounded-xl border border-border bg-surface px-3 py-2 transition-colors hover:border-border-strong hover:bg-surface-2"
+          className="flex max-w-full items-center gap-2.5 rounded-xl border border-border bg-surface py-2 pl-2 pr-3 shadow-xs transition-colors hover:border-border-strong hover:bg-surface-2"
         >
-          <FileText className="size-4.5 shrink-0 text-subtle" />
-          <span className="min-w-0 truncate text-[13px] font-medium text-fg">{f.name}</span>
-          <span className="shrink-0 text-[11.5px] text-faint">{fileSize(f.size)}</span>
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-surface-2 text-subtle ring-1 ring-border">
+            <FileText className="size-4" />
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-[13px] font-medium text-fg">{f.name}</span>
+            <span className="block font-mono text-[11px] text-faint">{fileSize(f.size)}</span>
+          </span>
         </a>
       ))}
     </div>
@@ -123,239 +108,103 @@ export const UserBubble = memo(function UserBubble({ message, first }: { message
   const self = SELF_SOURCES.has(message.author.source);
   if (self) {
     return (
-      <div className={cn("group/msg flex flex-col items-end", first ? "mt-6" : "mt-1.5")}>
+      <div className={cn("group/msg flex flex-col items-end", first ? "mt-7" : "mt-1.5")}>
         {message.attachments?.length ? <Attachments files={message.attachments} align="end" /> : null}
         {message.text && (
-          <div className="max-w-[min(85%,640px)] whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-border bg-surface-2 px-3.5 py-2 text-[14.5px] leading-relaxed text-fg">
+          <div className="max-w-[min(85%,620px)] whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-border bg-surface-2 px-4 py-2.5 text-[14.5px] leading-relaxed text-fg shadow-xs">
             {message.text}
           </div>
         )}
-        <div className="mt-1 flex h-4 items-center gap-1.5 pr-1 text-[11px] text-faint opacity-0 transition-opacity group-hover/msg:opacity-100">
-          {message.author.source !== "web" && <SourceBadge source={message.author.source} className="h-4 text-[10px]" />}
+        <div className="mt-1 flex h-4 items-center gap-1.5 pr-1 font-mono text-[10.5px] text-faint opacity-0 transition-opacity group-hover/msg:opacity-100">
+          {message.author.source !== "web" && <SourceBadge source={message.author.source} className="h-4 font-sans text-[10px]" />}
           <span title={fullDate(message.at)}>{clockTime(message.at)}</span>
         </div>
       </div>
     );
   }
-  // Someone on Slack/Discord/Telegram/a webhook: left-aligned with their name and platform.
+  // Someone on Slack/Discord/Telegram/a webhook: left-aligned with their name and platform. People are round;
+  // agents are tiles.
   return (
-    <div className={cn("group/msg flex gap-3.5", first ? "mt-6" : "mt-2")}>
+    <div className={cn("group/msg flex gap-3.5", first ? "mt-7" : "mt-2")}>
       <div className="w-8 shrink-0">
         {first &&
           (message.author.avatarUrl ? (
-            <img src={message.author.avatarUrl} alt="" className="size-8 rounded-lg object-cover" />
+            <img src={message.author.avatarUrl} alt="" className="size-8 rounded-full object-cover ring-1 ring-border" />
           ) : (
-            <span className="grid size-8 place-items-center rounded-lg bg-surface-3 text-[12px] font-semibold text-muted">{initials(message.author.name)}</span>
+            <span className="grid size-8 place-items-center rounded-full bg-gradient-to-b from-surface-3 to-surface-2 text-[11px] font-semibold text-muted ring-1 ring-border-strong">
+              {initials(message.author.name)}
+            </span>
           ))}
       </div>
       <div className="min-w-0 flex-1">
         {first && (
-          <div className="mb-1 flex h-6 items-center gap-2">
+          <div className="mb-1 flex h-8 items-center gap-2">
             <span className="truncate text-[13.5px] font-semibold text-fg">{message.author.name}</span>
             <SourceBadge source={message.author.source} />
-            <time className="text-[11.5px] text-faint" title={fullDate(message.at)}>
+            <time className="font-mono text-[11px] text-faint" title={fullDate(message.at)}>
               {clockTime(message.at)}
             </time>
           </div>
         )}
         {message.attachments?.length ? <Attachments files={message.attachments} align="start" /> : null}
-        {message.text && <div className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-fg">{message.text}</div>}
+        {message.text && <div className="-mt-1 whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-fg">{message.text}</div>}
       </div>
     </div>
   );
 });
 
+// ---------------------------------------------------------------------------
+// Thread-level notices
+
+function eventIcon(message: Pick<EventMessage, "text" | "tone">) {
+  if (message.tone === "error") return CircleAlert;
+  if (message.tone === "warn") return TriangleAlert;
+  if (/^reminder/i.test(message.text)) return Clock;
+  if (/^automation/i.test(message.text)) return Repeat;
+  return Info;
+}
+
 export function EventNotice({ message }: { message: Pick<EventMessage, "text" | "tone" | "at"> }) {
-  const Icon = message.tone === "error" ? CircleAlert : message.tone === "warn" ? TriangleAlert : Info;
+  const Icon = eventIcon(message);
   return (
-    <div className="my-5 flex items-center gap-3">
-      <div className="h-px flex-1 bg-border" />
+    <div className="my-6 flex items-center gap-3">
+      <div className="h-px flex-1 bg-gradient-to-r from-transparent to-border" />
       <div
         className={cn(
-          "flex max-w-[80%] items-center gap-1.5 rounded-full border px-3 py-1 text-[12px]",
+          "flex h-7 max-w-[80%] items-center gap-1.5 rounded-full border px-3 text-[12px] shadow-xs",
           message.tone === "error"
             ? "border-danger/25 bg-danger-soft text-danger"
             : message.tone === "warn"
               ? "border-warning/25 bg-warning-soft text-warning"
-              : "border-border bg-surface-2 text-subtle",
+              : "border-border bg-surface text-subtle",
         )}
         title={message.at > 0 ? fullDate(message.at) : undefined}
       >
         <Icon className="size-3.5 shrink-0" />
         <span className="min-w-0 truncate">{message.text}</span>
       </div>
-      <div className="h-px flex-1 bg-border" />
+      <div className="h-px flex-1 bg-gradient-to-l from-transparent to-border" />
     </div>
   );
 }
 
 export function DayDivider({ label }: { label: string }) {
   return (
-    <div className="my-6 flex items-center gap-3 text-[11.5px] font-medium text-faint">
-      <div className="h-px flex-1 bg-border" />
-      {label}
-      <div className="h-px flex-1 bg-border" />
-    </div>
-  );
-}
-
-function UsageHint({ message }: { message: AssistantMessage }) {
-  const u = message.usage;
-  if (!u) return null;
-  const detail = [
-    `Input ${tokens(u.input)}`,
-    `Output ${tokens(u.output)}`,
-    u.cacheRead ? `Cache read ${tokens(u.cacheRead)}` : null,
-    u.cacheWrite ? `Cache write ${tokens(u.cacheWrite)}` : null,
-    `Cost ${cost(u.cost)}`,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  return (
-    <span
-      title={detail}
-      className="ml-auto hidden shrink-0 items-center gap-2 rounded-md border border-border bg-surface-2 px-1.5 font-mono text-[10.5px] leading-[18px] text-subtle opacity-0 transition-opacity group-hover/msg:opacity-100 sm:inline-flex"
-    >
-      <span>{tokens(u.input + u.cacheRead + u.cacheWrite)} in</span>
-      <span>{tokens(u.output)} out</span>
-      {u.cacheRead > 0 && <span className="text-success">{Math.round((u.cacheRead / Math.max(1, u.input + u.cacheRead + u.cacheWrite)) * 100)}% cached</span>}
-      <span className="text-fg">{cost(u.cost)}</span>
-    </span>
-  );
-}
-
-export const AssistantMessageView = memo(function AssistantMessageView({
-  message,
-  agent,
-  head,
-  results,
-  live,
-  thinkingMs,
-  repeats = 1,
-  onRetry,
-}: {
-  message: AssistantMessage;
-  agent: Agent | undefined;
-  head: boolean;
-  results: Map<string, ToolMessage>;
-  live: LiveState;
-  thinkingMs?: number;
-  /** The same error, this many times in a row (provider retries), shown once. */
-  repeats?: number;
-  /** Offered on the thread's last message when it failed: sends the last request again. */
-  onRetry?: () => void;
-}) {
-  return (
-    <AssistantRow agent={agent} head={head} header={<AssistantHeader agent={agent} model={message.model} at={message.at} extra={<UsageHint message={message} />} />}>
-      {!head && message.usage && (
-        <div className="-mt-1 flex h-0 justify-end overflow-visible">
-          <UsageHint message={message} />
-        </div>
-      )}
-      {message.thinking && <ThinkingBlock text={message.thinking} ms={thinkingMs} />}
-      {message.text && <Markdown text={message.text} />}
-      {message.toolCalls.length > 0 && (
-        <div className="mt-2 flex flex-col gap-1.5">
-          {message.toolCalls.map((call) => (
-            <ToolCard
-              key={call.id}
-              call={call}
-              result={results.get(call.id)}
-              liveTool={live.tools.find((t) => t.callId === call.id)}
-              approval={live.approvals?.find((a) => a.callId === call.id)}
-              busy={live.busy}
-            />
-          ))}
-        </div>
-      )}
-      {message.stopReason === "aborted" ? (
-        <StoppedNote />
-      ) : (
-        message.error && <ErrorBox error={message.error} repeats={repeats} onRetry={onRetry} />
-      )}
-      {message.text && (
-        <div className="mt-1 flex h-6 items-center gap-0.5 opacity-0 transition-opacity group-hover/msg:opacity-100">
-          <CopyButton text={message.text} label="Copy message" size="xs" />
-        </div>
-      )}
-    </AssistantRow>
-  );
-});
-
-/** The in-progress turn: streamed text with a caret, running tools, and the typing state. */
-export function LiveTurn({
-  live,
-  agent,
-  head,
-  thinkingMs,
-  shownCalls,
-}: {
-  live: LiveState;
-  agent: Agent | undefined;
-  head: boolean;
-  thinkingMs?: number;
-  /** Tool calls the committed transcript already shows as cards. */
-  shownCalls?: ReadonlySet<string>;
-}) {
-  const partial = live.partial;
-  const hasContent = !!partial && (!!partial.text || !!partial.thinking || partial.toolCalls.length > 0);
-  const pendingTools = live.tools.filter((t) => t.status !== "done" && !shownCalls?.has(t.callId) && !partial?.toolCalls.some((c) => c.id === t.callId));
-  if (!live.busy && !hasContent) return null;
-  // Paused on an approval: its tool card says so; no typing dots.
-  if (!hasContent && pendingTools.length === 0 && live.approvals?.length) return null;
-  return (
-    <AssistantRow agent={agent} head={head} header={<AssistantHeader agent={agent} extra={<span className="text-[11.5px] text-faint">{live.turns > 1 ? `turn ${live.turns}` : null}</span>} />}>
-      {partial?.thinking && <ThinkingBlock text={partial.thinking} live={!partial.text && partial.toolCalls.length === 0} ms={thinkingMs} />}
-      {partial?.text ? <Markdown text={partial.text} live /> : null}
-      {partial && partial.toolCalls.length > 0 && (
-        <div className="mt-2 flex flex-col gap-1.5">
-          {partial.toolCalls.map((call) => (
-            <ToolCard
-              key={call.id}
-              call={call}
-              liveTool={live.tools.find((t) => t.callId === call.id)}
-              approval={live.approvals?.find((a) => a.callId === call.id)}
-              busy
-              streaming
-            />
-          ))}
-        </div>
-      )}
-      {pendingTools.length > 0 && !partial && (
-        <div className="mt-1 flex flex-col gap-1.5">
-          {pendingTools.map((tool) => (
-            <ToolCard
-              key={tool.callId}
-              call={{ id: tool.callId, name: tool.name, args: live.approvals?.find((a) => a.callId === tool.callId)?.args }}
-              liveTool={tool}
-              approval={live.approvals?.find((a) => a.callId === tool.callId)}
-              busy
-            />
-          ))}
-        </div>
-      )}
-      {!hasContent && pendingTools.length === 0 && <TypingDots />}
-    </AssistantRow>
-  );
-}
-
-function TypingDots() {
-  return (
-    <div className="flex h-7 items-center gap-1" aria-label="Agent is working" role="status">
-      {[0, 1, 2].map((i) => (
-        <span key={i} className="size-1.5 animate-bounce rounded-full bg-accent-text/70" style={{ animationDelay: `${i * 140}ms`, animationDuration: "1s" }} />
-      ))}
+    <div className="my-8 flex items-center gap-3">
+      <div className="h-px flex-1 bg-gradient-to-r from-transparent to-border" />
+      <span className="label-mono text-faint">{label}</span>
+      <div className="h-px flex-1 bg-gradient-to-l from-transparent to-border" />
     </div>
   );
 }
 
 export function RetryNotice({ retry }: { retry: NonNullable<LiveState["retry"]> }) {
   return (
-    <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-warning/25 bg-warning-soft px-3.5 py-2.5 text-[13px]">
+    <div className="ml-[46px] mt-4 flex items-start gap-3 rounded-xl border border-warning/25 bg-warning-soft px-3.5 py-3 text-[13px]">
       <RotateCcw className="mt-0.5 size-4 shrink-0 animate-spin text-warning [animation-direction:reverse] [animation-duration:2s]" />
       <div className="min-w-0">
         <p className="font-medium text-warning">Provider hiccup — retrying {retry.at > Date.now() ? relativeTime(retry.at) : "now"}</p>
-        <p className="mt-0.5 break-words text-[12.5px] text-muted">{retry.error}</p>
+        <p className="mt-0.5 break-words font-mono text-[11.5px] leading-relaxed text-muted">{retry.error}</p>
       </div>
     </div>
   );
@@ -374,11 +223,44 @@ function friendlyError(text: string): string {
   }
 }
 
+/** "rate_limited" → "Rate limited". */
+function humanizeReason(reason: string): string {
+  const text = reason.replace(/[_-]+/g, " ").trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function StoppedNote({ className }: { className?: string }) {
+  return (
+    <p className={cn("flex h-7 items-center gap-1.5 font-mono text-[11.5px] text-subtle", className)}>
+      <Square className="size-2.5 fill-current" />
+      Stopped
+    </p>
+  );
+}
+
+export function FailureNotice({ failure }: { failure: NonNullable<LiveState["failure"]> }) {
+  // A run the user stopped is not a failure.
+  if (failure.reason === "aborted") return <StoppedNote className="ml-[46px] mt-2" />;
+  return (
+    <div className="ml-[46px] mt-4 flex items-start gap-3 rounded-xl border border-danger/25 bg-danger-soft px-3.5 py-3 text-[13px]">
+      <CircleAlert className="mt-0.5 size-4 shrink-0 text-danger" />
+      <div className="min-w-0">
+        <p className="font-medium text-danger">{(failure.detail && explainError(failure.detail)) ?? humanizeReason(failure.reason)}</p>
+        {failure.detail && (
+          <p className="mt-0.5 whitespace-pre-wrap break-words font-mono text-[11.5px] leading-relaxed text-muted" title={failure.detail}>
+            {friendlyError(failure.detail)}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ErrorBox({ error, repeats, onRetry }: { error: string; repeats: number; onRetry?: () => void }) {
   const explained = explainError(error);
   const detail = friendlyError(error);
   return (
-    <div className="mt-2 flex items-start gap-2.5 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2.5 text-[13px]">
+    <div className="my-1.5 flex items-start gap-3 rounded-xl border border-danger/25 bg-danger-soft px-3.5 py-3 text-[13px]">
       <CircleAlert className="mt-0.5 size-4 shrink-0 text-danger" />
       <div className="min-w-0 flex-1">
         <p className="font-medium text-danger">{explained ?? detail}</p>
@@ -388,18 +270,18 @@ function ErrorBox({ error, repeats, onRetry }: { error: string; repeats: number;
           </p>
         )}
         {(repeats > 1 || onRetry) && (
-          <div className="mt-2 flex items-center gap-3">
+          <div className="mt-2.5 flex items-center gap-3">
             {onRetry && (
               <button
                 type="button"
                 onClick={onRetry}
-                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-danger/30 bg-surface px-2.5 text-[12px] font-medium text-fg transition-colors hover:bg-surface-2"
+                className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border bg-control px-2.5 text-[12px] font-medium text-fg shadow-xs transition-colors hover:border-border-strong hover:bg-control-hover"
               >
                 <RotateCcw className="size-3.5" />
                 Try again
               </button>
             )}
-            {repeats > 1 && <span className="text-[12px] text-subtle">Failed {repeats} times in a row</span>}
+            {repeats > 1 && <span className="font-mono text-[11.5px] text-subtle">failed {repeats}× in a row</span>}
           </div>
         )}
       </div>
@@ -407,61 +289,355 @@ function ErrorBox({ error, repeats, onRetry }: { error: string; repeats: number;
   );
 }
 
-function StoppedNote({ className }: { className?: string }) {
+// ---------------------------------------------------------------------------
+// Runs: an agent's work rendered as a trace. Reasoning, tool calls, and mid-run events are steps on a rail that
+// hangs from the agent's avatar; the answer text sits beside it.
+
+type Block =
+  | { type: "thinking"; key: string; text: string; ms?: number; live?: boolean }
+  | { type: "text"; key: string; text: string; live?: boolean }
+  | { type: "tool"; key: string; call: ToolCallInfo; result?: ToolMessage; liveTool?: LiveTool; approval?: Approval; busy?: boolean; streaming?: boolean }
+  | { type: "event"; key: string; message: EventMessage }
+  | { type: "working"; key: string; turns: number }
+  | { type: "error"; key: string; error: string; repeats: number; onRetry?: () => void }
+  | { type: "stopped"; key: string };
+
+const isStep = (block: Block) => block.type === "thinking" || block.type === "tool" || block.type === "event" || block.type === "working";
+
+/** The live part of a run: what's streaming right now, and tools still pending. Empty when nothing shows. */
+export function liveBlocks(live: LiveState, shownCalls: ReadonlySet<string>, thinkingMs?: number): Block[] {
+  const partial = live.partial;
+  const hasContent = !!partial && (!!partial.text || !!partial.thinking || partial.toolCalls.length > 0);
+  const pendingTools = live.tools.filter((t) => t.status !== "done" && !shownCalls.has(t.callId) && !partial?.toolCalls.some((c) => c.id === t.callId));
+  if (!live.busy && !hasContent) return [];
+  // Paused on an approval: its tool step says so; no "working" step.
+  if (!hasContent && pendingTools.length === 0 && live.approvals?.length) return [];
+  const blocks: Block[] = [];
+  if (partial?.thinking) blocks.push({ type: "thinking", key: "live:thinking", text: partial.thinking, live: !partial.text && partial.toolCalls.length === 0, ms: thinkingMs });
+  if (partial?.text) blocks.push({ type: "text", key: "live:text", text: partial.text, live: true });
+  for (const call of partial?.toolCalls ?? []) {
+    blocks.push({
+      type: "tool",
+      key: `live:${call.id}`,
+      call,
+      liveTool: live.tools.find((t) => t.callId === call.id),
+      approval: live.approvals?.find((a) => a.callId === call.id),
+      busy: true,
+      streaming: true,
+    });
+  }
+  if (!partial) {
+    for (const tool of pendingTools) {
+      const approval = live.approvals?.find((a) => a.callId === tool.callId);
+      blocks.push({ type: "tool", key: `live:${tool.callId}`, call: { id: tool.callId, name: tool.name, args: approval?.args }, liveTool: tool, approval, busy: true });
+    }
+  }
+  // Nothing streaming yet: say the agent is at work, unless a tool step above already shows it running.
+  const runningAbove = live.tools.some((t) => t.status !== "done" && shownCalls.has(t.callId));
+  if (!hasContent && pendingTools.length === 0 && !runningAbove) blocks.push({ type: "working", key: "live:working", turns: live.turns });
+  return blocks;
+}
+
+function sumUsage(items: RunItem[]): Usage | undefined {
+  let total: Usage | undefined;
+  for (const item of items) {
+    if (item.kind !== "assistant" || !item.usage) continue;
+    const u = item.usage;
+    total = total
+      ? { input: total.input + u.input, output: total.output + u.output, cacheRead: total.cacheRead + u.cacheRead, cacheWrite: total.cacheWrite + u.cacheWrite, cost: total.cost + u.cost }
+      : { ...u };
+  }
+  return total;
+}
+
+export type RunTail = { thinkingMs?: number; shownCalls: ReadonlySet<string> };
+
+/**
+ * One agent run: consecutive turns by the same agent. With `tail`, it is the run in progress and also shows what is
+ * streaming. `head` false continues a run whose header is above (or a lone tool result).
+ */
+export const RunView = memo(function RunView({
+  agent,
+  items,
+  head,
+  results,
+  live,
+  thinkingMs,
+  repeats,
+  retryId,
+  onRetry,
+  tail,
+}: {
+  agent: Agent | undefined;
+  items: RunItem[];
+  head: boolean;
+  results: Map<string, ToolMessage>;
+  live: LiveState;
+  thinkingMs: Map<string, number>;
+  repeats: Map<string, number>;
+  /** The message offered "Try again" (the thread's last, when it failed). */
+  retryId?: string;
+  onRetry?: () => void;
+  tail?: RunTail;
+}) {
+  const blocks: Block[] = [];
+  for (const item of items) {
+    if (item.kind === "assistant") {
+      if (item.thinking) blocks.push({ type: "thinking", key: `${item.id}:thinking`, text: item.thinking, ms: thinkingMs.get(item.id) });
+      if (item.text) blocks.push({ type: "text", key: `${item.id}:text`, text: item.text });
+      for (const call of item.toolCalls) {
+        blocks.push({
+          type: "tool",
+          key: call.id,
+          call,
+          result: results.get(call.id),
+          liveTool: live.tools.find((t) => t.callId === call.id),
+          approval: live.approvals?.find((a) => a.callId === call.id),
+          busy: live.busy,
+        });
+      }
+      if (item.stopReason === "aborted") blocks.push({ type: "stopped", key: `${item.id}:stopped` });
+      else if (item.error)
+        blocks.push({ type: "error", key: `${item.id}:error`, error: item.error, repeats: repeats.get(item.id) ?? 1, onRetry: item.id === retryId ? onRetry : undefined });
+    } else if (item.kind === "tool") {
+      blocks.push({ type: "tool", key: item.id, call: { id: item.callId, name: item.name, args: undefined }, result: item });
+    } else {
+      blocks.push({ type: "event", key: item.id, message: item });
+    }
+  }
+  if (tail) blocks.push(...liveBlocks(live, tail.shownCalls, tail.thinkingMs));
+  if (blocks.length === 0 && !head) return null;
+  if (blocks.length === 0 && items.length === 0) return null;
+
+  const firstAssistant = items.find((i): i is AssistantMessage => i.kind === "assistant");
+  const model = firstAssistant?.model;
+  const at = items.find((i) => i.at > 0)?.at;
+  const usage = sumUsage(items);
+  const copy = items
+    .filter((i): i is AssistantMessage => i.kind === "assistant" && !!i.text)
+    .map((i) => i.text)
+    .join("\n\n");
+  const streaming = !!tail && blocks.some((b) => (b.type === "text" || b.type === "thinking") && b.live);
+  const presence: AgentPresence | undefined = tail && live.busy ? (live.approvals?.some((a) => a.status === "pending") ? "approval" : "working") : undefined;
+
+  // The rail runs from the avatar (or the first step) down to the last step.
+  let lastStep = -1;
+  blocks.forEach((b, i) => isStep(b) && (lastStep = i));
+  let railStarted = head && lastStep >= 0;
+
   return (
-    <p className={cn("mt-1.5 flex items-center gap-1.5 text-[12px] text-subtle", className)}>
-      <Square className="size-2.5 fill-current" />
-      Stopped
-    </p>
+    <div className={cn("group/run", head ? "mt-7" : "mt-1")}>
+      {head && (
+        <div className="flex h-8 items-center gap-3.5">
+          <AgentAvatar agent={agent} size="md" presence={presence} className="[--presence-ring:var(--panel)]" />
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="truncate text-[13.5px] font-semibold text-fg">{agent?.name ?? "Agent"}</span>
+            {model ? (
+              <span className="hidden truncate font-mono text-[11px] text-faint sm:inline">{model}</span>
+            ) : (
+              tail && agent?.model && <span className="hidden truncate font-mono text-[11px] text-faint sm:inline">{agent.model.modelId}</span>
+            )}
+            {at ? (
+              <time className="shrink-0 font-mono text-[11px] text-faint" dateTime={new Date(at).toISOString()} title={fullDate(at)}>
+                {clockTime(at)}
+              </time>
+            ) : null}
+            {tail && live.busy && live.turns > 1 && <span className="shrink-0 font-mono text-[11px] text-accent-text">turn {live.turns}</span>}
+            {usage && <UsageHint usage={usage} />}
+          </div>
+        </div>
+      )}
+      {blocks.map((block, i) => {
+        const rail = { above: railStarted, below: i < lastStep };
+        if (isStep(block)) railStarted = true;
+        return <BlockView key={block.key} block={block} rail={rail} first={i === 0} />;
+      })}
+      {copy && !streaming && (
+        <div className="flex gap-3.5">
+          <div className="w-8 shrink-0" />
+          <div className="-ml-1.5 flex h-7 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/run:opacity-100">
+            <CopyButton text={copy} label="Copy message" size="xs" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
+function UsageHint({ usage: u }: { usage: Usage }) {
+  const prompt = u.input + u.cacheRead + u.cacheWrite;
+  const detail = [
+    `Input ${tokens(u.input)}`,
+    `Output ${tokens(u.output)}`,
+    u.cacheRead ? `Cache read ${tokens(u.cacheRead)}` : null,
+    u.cacheWrite ? `Cache write ${tokens(u.cacheWrite)}` : null,
+    `Cost ${cost(u.cost)}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <span
+      title={detail}
+      className="ml-auto hidden shrink-0 items-center gap-2.5 font-mono text-[10.5px] text-faint opacity-0 transition-opacity group-hover/run:opacity-100 sm:inline-flex"
+    >
+      <span>{tokens(prompt)} in</span>
+      <span>{tokens(u.output)} out</span>
+      {u.cacheRead > 0 && <span className="text-success/90">{Math.round((u.cacheRead / Math.max(1, prompt)) * 100)}% cached</span>}
+      <span className="text-muted">{cost(u.cost)}</span>
+    </span>
   );
 }
 
-/** "rate_limited" → "Rate limited". */
-function humanizeReason(reason: string): string {
-  const text = reason.replace(/[_-]+/g, " ").trim();
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
+type Rail = { above: boolean; below: boolean };
 
-export function FailureNotice({ failure }: { failure: NonNullable<LiveState["failure"]> }) {
-  // A run the user stopped is not a failure.
-  if (failure.reason === "aborted") return <StoppedNote className="ml-[46px] mt-3" />;
+/** One row of a run: the gutter (rail and step node) under the avatar, and the content beside it. */
+function TraceRow({ rail, node, glow, children, className }: { rail: Rail; node?: ReactNode; glow?: boolean; children: ReactNode; className?: string }) {
   return (
-    <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-danger/25 bg-danger-soft px-3.5 py-2.5 text-[13px]">
-      <CircleAlert className="mt-0.5 size-4 shrink-0 text-danger" />
-      <div className="min-w-0">
-        <p className="font-medium text-danger">{(failure.detail && explainError(failure.detail)) ?? humanizeReason(failure.reason)}</p>
-        {failure.detail && (
-          <p className="mt-0.5 whitespace-pre-wrap break-words text-[12.5px] text-muted" title={failure.detail}>
-            {friendlyError(failure.detail)}
-          </p>
+    <div className={cn("flex gap-3.5", className)}>
+      <div className="relative w-8 shrink-0" aria-hidden>
+        {node ? (
+          <>
+            {rail.above && (
+              <span className={cn("absolute left-1/2 top-0 h-[7px] w-px -translate-x-1/2", glow ? "bg-gradient-to-b from-border-strong to-accent-line" : "bg-border-strong")} />
+            )}
+            <span className="absolute left-1/2 top-[7px] -translate-x-1/2">{node}</span>
+            {rail.below && <span className="absolute bottom-0 left-1/2 top-[25px] w-px -translate-x-1/2 bg-border-strong" />}
+          </>
+        ) : (
+          rail.above && rail.below && <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border-strong" />
         )}
       </div>
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Thinking
+type NodeTone = "done" | "running" | "queued" | "error" | "approval" | "idle" | "thinking" | "live" | "info" | "warn";
 
-function ThinkingBlock({ text, live, ms }: { text: string; live?: boolean; ms?: number }) {
+function StepNode({ tone, icon: Icon }: { tone: NodeTone; icon?: typeof Wrench }) {
+  const base = "grid size-[18px] place-items-center rounded-full ring-1 [&_svg]:size-[11px]";
+  switch (tone) {
+    case "done":
+      return (
+        <span className={cn(base, "bg-surface-2 text-success ring-border-strong")}>
+          <Check strokeWidth={2.75} />
+        </span>
+      );
+    case "running":
+    case "live":
+      return (
+        <span className={cn(base, "bg-accent-soft text-accent-text ring-accent-line/55 shadow-[0_0_12px_-2px_var(--accent-glow)]")}>
+          {Icon ? <Icon className="animate-pulse-soft" /> : <LoaderCircle className="animate-spin" strokeWidth={2.5} />}
+        </span>
+      );
+    case "queued":
+      return (
+        <span className={cn(base, "bg-surface-2 text-subtle ring-border-strong")}>
+          <LoaderCircle className="animate-spin" strokeWidth={2.5} />
+        </span>
+      );
+    case "error":
+      return (
+        <span className={cn(base, "bg-danger-soft text-danger ring-danger/45")}>
+          <X strokeWidth={2.75} />
+        </span>
+      );
+    case "approval":
+      return (
+        <span className={cn(base, "bg-warning-soft text-warning ring-warning/55 shadow-[0_0_12px_-3px_var(--warning)]")}>
+          <ShieldAlert strokeWidth={2.25} />
+        </span>
+      );
+    case "warn":
+      return <span className={cn(base, "bg-warning-soft text-warning ring-warning/40")}>{Icon ? <Icon /> : <TriangleAlert />}</span>;
+    case "thinking":
+    case "info":
+      return <span className={cn(base, "bg-surface-2 text-subtle ring-border-strong")}>{Icon ? <Icon /> : <Info />}</span>;
+    default:
+      return (
+        <span className={cn(base, "bg-surface-2 text-faint ring-border")}>
+          <Minus strokeWidth={2.5} />
+        </span>
+      );
+  }
+}
+
+function BlockView({ block, rail, first }: { block: Block; rail: Rail; first: boolean }) {
+  switch (block.type) {
+    case "thinking":
+      return <ThinkingStep block={block} rail={rail} />;
+    case "tool":
+      return <ToolStep block={block} rail={rail} />;
+    case "event": {
+      const Icon = eventIcon(block.message);
+      const tone = block.message.tone === "error" ? "error" : block.message.tone === "warn" ? "warn" : "info";
+      return (
+        <TraceRow rail={rail} node={tone === "error" ? <StepNode tone="error" /> : <StepNode tone={tone} icon={Icon} />}>
+          <p
+            className={cn("flex h-8 min-w-0 items-center text-[12.5px]", tone === "error" ? "text-danger" : tone === "warn" ? "text-warning" : "text-subtle")}
+            title={block.message.at > 0 ? `${block.message.text}\n${fullDate(block.message.at)}` : block.message.text}
+          >
+            <span className="truncate">{block.message.text}</span>
+          </p>
+        </TraceRow>
+      );
+    }
+    case "working":
+      return (
+        <TraceRow rail={rail} node={<StepNode tone="running" />} glow>
+          <div className="flex h-8 items-center gap-2" role="status" aria-label="Agent is working">
+            <span className="shimmer-text text-[13px] font-medium">Working</span>
+            {block.turns > 1 && <span className="font-mono text-[11px] text-faint">turn {block.turns}</span>}
+          </div>
+        </TraceRow>
+      );
+    case "text":
+      return (
+        <TraceRow rail={rail} className={cn(first ? "pt-1" : "pt-1.5", "pb-1")}>
+          <Markdown text={block.text} live={block.live} />
+        </TraceRow>
+      );
+    case "error":
+      return (
+        <TraceRow rail={rail}>
+          <ErrorBox error={block.error} repeats={block.repeats} onRetry={block.onRetry} />
+        </TraceRow>
+      );
+    case "stopped":
+      return (
+        <TraceRow rail={rail}>
+          <StoppedNote />
+        </TraceRow>
+      );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Reasoning
+
+function ThinkingStep({ block, rail }: { block: Extract<Block, { type: "thinking" }>; rail: Rail }) {
   const [open, setOpen] = useState(false);
-  const label = live ? "Thinking" : ms !== undefined ? `Thought for ${ms < 1000 ? "a moment" : duration(ms)}` : "Thought process";
+  const label = block.live ? "Reasoning" : block.ms !== undefined ? `Thought for ${block.ms < 1000 ? "a moment" : duration(block.ms)}` : "Reasoning";
+  // While it thinks, the latest line of thought shows beside the label.
+  const latest = block.live ? block.text.trim().split("\n").filter(Boolean).pop()?.slice(-160) : undefined;
   return (
-    <div className="mb-2">
+    <TraceRow rail={rail} node={<StepNode tone={block.live ? "live" : "thinking"} icon={Brain} />} glow={block.live}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="group/think -ml-1 inline-flex h-7 items-center gap-1.5 rounded-md px-1 text-[13px] text-subtle transition-colors hover:text-fg"
+        className="group/step -ml-2 flex h-8 w-[calc(100%+0.5rem)] min-w-0 items-center gap-2 rounded-lg px-2 text-left text-[13px] text-subtle transition-colors hover:bg-surface-2/60 hover:text-fg"
       >
-        <Brain className={cn("size-3.5", live && "animate-pulse-soft text-accent-text")} />
-        <span className={cn(live && "shimmer-text font-medium")}>{label}</span>
-        <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
+        <span className={cn("shrink-0", block.live && "shimmer-text font-medium")}>{label}</span>
+        {latest ? <span className="min-w-0 flex-1 truncate text-[12.5px] italic text-faint">{latest}</span> : <span className="flex-1" />}
+        <ChevronRight className={cn("size-3.5 shrink-0 text-faint transition-transform", open && "rotate-90")} />
       </button>
       {open && (
-        <div className="ml-[7px] mt-1 animate-fade-in border-l-2 border-border pl-4 text-[13px] leading-relaxed whitespace-pre-wrap text-subtle">{text}</div>
+        <div className="mb-2 mt-0.5 max-h-80 animate-fade-in overflow-y-auto whitespace-pre-wrap border-l-2 border-border-strong pl-3.5 text-[13px] leading-relaxed text-subtle">
+          {block.text}
+        </div>
       )}
-    </div>
+    </TraceRow>
   );
 }
 
@@ -472,7 +648,7 @@ const TOOL_ICONS: [RegExp, typeof Wrench][] = [
   [/fetch|web|browse|http|search/i, Globe],
   [/memory|remember|recall|forget/i, Brain],
   [/agent|delegate|ask_/i, Users],
-  [/schedule|remind|sleep|timer/i, Clock],
+  [/schedule|remind|sleep|timer|automation/i, Clock],
   [/bash|shell|exec|run/i, SquareTerminal],
   [/write|edit|patch/i, FilePen],
   [/read|file|ls|glob|grep/i, FileText],
@@ -506,22 +682,12 @@ function prettyArgs(args: unknown): string {
   }
 }
 
-export function ToolCard({
-  call,
-  result,
-  liveTool,
-  approval,
-  busy,
-  streaming,
-}: {
-  call: ToolCallInfo;
-  result?: ToolMessage;
-  liveTool?: LiveState["tools"][number];
-  /** Approvals: the call waits for a decision. */
-  approval?: Approval;
-  busy?: boolean;
-  streaming?: boolean;
-}) {
+type ToolState = "running" | "pending" | "approval" | "done" | "error" | "unknown";
+
+const NODE_FOR: Record<ToolState, NodeTone> = { running: "running", pending: "queued", approval: "approval", done: "done", error: "error", unknown: "idle" };
+
+function ToolStep({ block, rail }: { block: Extract<Block, { type: "tool" }>; rail: Rail }) {
+  const { call, result, liveTool, approval, busy, streaming } = block;
   const [open, setOpen] = useState(false);
   const waiting = !result && approval?.status === "pending";
   const status: ToolState = result
@@ -531,60 +697,34 @@ export function ToolCard({
     : waiting
       ? "approval"
       : liveTool
-      ? liveTool.status === "done"
-        ? "done"
-        : liveTool.status
-      : busy || streaming
-        ? "pending"
-        : "unknown";
+        ? liveTool.status === "done"
+          ? "done"
+          : liveTool.status
+        : busy || streaming
+          ? "pending"
+          : "unknown";
   const output = result?.text ?? liveTool?.output;
   const Icon = toolIcon(call.name);
   const summary = argSummary(call.args).replace(/\s+/g, " ");
   const args = prettyArgs(call.args);
 
   return (
-    <div
-      className={cn(
-        "overflow-hidden rounded-lg border bg-surface transition-colors",
-        status === "error" ? "border-danger/30" : status === "approval" ? "border-warning/40 shadow-sm" : "border-border",
-        open && "shadow-sm",
-      )}
-    >
+    <TraceRow rail={rail} node={<StepNode tone={NODE_FOR[status]} />} glow={status === "running"}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex h-9 w-full min-w-0 items-center gap-2.5 px-2.5 text-left transition-colors hover:bg-surface-2/60"
+        className="group/step -ml-2 flex h-8 w-[calc(100%+0.5rem)] min-w-0 items-center gap-2 rounded-lg px-2 text-left transition-colors hover:bg-surface-2/60"
       >
-        <span
-          className={cn(
-            "grid size-5 shrink-0 place-items-center rounded-md [&_svg]:size-3",
-            status === "error"
-              ? "bg-danger-soft text-danger"
-              : status === "approval"
-                ? "bg-warning-soft text-warning"
-                : status === "done"
-                  ? "bg-surface-3 text-muted"
-                  : "bg-accent-soft text-accent-text",
-          )}
-        >
-          <Icon />
-        </span>
+        <Icon className={cn("size-3.5 shrink-0", status === "running" ? "text-accent-text" : "text-faint")} />
         <span className="shrink-0 font-mono text-[12.5px] font-medium text-fg">{call.name}</span>
-        {summary && <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-subtle">{summary}</span>}
-        {!summary && <span className="flex-1" />}
-        <ToolStatus status={status} />
-        <ChevronRight className={cn("size-3.5 shrink-0 text-faint transition-transform", open && "rotate-90")} />
+        {summary ? <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-subtle">{summary}</span> : <span className="flex-1" />}
+        <ToolStatusLabel status={status} />
+        <ChevronRight className={cn("size-3.5 shrink-0 text-faint transition-transform group-hover/step:text-subtle", open && "rotate-90")} />
       </button>
-      {waiting && !open && args && (
-        <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words border-t border-border bg-code px-3 py-2 font-mono text-[12px] leading-relaxed text-muted">
-          {call.name === "bash" && <span className="select-none text-faint">$ </span>}
-          {approvalArgs({ tool: call.name, args: call.args })}
-        </pre>
-      )}
-      {waiting && approval && <ApprovalWaiting approval={approval} />}
+      {waiting && approval && <ApprovalWaiting approval={approval} className="mb-2 mt-1" />}
       {open && (
-        <div className="animate-fade-in border-t border-border bg-code">
+        <div className="mb-2 mt-1 animate-fade-in overflow-hidden rounded-xl border border-border bg-code shadow-xs">
           {args && (
             <ToolSection label="Input" copy={args}>
               {args}
@@ -595,48 +735,44 @@ export function ToolCard({
           </ToolSection>
         </div>
       )}
+    </TraceRow>
+  );
+}
+
+/** A tool result that arrived without its call, shown as a lone step. */
+export function OrphanToolStep({ message }: { message: ToolMessage }) {
+  return (
+    <div className="mt-2">
+      <ToolStep block={{ type: "tool", key: message.id, call: { id: message.callId, name: message.name, args: undefined }, result: message }} rail={{ above: false, below: false }} />
     </div>
   );
+}
+
+function ToolStatusLabel({ status }: { status: ToolState }) {
+  switch (status) {
+    case "running":
+      return <span className="shrink-0 font-mono text-[11px] text-accent-text">running</span>;
+    case "pending":
+      return <span className="shrink-0 font-mono text-[11px] text-faint">queued</span>;
+    case "approval":
+      return <span className="shrink-0 font-mono text-[11px] text-warning">needs approval</span>;
+    case "error":
+      return <span className="shrink-0 font-mono text-[11px] text-danger">failed</span>;
+    default:
+      return null;
+  }
 }
 
 function ToolSection({ label, children, copy, tone }: { label: string; children: ReactNode; copy?: string; tone?: "error" }) {
   return (
     <div className="border-b border-border last:border-b-0">
-      <div className="flex items-center justify-between px-3 pt-1.5">
-        <span className="text-[10.5px] font-medium uppercase tracking-wider text-faint">{label}</span>
+      <div className="flex h-8 items-center justify-between pl-3 pr-1.5">
+        <span className="label-mono text-faint">{label}</span>
         {copy && <CopyButton text={copy} size="xs" />}
       </div>
-      <pre className={cn("max-h-72 overflow-auto whitespace-pre-wrap break-words px-3 pb-2.5 pt-0.5 font-mono text-[12px] leading-relaxed", tone === "error" ? "text-danger" : "text-muted")}>
+      <pre className={cn("max-h-72 overflow-auto whitespace-pre-wrap break-words px-3 pb-3 font-mono text-[12px] leading-relaxed", tone === "error" ? "text-danger" : "text-muted")}>
         {children}
       </pre>
     </div>
   );
-}
-
-type ToolState = "running" | "pending" | "approval" | "done" | "error" | "unknown";
-
-function ToolStatus({ status }: { status: ToolState }) {
-  switch (status) {
-    case "approval":
-      return (
-        <span className="flex shrink-0 items-center gap-1 text-[11.5px] font-medium text-warning">
-          <ShieldAlert className="size-3.5" />
-          <span className="hidden sm:inline">Needs approval</span>
-        </span>
-      );
-    case "running":
-    case "pending":
-      return (
-        <span className="flex shrink-0 items-center gap-1 text-[11.5px] text-accent-text">
-          <LoaderCircle className="size-3.5 animate-spin" />
-          <span className="hidden sm:inline">{status === "pending" ? "Queued" : "Running"}</span>
-        </span>
-      );
-    case "done":
-      return <Check className="size-3.5 shrink-0 text-success" aria-label="Done" />;
-    case "error":
-      return <X className="size-3.5 shrink-0 text-danger" aria-label="Failed" />;
-    default:
-      return null;
-  }
 }
