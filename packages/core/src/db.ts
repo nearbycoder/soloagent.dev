@@ -1,4 +1,4 @@
-import { DatabaseSync } from "node:sqlite";
+import { DatabaseSync, type StatementSync } from "node:sqlite";
 import { randomBytes } from "node:crypto";
 
 /**
@@ -96,15 +96,39 @@ export const MIGRATIONS: { id: string; sql: string }[] = [
      id TEXT PRIMARY KEY, data TEXT NOT NULL, secrets TEXT,
      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);`,
   },
+  {
+    // Secondary indexes for hot dashboard and budget queries (today's admissions, today's activity count, filtered threads, schedules).
+    id: "060_indexes",
+    sql: `CREATE INDEX IF NOT EXISTS admissions_at ON admissions(at);
+   CREATE INDEX IF NOT EXISTS activity_type_at ON activity(type, at);
+   CREATE INDEX IF NOT EXISTS threads_agent_updated ON threads(agent_id, updated_at DESC);
+   CREATE INDEX IF NOT EXISTS threads_source_updated ON threads(source, updated_at DESC);
+   CREATE INDEX IF NOT EXISTS schedules_at ON schedules(at DESC);`,
+  },
 ];
+
+const MAX_CACHED_STATEMENTS = 256;
 
 export class Db {
   readonly sql: DatabaseSync;
+  #stmts = new Map<string, StatementSync>();
 
   constructor(path: string) {
     this.sql = new DatabaseSync(path);
-    this.sql.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON;");
+    this.sql.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA temp_store = MEMORY; PRAGMA cache_size = -16000;");
     this.#migrate();
+  }
+
+  #stmt(sql: string): StatementSync {
+    let stmt = this.#stmts.get(sql);
+    if (!stmt) {
+      stmt = this.sql.prepare(sql);
+      if (this.#stmts.size >= MAX_CACHED_STATEMENTS) {
+        this.#stmts.delete(this.#stmts.keys().next().value!);
+      }
+      this.#stmts.set(sql, stmt);
+    }
+    return stmt;
   }
 
   #migrate() {
@@ -131,15 +155,15 @@ export class Db {
   }
 
   get<T>(sql: string, ...params: SqlValue[]): T | undefined {
-    return this.sql.prepare(sql).get(...params) as T | undefined;
+    return this.#stmt(sql).get(...params) as T | undefined;
   }
 
   all<T>(sql: string, ...params: SqlValue[]): T[] {
-    return this.sql.prepare(sql).all(...params) as T[];
+    return this.#stmt(sql).all(...params) as T[];
   }
 
   run(sql: string, ...params: SqlValue[]) {
-    return this.sql.prepare(sql).run(...params);
+    return this.#stmt(sql).run(...params);
   }
 
   setting(key: string): string | undefined {
@@ -151,6 +175,7 @@ export class Db {
   }
 
   close() {
+    this.#stmts.clear();
     this.sql.close();
   }
 }

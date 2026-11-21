@@ -2,6 +2,7 @@ import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { Readable } from "node:stream";
 import { join } from "node:path";
 import { Hono, type Context as HonoContext } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { setCookie, deleteCookie } from "hono/cookie";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { backupFileName, CONNECTOR_KINDS, exportAgents, HttpError, importAgents, TeamError, UpdateChecker, VERSION, parseUploads, type SoloAgent } from "@soloagent/core";
@@ -25,10 +26,17 @@ function setSession(c: HonoContext, value: string, maxAgeSeconds: number) {
   setCookie(c, COOKIE, value, {
     httpOnly: true,
     sameSite: "Lax",
-    secure: new URL(c.req.url).protocol === "https:" || c.req.header("x-forwarded-proto") === "https",
+    secure: new URL(c.req.url).protocol === "https:" || c.req.header("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase() === "https",
     path: "/",
     maxAge: maxAgeSeconds,
   });
+}
+
+function intParam(raw: string | undefined, fallback: number, min: number, max: number): number {
+  if (raw === undefined || raw === "") return fallback;
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
 }
 
 /** Where invite links point: SOLOAGENT_PUBLIC_URL, else the origin this request came in on. */
@@ -36,14 +44,28 @@ function publicOrigin(c: HonoContext): string {
   const configured = process.env.SOLOAGENT_PUBLIC_URL?.replace(/\/+$/, "");
   if (configured) return configured;
   const url = new URL(c.req.url);
-  const proto = c.req.header("x-forwarded-proto")?.split(",")[0]?.trim() || url.protocol.replace(":", "");
-  const host = c.req.header("x-forwarded-host")?.split(",")[0]?.trim() || c.req.header("host") || url.host;
+  const rawProto = c.req.header("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+  const proto = rawProto === "http" || rawProto === "https" ? rawProto : url.protocol.replace(":", "");
+  const rawHost = c.req.header("x-forwarded-host")?.split(",")[0]?.trim() || c.req.header("host")?.trim();
+  const host = rawHost && /^[a-zA-Z0-9._:\[\]-]+$/.test(rawHost) ? rawHost : url.host;
   return `${proto}://${host}`;
 }
 
 export function createApp({ solo, webDir, updates: updateChecker }: AppOptions) {
   const app = new Hono();
   const updates = updateChecker ?? new UpdateChecker({ current: VERSION, settings: solo.db, enabled: false });
+
+  app.use("*", async (c, next) => {
+    await next();
+    c.header("x-content-type-options", "nosniff");
+    c.header("referrer-policy", "strict-origin-when-cross-origin");
+    c.header("x-frame-options", "DENY");
+    c.header("permissions-policy", "camera=(), microphone=(), geolocation=()");
+    const contentType = c.res.headers.get("content-type") ?? "";
+    if (contentType.includes("text/html") && !c.res.headers.has("content-security-policy")) {
+      c.header("content-security-policy", "frame-ancestors 'none'; base-uri 'self'; object-src 'none'");
+    }
+  });
 
   app.onError((error, c) => {
     const known = error instanceof HttpError || error instanceof TeamError;
@@ -56,12 +78,45 @@ export function createApp({ solo, webDir, updates: updateChecker }: AppOptions) 
 
   const api = new Hono<AuthEnv>();
   const throttle = new LoginThrottle();
+  const tokenThrottle = new LoginThrottle(20, 15 * 60_000);
+
+  const onBodyTooLarge = (c: HonoContext) => c.json({ error: "Request body too large" }, 413);
+  const limitSmall = bodyLimit({ maxSize: 16 * 1024, onError: onBodyTooLarge });
+  const limitDefault = bodyLimit({ maxSize: 2 * 1024 * 1024, onError: onBodyTooLarge });
+  const limitImport = bodyLimit({ maxSize: 10 * 1024 * 1024, onError: onBodyTooLarge });
+  const limitUpload = bodyLimit({ maxSize: 280 * 1024 * 1024, onError: onBodyTooLarge });
+
+  api.use("*", async (c, next) => {
+    const method = c.req.method;
+    if (method === "POST" || method === "PUT" || method === "PATCH") {
+      const path = c.req.path;
+      const limit =
+        /\/(session|invite\/[^/]+)$/.test(path)
+          ? limitSmall
+          : /\/(threads\/[^/]+\/(messages|ask)|hooks\/[^/]+)$/.test(path)
+            ? limitUpload
+            : /\/agents\/import$/.test(path)
+              ? limitImport
+              : limitDefault;
+      const response = await limit(c, next);
+      if (response) return response;
+    } else {
+      await next();
+    }
+    if (!c.res.headers.has("cache-control")) c.header("cache-control", "no-store");
+  });
 
   // Public: sign-in (admin token, or a name and password), invite links, and inbound webhooks (they carry their own secret).
   api.post("/session", async (c) => {
     const body = await c.req.json<{ token?: string; name?: string; password?: string }>().catch(() => ({}) as { token?: string; name?: string; password?: string });
     if (body.token !== undefined) {
-      if (!tokenMatches(solo.adminToken, body.token)) return c.json({ error: "That token is not right" }, 401);
+      const clientKey = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "admin-token";
+      if (tokenThrottle.blocked(clientKey)) return c.json({ error: "Too many attempts. Wait a few minutes and try again." }, 429);
+      if (!tokenMatches(solo.adminToken, body.token)) {
+        tokenThrottle.fail(clientKey);
+        return c.json({ error: "That token is not right" }, 401);
+      }
+      tokenThrottle.clear(clientKey);
       setSession(c, body.token, 60 * 60 * 24 * 90);
       return c.json({ ok: true });
     }
@@ -145,7 +200,7 @@ export function createApp({ solo, webDir, updates: updateChecker }: AppOptions) 
     return c.json(result);
   });
   api.get("/usage", async (c) => c.json(await solo.usage()));
-  api.get("/usage/daily", (c) => c.json(solo.dailyUsage(Number(c.req.query("days") ?? 14) || 14)));
+  api.get("/usage/daily", (c) => c.json(solo.dailyUsage(intParam(c.req.query("days"), 14, 1, 365))));
   api.get("/spend/today", (c) => c.json(solo.spendToday()));
 
   // Team (admins)
@@ -208,7 +263,7 @@ export function createApp({ solo, webDir, updates: updateChecker }: AppOptions) 
     return id;
   };
   api.get("/memories/counts", (c) => c.json(solo.memories.counts()));
-  api.get("/agents/:id/memories", (c) => c.json(solo.memories.list(memoryAgent(c).id, { q: c.req.query("q"), limit: Number(c.req.query("limit") ?? 500) || 500 })));
+  api.get("/agents/:id/memories", (c) => c.json(solo.memories.list(memoryAgent(c).id, { q: c.req.query("q"), limit: intParam(c.req.query("limit"), 500, 1, 2000) })));
   api.post("/agents/:id/memories", adminOnly, async (c) => {
     const agent = memoryAgent(c);
     const { text } = await c.req.json<{ text?: string }>().catch(() => ({ text: undefined }));
@@ -288,7 +343,7 @@ export function createApp({ solo, webDir, updates: updateChecker }: AppOptions) 
 
   // Threads
   api.get("/threads", (c) =>
-    c.json(solo.listThreads({ agentId: c.req.query("agentId"), source: c.req.query("source"), limit: Number(c.req.query("limit") ?? 200) })),
+    c.json(solo.listThreads({ agentId: c.req.query("agentId"), source: c.req.query("source"), limit: intParam(c.req.query("limit"), 200, 1, 1000) })),
   );
   api.post("/threads", async (c) => {
     const body = await c.req.json<{ agentId?: string; title?: string; source?: Source }>().catch(() => ({}) as { agentId?: string; title?: string; source?: Source });
@@ -302,7 +357,7 @@ export function createApp({ solo, webDir, updates: updateChecker }: AppOptions) 
     return c.json({ ok: true });
   });
   api.get("/threads/:id/messages", async (c) =>
-    c.json(await solo.messages(c.req.param("id"), c.req.query("before"), Math.min(200, Number(c.req.query("limit") ?? 50)))),
+    c.json(await solo.messages(c.req.param("id"), c.req.query("before"), intParam(c.req.query("limit"), 50, 1, 200))),
   );
   const sendBody = async (c: HonoContext<AuthEnv>) => {
     const body = await c.req.json<{ text?: string; author?: string; source?: Source; whenBusy?: "steer" | "followUp"; attachments?: unknown }>();
@@ -343,7 +398,9 @@ export function createApp({ solo, webDir, updates: updateChecker }: AppOptions) 
     const inline = INLINE_TYPES.has(file.mimeType);
     const encoded = encodeURIComponent(file.name);
     const ascii = file.name.replace(/[^\x20-\x7e]|["\\]/g, "_");
-    return new Response(Readable.toWeb(createReadStream(file.path)) as ReadableStream, {
+    const stream = createReadStream(file.path);
+    c.req.raw.signal.addEventListener("abort", () => stream.destroy(), { once: true });
+    return new Response(Readable.toWeb(stream) as ReadableStream, {
       headers: {
         "content-type": inline || file.mimeType.startsWith("text/") ? file.mimeType : "application/octet-stream",
         "content-length": String(file.size),
@@ -370,7 +427,7 @@ export function createApp({ solo, webDir, updates: updateChecker }: AppOptions) 
       solo.listApprovals({
         status: status && allowed.includes(status) ? (status as ApprovalStatus | "decided") : undefined,
         threadId: c.req.query("threadId"),
-        limit: Number(c.req.query("limit") ?? 100),
+        limit: intParam(c.req.query("limit"), 100, 1, 500),
       }),
     );
   });
@@ -405,7 +462,7 @@ export function createApp({ solo, webDir, updates: updateChecker }: AppOptions) 
   api.get("/automations/preview", (c) => {
     const cron = c.req.query("cron");
     if (!cron?.trim()) throw new HttpError(400, "cron is required");
-    return c.json(solo.automations.preview(cron, c.req.query("tz"), Number(c.req.query("count") ?? 5)));
+    return c.json(solo.automations.preview(cron, c.req.query("tz"), intParam(c.req.query("count"), 5, 1, 50)));
   });
   api.post("/automations", adminOnly, async (c) => c.json(await solo.automations.create(await c.req.json<AutomationInput>()), 201));
   api.get("/automations/:id", (c) => {

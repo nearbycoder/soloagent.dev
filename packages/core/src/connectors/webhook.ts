@@ -16,13 +16,26 @@ export const webhookDriver: DriverFactory = (config, host): ConnectorDriver => (
 
   async post(target, markdown) {
     if (!target.callbackUrl) return undefined;
-    const response = await fetch(target.callbackUrl, {
+    let parsed: URL;
+    try {
+      parsed = new URL(target.callbackUrl);
+    } catch {
+      host.log(`webhook callback rejected invalid URL`);
+      return undefined;
+    }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      host.log(`webhook callback rejected non-http(s) protocol ${parsed.protocol}`);
+      return undefined;
+    }
+    const response = await fetch(parsed, {
       method: "POST",
       headers: { "content-type": "application/json", "x-solo-secret": config.secret ?? "" },
       body: JSON.stringify({ thread: target.thread, text: markdown }),
+      redirect: "manual",
       signal: AbortSignal.timeout(15_000),
     });
-    if (!response.ok) host.log(`webhook callback ${target.callbackUrl} answered ${response.status}`);
+    await response.body?.cancel().catch(() => {});
+    if (!response.ok) host.log(`webhook callback ${parsed.origin}${parsed.pathname} answered ${response.status}`);
     return undefined;
   },
 });

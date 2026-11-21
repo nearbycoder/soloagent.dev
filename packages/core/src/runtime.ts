@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { join, resolve } from "node:path";
 import { EventEmitter } from "node:events";
 import { BACKGROUND_CONTEXT, type Context } from "@earendil-works/chord/context";
@@ -48,6 +48,7 @@ import {
   ATTACHMENT_LIMITS,
   DownloadError,
   FileStore,
+  assertPublicHost,
   attachmentContent,
   download,
   expandImageMarkers,
@@ -272,9 +273,10 @@ export class SoloAgent {
         db.all<{ id: number; text: string; created_at: number }>("SELECT * FROM memories WHERE agent_id = ? ORDER BY id DESC LIMIT ?", agentId, limit).map((m) => ({ id: m.id, text: m.text, createdAt: m.created_at })),
       searchMemories: (agentId, query, limit) => {
         const words = query.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
-        const where = words.map(() => "LOWER(text) LIKE ?").join(" OR ") || "1";
+        const where = words.map(() => "LOWER(text) LIKE ? ESCAPE '\\'").join(" OR ") || "1";
+        const escaped = words.map((w) => `%${w.replace(/[\\%_]/g, "\\$&")}%`);
         return db
-          .all<{ id: number; text: string; created_at: number }>(`SELECT * FROM memories WHERE agent_id = ? AND (${where}) ORDER BY id DESC LIMIT ?`, agentId, ...words.map((w) => `%${w}%`), limit)
+          .all<{ id: number; text: string; created_at: number }>(`SELECT * FROM memories WHERE agent_id = ? AND (${where}) ORDER BY id DESC LIMIT ?`, agentId, ...escaped, limit)
           .map((m) => ({ id: m.id, text: m.text, createdAt: m.created_at }));
       },
       remember: (agentId, text) => Number(db.run("INSERT INTO memories (agent_id, text, created_at) VALUES (?, ?, ?)", agentId, text, Date.now()).lastInsertRowid),
@@ -309,6 +311,8 @@ export class SoloAgent {
       },
       delegated: (conversationId, agentId) => db.run("INSERT OR IGNORE INTO conversation_agents (conversation_id, agent_id) VALUES (?, ?)", conversationId, agentId),
       expandFiles: async (messages) => (solo ? expandImageMarkers(messages, solo.files) : messages),
+      allowPrivateUrls: () => (solo ? solo.#allowPrivateFileUrls : false),
+      version: VERSION,
     };
 
     const skills = createSkills(host);
@@ -353,7 +357,7 @@ export class SoloAgent {
     solo.#secret = { source: options.secret || process.env.SOLOAGENT_SECRET ? "env" : "file", fingerprint: secretFingerprint(secret), value: secret };
     harness.resume();
     void solo.reconcileApprovals();
-    if (agents.list().length === 0) solo.seed();
+    if (agents.count() === 0) solo.seed();
     await solo.autoAssignModels();
     if (options.connectors !== false) void connectors.startAll();
     void mcp.startAll();
@@ -383,6 +387,11 @@ export class SoloAgent {
   }
 
   async close() {
+    for (const outbound of this.#outbound.values()) {
+      if (outbound.timer) clearTimeout(outbound.timer);
+      if (outbound.typing) clearInterval(outbound.typing);
+    }
+    this.#outbound.clear();
     await this.connectors.stopAll();
     await this.mcp.stopAll();
     for (const watcher of this.#watchers.values()) await watcher.stop();
@@ -849,8 +858,9 @@ export class SoloAgent {
 
     if (command === "help") {
       const reachable = this.agents.list().filter((a) => !this.#agentDenied(connector, a));
-      await reply(helpText(reachable));
-      return { status: "done" as const, answer: helpText(reachable) };
+      const answer = helpText(reachable);
+      await reply(answer);
+      return { status: "done" as const, answer };
     }
     if (command === "agents") {
       const list = this.agents
@@ -916,12 +926,15 @@ export class SoloAgent {
     if (limited) return deny(limited, agent);
 
     // Start the streamed reply before the run so the placeholder appears instantly.
+    let createdOutbound = false;
     if (driver && !this.#outbound.has(row.id)) {
       const outbound: Outbound = { target: message.target, lastText: "", lastEdit: 0 };
       this.#outbound.set(row.id, outbound);
+      createdOutbound = true;
       if (driver.typing) {
         void driver.typing(message.target).catch(() => {});
         outbound.typing = setInterval(() => void driver.typing?.(message.target).catch(() => {}), 8_000);
+        outbound.typing.unref?.();
       }
       if (driver.edit) {
         outbound.placeholder = driver
@@ -933,9 +946,19 @@ export class SoloAgent {
       }
     }
 
-    const sent = await this.send(row.id, { text, author: message.author, attachments: message.attachments });
-    if (options.wait) return sent.wait();
-    return { status: "done" as const };
+    try {
+      const sent = await this.send(row.id, { text, author: message.author, attachments: message.attachments });
+      if (options.wait) return sent.wait();
+      return { status: "done" as const };
+    } catch (error) {
+      if (createdOutbound) {
+        const outbound = this.#outbound.get(row.id);
+        this.#outbound.delete(row.id);
+        if (outbound?.timer) clearTimeout(outbound.timer);
+        if (outbound?.typing) clearInterval(outbound.typing);
+      }
+      throw error;
+    }
   }
 
   /** `POST /api/hooks/:id`. */
@@ -944,9 +967,27 @@ export class SoloAgent {
     if (!connector || connector.kind !== "webhook") throw new HttpError(404, "Unknown webhook");
     if (!connector.enabled) throw new HttpError(409, "This webhook is disabled");
     const expected = this.connectors.config(connectorId).secret;
-    const given = Buffer.from(secret ?? "");
-    const wanted = Buffer.from(expected ?? "");
-    if (!expected || given.length !== wanted.length || !timingSafeEqual(given, wanted)) throw new HttpError(401, "Bad secret");
+    const digest = (s: string) => createHash("sha256").update(s).digest();
+    if (!expected || !secret || !timingSafeEqual(digest(secret), digest(expected))) throw new HttpError(401, "Bad secret");
+    let callbackUrl: string | undefined;
+    if (body.callback_url !== undefined && body.callback_url !== "") {
+      if (typeof body.callback_url !== "string") throw new HttpError(400, "callback_url must be a string");
+      let parsed: URL;
+      try {
+        parsed = new URL(body.callback_url);
+      } catch {
+        throw new HttpError(400, "callback_url must be an http or https URL");
+      }
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new HttpError(400, "callback_url must be an http or https URL");
+      if (!this.#allowPrivateFileUrls) {
+        try {
+          await assertPublicHost(parsed.hostname);
+        } catch (error) {
+          throw new HttpError(400, error instanceof DownloadError ? `callback_url: ${error.message}` : "callback_url: private network addresses are not allowed");
+        }
+      }
+      callbackUrl = parsed.toString();
+    }
     const attachments = parseUploads(body.attachments);
     const text = typeof body.text === "string" ? body.text : "";
     if (!text.trim() && !attachments.length) throw new HttpError(400, "text is required");
@@ -957,11 +998,11 @@ export class SoloAgent {
       title: `${connector.name} · ${(text.trim() || attachments.map((a) => a.name).join(", ")).slice(0, 40)}`,
       author: { name: body.user?.trim() || "webhook", source: "webhook" },
       text,
-      target: body.callback_url ? { callbackUrl: body.callback_url, thread } : { thread },
+      target: callbackUrl ? { callbackUrl, thread } : { thread },
       isDirect: true,
       ...(attachments.length ? { attachments } : {}),
     };
-    if (body.callback_url) {
+    if (callbackUrl) {
       void this.handleInbound(connector, message).catch((error) => this.#log(`webhook: ${String(error)}`));
       return { accepted: true, thread };
     }
@@ -1105,7 +1146,10 @@ export class SoloAgent {
     if (outbound.timer) clearTimeout(outbound.timer);
     const wait = 1_200 - (Date.now() - outbound.lastEdit);
     if (wait <= 0) flush();
-    else outbound.timer = setTimeout(flush, wait);
+    else {
+      outbound.timer = setTimeout(flush, wait);
+      outbound.timer.unref?.();
+    }
   }
 
   /** Called by the Base extension's afterRun hook for every answered run in every conversation. */
@@ -1321,13 +1365,13 @@ export class SoloAgent {
     const connectors = this.connectors.list();
     const startOfDay = new Date();
     startOfDay.setUTCHours(0, 0, 0, 0);
-    const usage = await this.harness.usage(ctx);
+    const [usage, providersConfigured] = await Promise.all([this.harness.usage(ctx), this.providers.configuredCount()]);
     return {
-      agents: this.agents.list().length,
+      agents: this.agents.count(),
       threads: this.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM threads")?.n ?? 0,
       connectorsConnected: connectors.filter((c) => c.status === "connected").length,
       connectorsTotal: connectors.length,
-      providersConfigured: (await this.providers.configured()).length,
+      providersConfigured,
       messagesToday: this.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM activity WHERE type = 'message' AND at >= ?", startOfDay.getTime())?.n ?? 0,
       usage: sumUsage(Object.entries(usage.models).map(([model, u]) => this.#priced(model, u))),
       activity: this.recentActivity(30),
@@ -1355,12 +1399,19 @@ export class SoloAgent {
     const total = await this.harness.usage(ctx);
     const byModel = Object.entries(total.models).map(([model, u]) => ({ model, usage: this.#priced(model, u) }));
     const perAgent = new Map<string, { usage: Usage[]; threads: number }>();
-    for (const row of this.db.all<{ conversation_id: number; agent_id: string }>("SELECT conversation_id, agent_id FROM threads")) {
-      const doc = await this.harness.snapshot(UsageDoc, cid(row.conversation_id), ctx).catch(() => undefined);
-      const bucket = perAgent.get(row.agent_id) ?? { usage: [], threads: 0 };
-      bucket.threads++;
-      for (const [model, u] of Object.entries(doc?.models ?? {})) bucket.usage.push(this.#priced(model, u));
-      perAgent.set(row.agent_id, bucket);
+    const rows = this.db.all<{ conversation_id: number; agent_id: string }>("SELECT conversation_id, agent_id FROM threads");
+    const BATCH = 16;
+    for (let i = 0; i < rows.length; i += BATCH) {
+      const slice = rows.slice(i, i + BATCH);
+      const docs = await Promise.all(slice.map((row) => this.harness.snapshot(UsageDoc, cid(row.conversation_id), ctx).catch(() => undefined)));
+      for (let j = 0; j < slice.length; j++) {
+        const row = slice[j]!;
+        const doc = docs[j];
+        const bucket = perAgent.get(row.agent_id) ?? { usage: [], threads: 0 };
+        bucket.threads++;
+        for (const [model, u] of Object.entries(doc?.models ?? {})) bucket.usage.push(this.#priced(model, u));
+        perAgent.set(row.agent_id, bucket);
+      }
     }
     return {
       total: sumUsage(byModel.map((m) => m.usage)),
@@ -1391,8 +1442,15 @@ export class SoloAgent {
       const watch = await this.harness.watchTaskGraph(ctx);
       this.#taskWatch = watch;
       const publish = (graph: import("@earendil-works/pi-durable").TaskGraph) => {
-        const threadsByConversation = new Map(this.db.all<{ id: string; conversation_id: number }>("SELECT id, conversation_id FROM threads").map((r) => [r.conversation_id, r.id]));
-        this.#tasks = Object.values(graph.tasks).map((node) => ({
+        const nodes = Object.values(graph.tasks);
+        const threadsByConversation = new Map<number, string>();
+        for (const node of nodes) {
+          const convId = Number(node.conversationId);
+          if (!Number.isFinite(convId) || threadsByConversation.has(convId)) continue;
+          const row = this.db.get<{ id: string }>("SELECT id FROM threads WHERE conversation_id = ?", convId);
+          if (row) threadsByConversation.set(convId, row.id);
+        }
+        this.#tasks = nodes.map((node) => ({
           id: String(node.id),
           kind: node.kind,
           status: node.state.status === "waiting" ? `waiting on ${node.state.on.length}` : node.state.status,
@@ -1515,6 +1573,10 @@ class ThreadWatcher {
         if (this.#seen.has(id)) continue;
         this.#seen.add(id);
         fresh.push(...toMessages(entry, this.threadId, this.agentId));
+      }
+      if (this.#seen.size > 1000) {
+        const active = call.value.entries.map((e) => String(e.id));
+        this.#seen = new Set([...[...this.#seen].slice(-500), ...active]);
       }
       if (fresh.length) this.#broadcast({ type: "thread.messages", threadId: this.threadId, messages: fresh });
       this.#publishLive(call.value.docs);

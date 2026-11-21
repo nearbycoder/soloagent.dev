@@ -43,6 +43,7 @@ export const telegramDriver: DriverFactory = (config, host): ConnectorDriver => 
       bot = new Bot(token, apiRoot ? { client: { apiRoot } } : undefined);
       const me = await bot.api.getMe();
       const username = me.username;
+      const mentionPattern = username ? new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "g") : undefined;
 
       bot.on(["message:text", "message:photo", "message:document"], async (ctx) => {
         const message = ctx.message;
@@ -55,7 +56,7 @@ export const telegramDriver: DriverFactory = (config, host): ConnectorDriver => 
         if (!isDirect && !mentioned && !repliedToBot) return;
         const from = message.from;
         const name = [from?.first_name, from?.last_name].filter(Boolean).join(" ") || from?.username || "someone";
-        const text = username ? raw.replace(new RegExp(`@${username}\\b`, "g"), "").trim() : raw;
+        const text = mentionPattern ? raw.replace(mentionPattern, "").trim() : raw;
         const photo = message.photo?.at(-1);
         const attachments = photo
           ? [await fileOf(photo, `photo-${photo.file_unique_id}.jpg`, "image/jpeg")]

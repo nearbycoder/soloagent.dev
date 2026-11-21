@@ -341,41 +341,90 @@ export type DownloadOptions = {
   headers?: Record<string, string>;
   maxBytes?: number;
   timeoutMs?: number;
+  maxRedirects?: number;
   /** Allow loopback and private network addresses. Off by default: webhook callers must not reach internal services. */
   allowPrivate?: boolean;
 };
 
+export type SafeFetchResult = {
+  status: number;
+  ok: boolean;
+  contentType: string;
+  bytes: Uint8Array;
+  truncated: boolean;
+};
+
 /**
- * Download a file with a size cap and a timeout. Redirects are followed by hand (at most 3) so every hop is checked;
- * error messages never include the URL, which may carry a token (Telegram's file URLs do).
+ * Fetch an HTTP(S) resource with SSRF protection, manual redirect validation, timeout, and a strict byte cap.
+ * Unlike `download()`, returns non-2xx responses (and truncated bodies when `truncate` is set) for tools like `web_fetch`.
  */
-export async function download(url: string, options: DownloadOptions = {}): Promise<Uint8Array> {
+export async function safeFetch(url: string, options: DownloadOptions & { truncate?: boolean } = {}): Promise<SafeFetchResult> {
   const maxBytes = options.maxBytes ?? ATTACHMENT_LIMITS.maxFileBytes;
+  const maxHops = Math.max(0, options.maxRedirects ?? 3) + 1;
   const signal = AbortSignal.timeout(options.timeoutMs ?? ATTACHMENT_LIMITS.downloadTimeoutMs);
+  const initialOrigin = (() => {
+    try {
+      return new URL(url).origin;
+    } catch {
+      throw new DownloadError("invalid URL");
+    }
+  })();
   let current = url;
   try {
-    for (let hop = 0; hop < 4; hop++) {
+    for (let hop = 0; hop < maxHops; hop++) {
       const parsed = new URL(current);
       if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new DownloadError("only http and https URLs are supported");
       if (!options.allowPrivate) await assertPublicHost(parsed.hostname);
-      const sameOrigin = hop === 0 || new URL(url).origin === parsed.origin;
+      const sameOrigin = hop === 0 || initialOrigin === parsed.origin;
       const response = await fetch(parsed, { headers: sameOrigin ? options.headers : undefined, redirect: "manual", signal });
       if (response.status >= 300 && response.status < 400 && response.headers.get("location")) {
         current = new URL(response.headers.get("location")!, parsed).toString();
         await response.body?.cancel().catch(() => {});
         continue;
       }
-      if (!response.ok) throw new DownloadError(`the server answered ${response.status}`);
-      const declared = Number(response.headers.get("content-length") ?? 0);
-      if (declared > maxBytes) throw new DownloadError(`larger than the ${formatBytes(maxBytes)} limit`);
+      if (!options.truncate) {
+        const declared = Number(response.headers.get("content-length") ?? 0);
+        if (declared > maxBytes) {
+          await response.body?.cancel().catch(() => {});
+          throw new DownloadError(`larger than the ${formatBytes(maxBytes)} limit`);
+        }
+      }
       const chunks: Uint8Array[] = [];
       let total = 0;
-      for await (const chunk of response.body ?? []) {
-        total += (chunk as Uint8Array).byteLength;
-        if (total > maxBytes) throw new DownloadError(`larger than the ${formatBytes(maxBytes)} limit`);
-        chunks.push(chunk as Uint8Array);
+      let truncated = false;
+      const reader = response.body?.getReader();
+      if (reader) {
+        try {
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (!value) continue;
+            if (total + value.byteLength > maxBytes) {
+              if (options.truncate) {
+                const room = maxBytes - total;
+                if (room > 0) chunks.push(value.subarray(0, room));
+                total = maxBytes;
+                truncated = true;
+                await reader.cancel().catch(() => {});
+                break;
+              }
+              await reader.cancel().catch(() => {});
+              throw new DownloadError(`larger than the ${formatBytes(maxBytes)} limit`);
+            }
+            total += value.byteLength;
+            chunks.push(value);
+          }
+        } finally {
+          reader.releaseLock();
+        }
       }
-      return Buffer.concat(chunks);
+      return {
+        status: response.status,
+        ok: response.ok,
+        contentType: response.headers.get("content-type") ?? "",
+        bytes: Buffer.concat(chunks),
+        truncated,
+      };
     }
     throw new DownloadError("too many redirects");
   } catch (error) {
@@ -385,19 +434,106 @@ export async function download(url: string, options: DownloadOptions = {}): Prom
   }
 }
 
-async function assertPublicHost(hostname: string) {
+/**
+ * Download a file with a size cap and a timeout. Redirects are followed by hand (at most 3) so every hop is checked;
+ * error messages never include the URL, which may carry a token (Telegram's file URLs do).
+ */
+export async function download(url: string, options: DownloadOptions = {}): Promise<Uint8Array> {
+  const result = await safeFetch(url, options);
+  if (!result.ok) throw new DownloadError(`the server answered ${result.status}`);
+  return result.bytes;
+}
+
+export async function assertPublicHost(hostname: string) {
   const host = hostname.replace(/^\[|\]$/g, "");
   const addresses = isIP(host) ? [host] : await lookup(host, { all: true }).then((all) => all.map((a) => a.address), () => [] as string[]);
   if (addresses.length === 0) throw new DownloadError("the host could not be resolved");
   if (addresses.some(isPrivateAddress)) throw new DownloadError("private network addresses are not allowed");
 }
 
-export function isPrivateAddress(address: string): boolean {
-  const v4 = /^(?:::ffff:)?(\d+)\.(\d+)\.(\d+)\.(\d+)$/i.exec(address);
-  if (v4) {
-    const [a, b] = [Number(v4[1]), Number(v4[2])];
-    return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
+function isPrivateIpv4Octets(a: number, b: number, c: number, d: number): boolean {
+  if (a === 0 || a === 10 || a === 127 || a >= 224) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT 100.64.0.0/10
+  if (a === 169 && b === 254) return true; // link-local / cloud metadata 169.254.0.0/16
+  if (a === 172 && b >= 16 && b <= 31) return true; // RFC 1918
+  if (a === 192 && b === 0 && c === 0) return true; // IETF protocol assignments 192.0.0.0/24
+  if (a === 192 && b === 0 && c === 2) return true; // TEST-NET-1
+  if (a === 192 && b === 168) return true; // RFC 1918
+  if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking 198.18.0.0/15
+  if (a === 198 && b === 51 && c === 100) return true; // TEST-NET-2
+  if (a === 203 && b === 0 && c === 113) return true; // TEST-NET-3
+  return a === 255 && b === 255 && c === 255 && d === 255;
+}
+
+/** Parse a canonical or compressed IPv6 address (including mixed IPv4 tail) into eight 16-bit groups. */
+function parseIpv6(raw: string): number[] | undefined {
+  const addr = raw.split("%")[0]!.toLowerCase();
+  const doubleColon = addr.indexOf("::");
+  if (doubleColon !== -1 && addr.indexOf("::", doubleColon + 1) !== -1) return undefined;
+
+  const parseSide = (part: string): number[] | undefined => {
+    if (!part) return [];
+    const tokens = part.split(":");
+    const out: number[] = [];
+    for (let i = 0; i < tokens.length; i++) {
+      const t = tokens[i]!;
+      if (t.includes(".")) {
+        if (i !== tokens.length - 1) return undefined;
+        const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(t);
+        if (!m) return undefined;
+        const octets = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
+        if (octets.some((o) => o > 255)) return undefined;
+        out.push((octets[0]! << 8) | octets[1]!, (octets[2]! << 8) | octets[3]!);
+      } else {
+        if (!/^[0-9a-f]{1,4}$/.test(t)) return undefined;
+        out.push(parseInt(t, 16));
+      }
+    }
+    return out;
+  };
+
+  if (doubleColon === -1) {
+    const groups = parseSide(addr);
+    return groups && groups.length === 8 ? groups : undefined;
   }
-  const v6 = address.toLowerCase();
-  return v6 === "::" || v6 === "::1" || v6.startsWith("fc") || v6.startsWith("fd") || v6.startsWith("fe80") || v6.startsWith("ff");
+  const left = parseSide(addr.slice(0, doubleColon));
+  const right = parseSide(addr.slice(doubleColon + 2));
+  if (!left || !right || left.length + right.length >= 8) return undefined;
+  return [...left, ...new Array<number>(8 - left.length - right.length).fill(0), ...right];
+}
+
+export function isPrivateAddress(address: string): boolean {
+  const clean = address.trim().replace(/^\[|\]$/g, "");
+  const v4 = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(clean);
+  if (v4) {
+    const [a, b, c, d] = [Number(v4[1]), Number(v4[2]), Number(v4[3]), Number(v4[4])];
+    if (a > 255 || b > 255 || c > 255 || d > 255) return true;
+    return isPrivateIpv4Octets(a, b, c, d);
+  }
+  const g = parseIpv6(clean);
+  if (!g) return true; // conservatively reject unparseable addresses
+  const [g0, g1, g2, g3, g4, g5, g6, g7] = g as [number, number, number, number, number, number, number, number];
+  const zeroHead5 = g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0;
+  // Unspecified ::, loopback ::1, and deprecated IPv4-compatible ::/96
+  if (zeroHead5 && g5 === 0) return true;
+  // IPv4-mapped ::ffff:0:0/96 (both dotted ::ffff:127.0.0.1 and hex ::ffff:7f00:1)
+  if (zeroHead5 && g5 === 0xffff) return isPrivateIpv4Octets(g6 >> 8, g6 & 0xff, g7 >> 8, g7 & 0xff);
+  // IPv4-translated ::ffff:0:0:0/96
+  if (g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0xffff && g5 === 0) return isPrivateIpv4Octets(g6 >> 8, g6 & 0xff, g7 >> 8, g7 & 0xff);
+  // NAT64 well-known 64:ff9b::/96 and local-use 64:ff9b:1::/48
+  if (g0 === 0x0064 && g1 === 0xff9b) {
+    if (g2 === 1) return true;
+    if (g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0) return isPrivateIpv4Octets(g6 >> 8, g6 & 0xff, g7 >> 8, g7 & 0xff);
+  }
+  // 6to4 2002::/16 (embeds IPv4 in g1, g2)
+  if (g0 === 0x2002) return isPrivateIpv4Octets(g1 >> 8, g1 & 0xff, g2 >> 8, g2 & 0xff);
+  // Discard 100::/64, Teredo 2001::/32, documentation 2001:db8::/32
+  if (g0 === 0x0100 && g1 === 0 && g2 === 0 && g3 === 0) return true;
+  if (g0 === 0x2001 && (g1 === 0x0000 || g1 === 0x0db8)) return true;
+  // Unique local fc00::/7, link-local fe80::/10, site-local fec0::/10, multicast ff00::/8
+  if ((g0 & 0xfe00) === 0xfc00) return true;
+  if ((g0 & 0xffc0) === 0xfe80) return true;
+  if ((g0 & 0xffc0) === 0xfec0) return true;
+  if ((g0 & 0xff00) === 0xff00) return true;
+  return false;
 }

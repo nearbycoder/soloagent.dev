@@ -40,8 +40,16 @@ export type Route =
   | { page: "team" }
   | { page: "settings" };
 
+function safeDecode(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 export function parseRoute(path: string): Route {
-  const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
+  const parts = path.split("/").filter(Boolean).map(safeDecode);
   switch (parts[0]) {
     case undefined:
     case "overview":

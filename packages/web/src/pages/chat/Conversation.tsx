@@ -101,35 +101,55 @@ export function Conversation({ threadId }: { threadId: string }) {
     }
   };
 
-  const send = async (text: string, mode: "steer" | "followUp", files: File[]) => {
-    atBottom.current = true;
-    try {
-      await client.send(threadId, text, { source: "web", whenBusy: mode, ...(files.length ? { attachments: await toUploads(files) } : {}) });
-      requestAnimationFrame(() => scrollToBottom(true));
-      return true;
-    } catch (error) {
-      toast.error(error, "Message not sent");
-      return false;
-    }
-  };
+  const send = useCallback(
+    async (text: string, mode: "steer" | "followUp", files: File[]) => {
+      atBottom.current = true;
+      try {
+        await client.send(threadId, text, { source: "web", whenBusy: mode, ...(files.length ? { attachments: await toUploads(files) } : {}) });
+        requestAnimationFrame(() => scrollToBottom(true));
+        return true;
+      } catch (error) {
+        toast.error(error, "Message not sent");
+        return false;
+      }
+    },
+    [threadId, scrollToBottom],
+  );
 
-  const stop = async () => {
+  const stop = useCallback(async () => {
     try {
       await client.stop(threadId);
     } catch (error) {
       toast.error(error, "Could not stop");
     }
-  };
+  }, [threadId]);
 
-  const switchAgent = async (agentId: string) => {
-    try {
-      const updated = await client.updateThread(threadId, { agentId });
-      local.thread(updated);
-      toast.success(`Now chatting with ${agentMap.get(agentId)?.name ?? "agent"}`);
-    } catch (error) {
-      toast.error(error, "Could not switch agent");
+  const switchAgent = useCallback(
+    async (agentId: string) => {
+      try {
+        const updated = await client.updateThread(threadId, { agentId });
+        local.thread(updated);
+        toast.success(`Now chatting with ${agentMap.get(agentId)?.name ?? "agent"}`);
+      } catch (error) {
+        toast.error(error, "Could not switch agent");
+      }
+    },
+    [threadId, agentMap],
+  );
+
+  // "Try again" on a failed last message sends the request that led to it once more.
+  const lastUserText = useMemo(() => {
+    for (let i = view.messages.length - 1; i >= 0; i--) {
+      const m = view.messages[i]!;
+      if (m.kind === "user") return m.text || undefined;
     }
-  };
+    return undefined;
+  }, [view.messages]);
+  const retry = useMemo(
+    () => (lastUserText && !view.live.busy ? () => void send(lastUserText, "followUp", []) : undefined),
+    [lastUserText, view.live.busy, send],
+  );
+  const tail = useMemo(() => ({ thinkingMs: view.liveThinkingMs ?? undefined, shownCalls }), [view.liveThinkingMs, shownCalls]);
 
   if (view.notFound) {
     return (
@@ -148,9 +168,6 @@ export function Conversation({ threadId }: { threadId: string }) {
     );
   }
 
-  // "Try again" on a failed last message sends the request that led to it once more.
-  const lastUser = [...view.messages].reverse().find((m) => m.kind === "user");
-  const retry = lastUser?.kind === "user" && lastUser.text && !view.live.busy ? () => void send(lastUser.text, "followUp", []) : undefined;
   const lastMessage = timeline.lastId ? view.messages.find((m) => m.id === timeline.lastId) : undefined;
   const retryId = lastMessage?.kind === "assistant" && lastMessage.error && lastMessage.stopReason !== "aborted" ? lastMessage.id : undefined;
 
@@ -167,7 +184,6 @@ export function Conversation({ threadId }: { threadId: string }) {
   const lastEntry = entries[entries.length - 1];
   const liveActive = view.live.busy || !!view.live.partial;
   const tailOnLast = liveActive && lastEntry?.kind === "run" && lastEntry.agentId !== "" && (!thread || lastEntry.agentId === thread.agentId);
-  const tail = { thinkingMs: view.liveThinkingMs ?? undefined, shownCalls };
 
   return (
     <div className="flex h-full min-w-0 flex-col">

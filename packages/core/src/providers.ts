@@ -41,6 +41,22 @@ export class ProviderHub {
     return (await this.list()).filter((p) => p.configured !== null);
   }
 
+  /** Fast count of configured providers without mapping every provider's full model catalog. */
+  async configuredCount(): Promise<number> {
+    const providers = this.models.getProviders().filter((p) => !HIDDEN.has(p.id));
+    const checks = await Promise.all(
+      providers.map(async (provider) => {
+        if (provider.id === "demo") return true;
+        try {
+          return (await this.models.checkAuth(provider.id)) !== null;
+        } catch {
+          return false;
+        }
+      }),
+    );
+    return checks.filter(Boolean).length;
+  }
+
   async #info(provider: Provider): Promise<ProviderInfo> {
     let configured: ProviderInfo["configured"] = provider.id === "demo" ? { type: "api_key", source: "built-in" } : null;
     if (!configured) try {
@@ -90,10 +106,24 @@ export class ProviderHub {
     if (!provider) throw new Error(`Unknown provider ${providerId}`);
     if (type === "oauth" && !provider.auth.oauth) throw new Error(`${provider.name} has no subscription login`);
     for (const flow of this.#flows.values()) if (flow.state.providerId === providerId && flow.active) flow.cancel();
+    this.#pruneFlows();
     const flow = new LoginFlow(providerId, type, (state) => this.#onFlow(state));
     this.#flows.set(flow.state.id, flow);
     flow.run(this.models, this.#deviceId);
     return flow.snapshot();
+  }
+
+  #pruneFlows() {
+    const cutoff = Date.now() - 15 * 60_000;
+    for (const [id, flow] of this.#flows) {
+      if (!flow.active && flow.finishedAt !== undefined && flow.finishedAt < cutoff) this.#flows.delete(id);
+    }
+    if (this.#flows.size > 50) {
+      for (const [id, flow] of this.#flows) {
+        if (!flow.active) this.#flows.delete(id);
+        if (this.#flows.size <= 50) break;
+      }
+    }
   }
 
   flow(id: string): LoginFlowState | undefined {
@@ -117,6 +147,7 @@ export class ProviderHub {
 
 class LoginFlow {
   state: LoginFlowState;
+  finishedAt: number | undefined;
   #abort = new AbortController();
   #pending: { resolve: (value: string) => void; reject: (error: Error) => void } | undefined;
   #emit: (state: LoginFlowState) => void;
@@ -136,6 +167,7 @@ class LoginFlow {
 
   #update(change: Partial<LoginFlowState>) {
     this.state = { ...this.state, ...change };
+    if (!this.active && this.finishedAt === undefined) this.finishedAt = Date.now();
     this.#emit(this.snapshot());
   }
 

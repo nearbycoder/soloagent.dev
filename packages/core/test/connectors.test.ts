@@ -21,10 +21,10 @@ import { StubDiscordClient, stubMessage } from "./fakes/discord.ts";
 process.env.NO_PROXY = "127.0.0.1,localhost";
 process.env.no_proxy = "127.0.0.1,localhost";
 
-async function open() {
+async function open(options: { allowPrivateFileUrls?: boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "solo-connectors-"));
   const faux = fauxProvider({ provider: "faux", models: [{ id: "faux-1", reasoning: false }] });
-  const solo = await SoloAgent.open({ dataDir: dir, secret: "test", adminToken: "t", connectors: false, demo: false, providers: [faux.provider], log: () => {} });
+  const solo = await SoloAgent.open({ dataDir: dir, secret: "test", adminToken: "t", connectors: false, demo: false, providers: [faux.provider], log: () => {}, ...options });
   const agent = solo.agents.update(solo.agents.list()[0]!.id, { model: { provider: "faux", modelId: "faux-1" } });
   return {
     solo,
@@ -365,8 +365,22 @@ test("discord: a long answer is split into messages under Discord's 2000 charact
 
 // ───────────────────────────── Webhook ─────────────────────────────
 
-test("webhook over HTTP: secret checks, a synchronous answer, and a callback_url delivery", async () => {
-  const { solo, answer, cleanup } = await open();
+test("webhook over HTTP: secret checks, SSRF guard on callback_url, synchronous answer, and callback_url delivery", async () => {
+  const restricted = await open();
+  try {
+    const app = createApp({ solo: restricted.solo });
+    const hook = await connect(restricted.solo, { kind: "webhook", config: { secret: "s3cret" } });
+    const post = (id: string, secret: string, body: unknown) =>
+      app.request(`/api/hooks/${id}`, { method: "POST", headers: { "content-type": "application/json", "x-solo-secret": secret }, body: JSON.stringify(body) });
+
+    assert.equal((await post(hook.id, "s3cret", { text: "ssrf", callback_url: "http://127.0.0.1:9999/done" })).status, 400);
+    assert.equal((await post(hook.id, "s3cret", { text: "ssrf", callback_url: "http://[::ffff:127.0.0.1]:9999/done" })).status, 400);
+    assert.equal((await post(hook.id, "s3cret", { text: "ssrf", callback_url: "file:///etc/passwd" })).status, 400);
+  } finally {
+    await restricted.cleanup();
+  }
+
+  const { solo, answer, cleanup } = await open({ allowPrivateFileUrls: true });
   const received: { secret?: string; body: Record<string, unknown> }[] = [];
   const callback = await listen(async (req, res) => {
     received.push({ secret: String(req.headers["x-solo-secret"]), body: await readBody(req) });

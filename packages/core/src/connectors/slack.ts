@@ -15,8 +15,15 @@ export const slackDriver: DriverFactory = (config, host): ConnectorDriver => {
   const appToken = config.appToken ?? "";
   let app: InstanceType<typeof App> | undefined;
   let botUserId = "";
+  let mentionPattern: RegExp | undefined;
   const users = new Map<string, string>();
   const channels = new Map<string, string>();
+  const MAX_CACHE = 2_000;
+
+  const remember = (cache: Map<string, string>, key: string, value: string) => {
+    if (cache.size >= MAX_CACHE) cache.delete(cache.keys().next().value!);
+    cache.set(key, value);
+  };
 
   async function userName(client: InstanceType<typeof App>["client"], id: string): Promise<string> {
     const cached = users.get(id);
@@ -24,7 +31,7 @@ export const slackDriver: DriverFactory = (config, host): ConnectorDriver => {
     try {
       const info = await client.users.info({ user: id });
       const name = info.user?.profile?.display_name || info.user?.real_name || info.user?.name || id;
-      users.set(id, name);
+      remember(users, id, name);
       return name;
     } catch {
       return id;
@@ -37,14 +44,14 @@ export const slackDriver: DriverFactory = (config, host): ConnectorDriver => {
     try {
       const info = await client.conversations.info({ channel: id });
       const name = info.channel?.name ? `#${info.channel.name}` : id;
-      channels.set(id, name);
+      remember(channels, id, name);
       return name;
     } catch {
       return id;
     }
   }
 
-  const strip = (text: string) => text.replace(new RegExp(`<@${botUserId}>`, "g"), "").trim();
+  const strip = (text: string) => (mentionPattern ? text.replace(mentionPattern, "").trim() : text.trim());
 
   /** Files on the event, downloaded with the bot token (needs the files:read scope). */
   type SlackFile = { name?: string; title?: string; mimetype?: string; size?: number; url_private_download?: string; url_private?: string };
@@ -86,6 +93,7 @@ export const slackDriver: DriverFactory = (config, host): ConnectorDriver => {
       await app.init();
       const auth = await app.client.auth.test();
       botUserId = auth.user_id ?? "";
+      mentionPattern = botUserId ? new RegExp(`<@${botUserId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}>`, "g") : undefined;
 
       app.event("app_mention", async ({ event, client }) => {
         if (!event.user || ("bot_id" in event && event.bot_id)) return;

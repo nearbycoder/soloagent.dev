@@ -62,5 +62,14 @@ export async function fetchLatestRelease(options: { fetch?: typeof fetch; timeou
   const tag = typeof body.tag_name === "string" ? body.tag_name : "";
   const version = parseSemver(tag) ? tag.replace(/^v/, "") : undefined;
   if (!version) throw new Error(`Unrecognized release tag "${tag}"`);
-  return { version, url: typeof body.html_url === "string" ? body.html_url : `${RELEASES_URL}/tag/v${version}` };
+  let url = `${RELEASES_URL}/tag/v${version}`;
+  if (typeof body.html_url === "string") {
+    try {
+      const parsed = new URL(body.html_url);
+      if (parsed.protocol === "https:") url = parsed.href;
+    } catch {
+      // fall back to canonical release URL
+    }
+  }
+  return { version, url };
 }

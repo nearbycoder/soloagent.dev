@@ -8,8 +8,8 @@ export type AgentHost = {
   updateAgent(id: string, input: Partial<AgentInput>): Agent;
 };
 
-/** Server-local or server-managed fields an import never writes. */
-const LOCAL_FIELDS = new Set(["id", "handle", "createdAt", "updatedAt", "isDefault"]);
+/** Server-local, server-managed, or prototype keys an import never writes. */
+const LOCAL_FIELDS = new Set(["id", "handle", "createdAt", "updatedAt", "isDefault", "__proto__", "constructor", "prototype"]);
 
 /**
  * Every agent's full stored data, whatever fields this version has, minus the server-local id.
@@ -43,12 +43,13 @@ export function importAgents(host: AgentHost, input: { agents?: unknown; mode?: 
     incoming.set(toHandle(handleSource), agent);
   });
 
+  const existingByHandle = new Map(host.agents.list().map((a) => [a.handle, a]));
   const items: AgentImportItem[] = [];
   const written: Agent[] = [];
   for (const [handle, agent] of incoming) {
     const data = Object.fromEntries(Object.entries(agent).filter(([key, value]) => !LOCAL_FIELDS.has(key) && value !== undefined));
     const name = typeof data.name === "string" && data.name.trim() ? data.name : handle;
-    const existing = host.agents.list().find((a) => a.handle === handle);
+    const existing = existingByHandle.get(handle);
     if (!existing) {
       items.push({ handle, name, action: "create", fields: [] });
       if (options.dryRun) continue;

@@ -23,7 +23,7 @@ import { useApp, useIsAdmin } from "../api/store.ts";
 import { confirm, toast } from "../lib/toast.ts";
 import { Badge, Button, Card, CopyButton, CopyField, Kbd, Page, PageHeader, Segmented, Switch } from "../components/ui.tsx";
 import { cn } from "../lib/cn.ts";
-import { duration, fullDate, initials } from "../lib/format.ts";
+import { duration, fullDate, initials, safeHttpUrl } from "../lib/format.ts";
 import { setTheme, useTheme, type ThemePref } from "../lib/theme.ts";
 import { ALT, MOD, shortcut } from "../lib/keys.ts";
 
@@ -338,6 +338,7 @@ function UpdatesSection({ admin }: { admin: boolean }) {
   const current = update?.current ?? version;
   const steps = UPGRADE_STEPS.find((m) => m.id === method)!;
   const available = !!update?.updateAvailable;
+  const releaseUrl = safeHttpUrl(update?.url);
   return (
     <Section
       id="updates"
@@ -372,9 +373,9 @@ function UpdatesSection({ admin }: { admin: boolean }) {
             </p>
           </div>
         </div>
-        {update?.url && (
+        {releaseUrl && (
           <a
-            href={update.url}
+            href={releaseUrl}
             target="_blank"
             rel="noreferrer"
             className="inline-flex h-8 shrink-0 items-center gap-1.5 self-start rounded-lg border border-border bg-control px-3 text-[13px] font-medium text-fg shadow-xs transition-colors hover:bg-control-hover sm:self-auto"

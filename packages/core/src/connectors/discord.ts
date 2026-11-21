@@ -129,7 +129,8 @@ export function discordInbound(message: Message, botUserId: string, repliedToBot
   const isDirect = message.channel.type === ChannelType.DM;
   const mentioned = message.mentions.users.has(botUserId);
   if (!isDirect && !mentioned && !repliedToBot) return undefined;
-  const text = message.content.replace(new RegExp(`<@!?${botUserId}>`, "g"), "").trim();
+  const escapedBotId = botUserId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const text = message.content.replace(new RegExp(`<@!?${escapedBotId}>`, "g"), "").trim();
   const name = message.member?.displayName ?? message.author.globalName ?? message.author.username;
   const channelName = "name" in message.channel && message.channel.name ? `#${message.channel.name}` : "channel";
   const location = isDirect ? `DM with ${name}` : `${message.guild?.name ?? "server"} ${channelName}`;

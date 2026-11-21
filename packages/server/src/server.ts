@@ -70,18 +70,55 @@ export async function startServer(options: StartOptions): Promise<RunningServer>
   const address = server.address();
   const actualPort = typeof address === "object" && address ? address.port : port;
 
-  const wss = new WebSocketServer({ noServer: true });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
+  wss.on("error", () => {});
+  const clients = new Set<WsClient>();
+
+  const onBroadcast = (event: ServerEvent) => {
+    if (!BROADCAST.has(event.type) || clients.size === 0) return;
+    const adminOnlyEvent = ADMIN_EVENTS.has(event.type);
+    let payload: string | undefined;
+    for (const client of clients) {
+      if (client.ws.readyState !== client.ws.OPEN) continue;
+      if (adminOnlyEvent && client.role() !== "admin") continue;
+      payload ??= JSON.stringify(event);
+      client.ws.send(payload);
+    }
+  };
+  const onAccessChanged = () => {
+    for (const client of clients) client.checkAccess();
+  };
+  solo.events.on("event", onBroadcast);
+  solo.access.on("changed", onAccessChanged);
+
+  const heartbeat = setInterval(() => {
+    for (const client of clients) {
+      if (!client.alive) {
+        client.ws.terminate();
+        continue;
+      }
+      client.alive = false;
+      client.ws.ping();
+    }
+  }, 60_000);
+  heartbeat.unref?.();
+
   server.on("upgrade", (request: IncomingMessage, socket, head) => {
     const url = new URL(request.url ?? "/", "http://localhost");
     if (url.pathname !== "/api/ws") return socket.destroy();
+    const queryToken = url.searchParams.get("token");
     const cookie = /(?:^|;\s*)solo_session=([^;]+)/.exec(request.headers.cookie ?? "")?.[1];
-    const token = url.searchParams.get("token") ?? (cookie ? decodeURIComponent(cookie) : undefined);
+    if (!queryToken && cookie && !isAllowedOrigin(request)) {
+      socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+      return socket.destroy();
+    }
+    const token = queryToken ?? (cookie ? safeDecode(cookie) : undefined);
     const actor = authenticate(solo, token);
     if (!actor) {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
       return socket.destroy();
     }
-    wss.handleUpgrade(request, socket, head, (ws) => attach(solo, ws, actor, token));
+    wss.handleUpgrade(request, socket, head, (ws) => attach(solo, clients, ws, actor, token));
   });
 
   const url = `http://${host === "0.0.0.0" ? "localhost" : host}:${actualPort}`;
@@ -102,6 +139,9 @@ export async function startServer(options: StartOptions): Promise<RunningServer>
     url,
     port: actualPort,
     close: async () => {
+      clearInterval(heartbeat);
+      solo.events.off("event", onBroadcast);
+      solo.access.off("changed", onAccessChanged);
       stopUpdates();
       stopBackups();
       rmSync(lock, { force: true });
@@ -134,7 +174,61 @@ export const WS_SESSION_ENDED = 4401;
 /** Close code after a role change. Clients reconnect and reload their permissions. */
 export const WS_ACCESS_CHANGED = 4000;
 
-function attach(solo: SoloAgent, ws: WebSocket, initialActor: Actor, credential: string | undefined) {
+const MAX_SUBSCRIPTIONS = 50;
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
+type WsClient = {
+  ws: WebSocket;
+  alive: boolean;
+  role: () => Actor["role"];
+  checkAccess: () => void;
+};
+
+function safeDecode(value: string): string | undefined {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return undefined;
+  }
+}
+
+function hostnameOf(hostHeader: string): string {
+  try {
+    return new URL(`http://${hostHeader}`).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+/** Reject cross-site WebSocket upgrades that rely on browser cookies (CSWSH). */
+function isAllowedOrigin(request: IncomingMessage): boolean {
+  const origin = request.headers.origin;
+  if (!origin) return true;
+  let originUrl: URL;
+  try {
+    originUrl = new URL(origin);
+  } catch {
+    return false;
+  }
+  const allowed = new Set<string>();
+  const forwardedHost =
+    typeof request.headers["x-forwarded-host"] === "string" ? request.headers["x-forwarded-host"].split(",")[0]?.trim().toLowerCase() : undefined;
+  if (forwardedHost) allowed.add(forwardedHost);
+  if (request.headers.host) allowed.add(request.headers.host.toLowerCase());
+  const configured = process.env.SOLOAGENT_PUBLIC_URL;
+  if (configured) {
+    try {
+      allowed.add(new URL(configured).host.toLowerCase());
+    } catch {
+      // ignore invalid env value
+    }
+  }
+  if (allowed.has(originUrl.host.toLowerCase())) return true;
+  if (LOOPBACK_HOSTS.has(originUrl.hostname.toLowerCase()) && [...allowed].some((h) => LOOPBACK_HOSTS.has(hostnameOf(h)))) return true;
+  return false;
+}
+
+function attach(solo: SoloAgent, clients: Set<WsClient>, ws: WebSocket, initialActor: Actor, credential: string | undefined) {
   let actor = initialActor;
   const send = (event: ServerEvent) => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(event));
@@ -142,32 +236,39 @@ function attach(solo: SoloAgent, ws: WebSocket, initialActor: Actor, credential:
   const subscriptions = new Map<string, Promise<() => void>>();
   let tasks: Promise<() => void> | undefined;
 
-  const onEvent = (event: ServerEvent) => {
-    if (BROADCAST.has(event.type) && (actor.role === "admin" || !ADMIN_EVENTS.has(event.type))) send(event);
+  const client: WsClient = {
+    ws,
+    alive: true,
+    role: () => actor.role,
+    checkAccess: () => {
+      const next = authenticate(solo, credential);
+      if (!next) return ws.close(WS_SESSION_ENDED, "Session ended");
+      // A new role: reconnect so the dashboard reloads what this person may see.
+      if (next.role !== actor.role) ws.close(WS_ACCESS_CHANGED, "Access changed");
+      actor = next;
+    },
   };
-  solo.events.on("event", onEvent);
-  // Removed users, ended sessions, and a rotated admin token lose the socket right away; role changes apply live.
-  const onAccess = () => {
-    const next = authenticate(solo, credential);
-    if (!next) return ws.close(WS_SESSION_ENDED, "Session ended");
-    // A new role: reconnect so the dashboard reloads what this person may see.
-    if (next.role !== actor.role) ws.close(WS_ACCESS_CHANGED, "Access changed");
-    actor = next;
-  };
-  solo.access.on("changed", onAccess);
+  clients.add(client);
+  ws.on("error", () => {});
+  ws.on("pong", () => {
+    client.alive = true;
+  });
   send({ type: "hello", version: VERSION });
 
   ws.on("message", async (raw) => {
+    client.alive = true;
     let message: ClientEvent;
     try {
       message = JSON.parse(String(raw)) as ClientEvent;
     } catch {
       return;
     }
+    if (!message || typeof message !== "object") return;
     try {
       switch (message.type) {
         case "subscribe": {
-          if (subscriptions.has(message.threadId)) return;
+          if (typeof message.threadId !== "string" || !message.threadId) return;
+          if (subscriptions.has(message.threadId) || subscriptions.size >= MAX_SUBSCRIPTIONS) return;
           const threadId = message.threadId;
           const subscription = (async () => {
             send({ type: "thread.snapshot", snapshot: await solo.snapshot(threadId) });
@@ -178,6 +279,7 @@ function attach(solo: SoloAgent, ws: WebSocket, initialActor: Actor, credential:
           break;
         }
         case "unsubscribe": {
+          if (typeof message.threadId !== "string") return;
           const subscription = subscriptions.get(message.threadId);
           subscriptions.delete(message.threadId);
           (await subscription?.catch(() => undefined))?.();
@@ -199,8 +301,7 @@ function attach(solo: SoloAgent, ws: WebSocket, initialActor: Actor, credential:
   });
 
   ws.on("close", async () => {
-    solo.events.off("event", onEvent);
-    solo.access.off("changed", onAccess);
+    clients.delete(client);
     for (const subscription of subscriptions.values()) (await subscription.catch(() => undefined))?.();
     (await tasks)?.();
   });

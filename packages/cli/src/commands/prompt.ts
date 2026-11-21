@@ -76,9 +76,17 @@ export async function askSecret(question: string, signal?: AbortSignal): Promise
 /** Best-effort: open a URL in the user's browser. Never throws. */
 export function openBrowser(url: string): boolean {
   if (process.env.SOLOAGENT_NO_BROWSER) return false;
-  const command = process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  const href = parsed.href;
+  const command = process.platform === "darwin" ? "open" : process.platform === "win32" ? "rundll32.exe" : "xdg-open";
   if (process.platform === "linux" && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) return false;
-  const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
+  const args = process.platform === "win32" ? ["url.dll,FileProtocolHandler", href] : [href];
   try {
     const child = spawn(command, args, { detached: true, stdio: "ignore" });
     child.on("error", () => {});

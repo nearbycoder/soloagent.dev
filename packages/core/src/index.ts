@@ -7,7 +7,7 @@ export { createSkills, htmlToText, type SkillHost } from "./skills.ts";
 export { toMessages, toLive, MESSAGE_ENTRY, EVENT_ENTRY } from "./transcript.ts";
 export { DEFAULT_INSTRUCTIONS, toHandle } from "./agents.ts";
 export { TeamStore, TeamError, Ledger, MIN_PASSWORD, hashPassword, verifyPassword, listAllows, startOfUtcDay } from "./team.ts";
-export { ATTACHMENT_LIMITS, FileStore, attachmentContent, download, kindOf, normalizeMime, type AttachmentFile, type InboundAttachment } from "./attachments.ts";
+export { ATTACHMENT_LIMITS, DownloadError, FileStore, assertPublicHost, attachmentContent, download, isPrivateAddress, kindOf, normalizeMime, safeFetch, type AttachmentFile, type InboundAttachment } from "./attachments.ts";
 // Backups, export/import, upgrade notices
 export { readTar, writeTar, TarError, type TarEntry, type TarEntryInput } from "./tar.ts";
 export {

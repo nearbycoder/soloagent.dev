@@ -1,21 +1,30 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { client, setUnauthorizedHandler } from "./api/client.ts";
 import { endSession, startSession } from "./api/store.ts";
 import { ConfirmHost, Toaster } from "./components/overlay.tsx";
 import { SparkMark } from "./components/brand.tsx";
-import { Shell } from "./components/Shell.tsx";
 import { Login } from "./pages/Login.tsx";
 import { InvitePage } from "./pages/Invite.tsx";
+
+const Shell = lazy(() => import("./components/Shell.tsx").then((m) => ({ default: m.Shell })));
 
 type Phase = { name: "checking" } | { name: "login"; expired?: boolean } | { name: "invite"; code: string } | { name: "app" };
 
 /** Invite links open before sign-in: /invite/<code>. */
 const inviteCode = () => /^\/invite\/([^/]+)\/?$/.exec(location.pathname)?.[1];
 
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 export function App() {
   const [phase, setPhase] = useState<Phase>(() => {
     const code = inviteCode();
-    return code ? { name: "invite", code: decodeURIComponent(code) } : { name: "checking" };
+    return code ? { name: "invite", code: safeDecode(code) } : { name: "checking" };
   });
 
   useEffect(() => {
@@ -61,13 +70,15 @@ export function App() {
         />
       )}
       {phase.name === "app" && (
-        <Shell
-          onSignOut={async () => {
-            await client.logout().catch(() => {});
-            endSession();
-            setPhase({ name: "login" });
-          }}
-        />
+        <Suspense fallback={<Splash />}>
+          <Shell
+            onSignOut={async () => {
+              await client.logout().catch(() => {});
+              endSession();
+              setPhase({ name: "login" });
+            }}
+          />
+        </Suspense>
       )}
       <Toaster />
       <ConfirmHost />
