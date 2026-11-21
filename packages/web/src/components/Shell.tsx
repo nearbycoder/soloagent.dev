@@ -34,9 +34,9 @@ import { MenuItem, MenuSeparator, Popover } from "./overlay.tsx";
 import { Dot, Kbd, Spinner } from "./ui.tsx";
 import { UpdateNotice } from "./UpdateNotice.tsx";
 import { Overview } from "../pages/Overview.tsx";
-import { Chat } from "../pages/chat/Chat.tsx";
 import { shortcut } from "../lib/keys.ts";
 
+const Chat = lazy(() => import("../pages/chat/Chat.tsx").then((m) => ({ default: m.Chat })));
 const Agents = lazy(() => import("../pages/Agents.tsx").then((m) => ({ default: m.Agents })));
 const Providers = lazy(() => import("../pages/Providers.tsx").then((m) => ({ default: m.Providers })));
 const Connections = lazy(() => import("../pages/Connections.tsx").then((m) => ({ default: m.Connections })));
@@ -234,8 +234,16 @@ function SidebarContent({
   onSignOut: () => void;
 }) {
   const agents = useApp((s) => s.agents);
-  const busy = useApp((s) => s.threads?.filter((t) => t.busy).length ?? 0);
-  const connectorErrors = useApp((s) => s.connectors?.filter((c) => c.enabled && c.status === "error").length ?? 0);
+  const busy = useApp((s) => {
+    let n = 0;
+    for (const t of s.threads ?? []) if (t.busy) n++;
+    return n;
+  });
+  const connectorErrors = useApp((s) => {
+    let n = 0;
+    for (const c of s.connectors ?? []) if (c.enabled && c.status === "error") n++;
+    return n;
+  });
   const approvals = useApp((s) => s.approvals?.length ?? 0);
   const isAdmin = useIsAdmin();
   const items = NAV.filter((item) => isAdmin || !item.adminOnly);
@@ -383,7 +391,8 @@ function SidebarLabel({ children, action }: { children: ReactNode; action?: Reac
 function AgentRoster({ onNavigate }: { onNavigate?: () => void }) {
   const agents = useApp((s) => s.agents) ?? [];
   const activity = useAgentActivity();
-  const working = [...activity.values()].filter((a) => a.presence === "working").length;
+  let working = 0;
+  for (const a of activity.values()) if (a.presence === "working") working++;
   return (
     <div className="[--presence-ring:var(--bg)]">
       <SidebarLabel

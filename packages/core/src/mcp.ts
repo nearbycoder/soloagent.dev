@@ -75,6 +75,7 @@ export class McpManager {
   #events: McpEvents;
   #version: string;
   #live = new Map<string, Live>();
+  #secretStatus = new Map<string, { raw: string | null; unreadable: boolean }>();
   #closed = false;
 
   constructor(db: Db, sealer: Sealer, registry: Registry, events: McpEvents, options: { version: string }) {
@@ -169,6 +170,7 @@ export class McpManager {
     if (!server) return;
     await this.#stop(id);
     this.#live.delete(id);
+    this.#secretStatus.delete(id);
     this.#db.run("DELETE FROM mcp_servers WHERE id = ?", id);
     this.#events.changed(server, true);
   }
@@ -478,14 +480,23 @@ export class McpManager {
     }
   }
 
+  #secretsUnreadable(row: Row, expectedCount: number): boolean {
+    if (!row.secrets || expectedCount === 0) return false;
+    const cached = this.#secretStatus.get(row.id);
+    if (cached && cached.raw === row.secrets) return cached.unreadable;
+    const sealed = this.#secrets(row);
+    const unreadable = Object.keys(sealed.env).length + Object.keys(sealed.headers).length === 0;
+    this.#secretStatus.set(row.id, { raw: row.secrets, unreadable });
+    return unreadable;
+  }
+
   #public(row: Row): McpServer {
     const data = JSON.parse(row.data) as Data;
     const live = this.#live.get(row.id);
     const tools = live ? this.#toolInfos(row.id, live.tools).map((t) => t.info) : [];
     const mask = (keys: string[]) => Object.fromEntries(keys.map((k) => [k, SECRET_MASK]));
     let detail = live?.detail;
-    const sealed = this.#secrets(row);
-    if (row.secrets && data.envKeys.length + data.headerKeys.length > 0 && Object.keys(sealed.env).length + Object.keys(sealed.headers).length === 0) {
+    if (this.#secretsUnreadable(row, data.envKeys.length + data.headerKeys.length)) {
       detail = "Saved env values and headers can't be decrypted (SOLOAGENT_SECRET changed?). Enter them again.";
     }
     return {

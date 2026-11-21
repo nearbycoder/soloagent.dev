@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import { AlarmClock, ArrowLeft, ArrowUpRight, BookOpen, Check, FileText, ListFilter, MessagesSquare, Search, ShieldAlert, Sparkles, SquarePen, X } from "lucide-react";
-import type { Source, Thread } from "@soloagent/client";
+import type { Agent, Source, Thread } from "@soloagent/client";
 import { startChat } from "../../api/actions.ts";
 import { useAgentActivity, useAgentMap, useApp } from "../../api/store.ts";
 import { AgentAvatar, SOURCE_LABEL, SourceIcon } from "../../components/brand.tsx";
@@ -33,10 +33,7 @@ const FILTER_SOURCES: Source[] = ["web", "slack", "discord", "telegram", "webhoo
 type StatusFilter = "working" | "approval";
 
 /** Recency buckets for the list, newest first. */
-function bucket(at: number, now: number): string {
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  const t0 = today.getTime();
+function bucket(at: number, t0: number): string {
   if (at >= t0) return "Today";
   if (at >= t0 - 86_400_000) return "Yesterday";
   if (at >= t0 - 6 * 86_400_000) return "Previous 7 days";
@@ -55,9 +52,17 @@ function ThreadList({ activeId }: { activeId?: string }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const filterAnchor = useRef<HTMLButtonElement>(null);
 
-  const presentSources = useMemo(() => new Set(threads?.map((t) => t.source)), [threads]);
-  const live = threads?.filter((t) => t.busy && !t.waitingApproval).length ?? 0;
-  const waiting = threads?.filter((t) => t.waitingApproval).length ?? 0;
+  const { presentSources, live, waiting } = useMemo(() => {
+    const sources = new Set<Source>();
+    let liveCount = 0;
+    let waitingCount = 0;
+    for (const t of threads ?? []) {
+      sources.add(t.source);
+      if (t.waitingApproval) waitingCount++;
+      else if (t.busy) liveCount++;
+    }
+    return { presentSources: sources, live: liveCount, waiting: waitingCount };
+  }, [threads]);
   const filtered = useMemo(() => {
     if (!threads) return null;
     const q = query.trim().toLowerCase();
@@ -73,10 +78,12 @@ function ThreadList({ activeId }: { activeId?: string }) {
 
   const groups = useMemo(() => {
     if (!filtered) return [];
-    const now = Date.now();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const t0 = today.getTime();
     const out: { label: string; threads: Thread[] }[] = [];
     for (const thread of filtered) {
-      const label = bucket(thread.updatedAt, now);
+      const label = bucket(thread.updatedAt, t0);
       const last = out[out.length - 1];
       if (last?.label === label) last.threads.push(thread);
       else out.push({ label, threads: [thread] });
@@ -242,7 +249,7 @@ function ThreadList({ activeId }: { activeId?: string }) {
               <h2 className="label-mono px-2.5 pb-1.5 pt-3 text-faint first:pt-1">{group.label}</h2>
               <ul className="flex flex-col gap-px">
                 {group.threads.map((thread) => (
-                  <ThreadRow key={thread.id} thread={thread} active={thread.id === activeId} />
+                  <ThreadRow key={thread.id} thread={thread} agent={agentMap.get(thread.agentId)} active={thread.id === activeId} />
                 ))}
               </ul>
             </section>
@@ -275,8 +282,7 @@ function FilterChip({ label, icon, onClear }: { label: string; icon: React.React
   );
 }
 
-function ThreadRow({ thread, active }: { thread: Thread; active: boolean }) {
-  const agent = useAgentMap().get(thread.agentId);
+const ThreadRow = memo(function ThreadRow({ thread, agent, active }: { thread: Thread; agent: Agent | undefined; active: boolean }) {
   const href = `/chat/${thread.id}`;
   const preview = plainPreview(thread.preview);
   const working = thread.busy && !thread.waitingApproval;
@@ -333,7 +339,7 @@ function ThreadRow({ thread, active }: { thread: Thread; active: boolean }) {
       </a>
     </li>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // New chat

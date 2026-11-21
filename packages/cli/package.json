@@ -10,7 +10,7 @@
     "@soloagent/client": "*",
     "@soloagent/core": "*",
     "@soloagent/server": "*",
-    "@earendil-works/pi-tui": "1.5.0",
+    "@earendil-works/pi-tui": "1.6.0",
     "highlight.js": "^11.12.0"
   },
   "bin": {

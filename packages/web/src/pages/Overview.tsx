@@ -85,7 +85,15 @@ export function Overview() {
     if (a.presence === "working") working++;
     else if (a.presence === "approval") waiting++;
   }
-  const busyThreads = threads?.filter((t) => t.busy).length ?? 0;
+  const { busyThreads, threadCounts } = useMemo(() => {
+    let busy = 0;
+    const counts = new Map<string, number>();
+    for (const t of threads ?? []) {
+      if (t.busy) busy++;
+      counts.set(t.agentId, (counts.get(t.agentId) ?? 0) + 1);
+    }
+    return { busyThreads: busy, threadCounts: counts };
+  }, [threads]);
   const name = me?.actor.kind === "user" ? me.actor.name.split(/\s+/)[0] : undefined;
 
   return (
@@ -195,7 +203,7 @@ export function Overview() {
                   key={agent.id}
                   agent={agent}
                   index={i}
-                  threads={threads?.filter((t) => t.agentId === agent.id).length ?? 0}
+                  threads={threadCounts.get(agent.id) ?? 0}
                   activity={activity.get(agent.id)}
                   spend={spend?.get(agent.id)}
                 />
@@ -266,7 +274,11 @@ function FleetSentence({ agents, working, waiting, loaded }: { agents: number; w
 /** Spend per agent for the current UTC day, refreshed as replies land. */
 function useSpendToday(): Map<string, AgentSpend> | null {
   const [spend, setSpend] = useState<Map<string, AgentSpend> | null>(null);
-  const replies = useApp((s) => s.activity.filter((a) => a.type === "reply").length);
+  const replies = useApp((s) => {
+    let n = 0;
+    for (const a of s.activity) if (a.type === "reply") n++;
+    return n;
+  });
   useEffect(() => {
     let cancelled = false;
     const id = setTimeout(

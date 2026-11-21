@@ -35,6 +35,10 @@ export class AgentStore {
     return this.#db.all<Row>("SELECT * FROM agents ORDER BY created_at").map(fromRow);
   }
 
+  count(): number {
+    return this.#db.get<{ n: number }>("SELECT COUNT(*) AS n FROM agents")?.n ?? 0;
+  }
+
   get(idOrHandle: string): Agent | undefined {
     const row = this.#db.get<Row>("SELECT * FROM agents WHERE id = ? OR handle = ?", idOrHandle, idOrHandle.toLowerCase());
     return row ? fromRow(row) : undefined;
@@ -52,7 +56,7 @@ export class AgentStore {
 
   create(input: AgentInput): Agent {
     const now = Date.now();
-    const count = this.list().length;
+    const count = this.count();
     const handle = this.#uniqueHandle(input.handle ? toHandle(input.handle) : toHandle(input.name));
     const skills = cleanSkills(input.skills ?? ["memory", "web", "delegate", "schedule"]);
     const agent: Agent = {

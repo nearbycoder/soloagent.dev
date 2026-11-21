@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import {
   configure,
   defineExtension,
@@ -14,6 +14,7 @@ import { int, num, obj, opt, str } from "@earendil-works/pi-schema";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { Agent, AgentSkill } from "@soloagent/client";
 import { automationTask, automationTools, type AutomationHost } from "./automations.ts";
+import { DownloadError, safeFetch } from "./attachments.ts";
 import { EVENT_ENTRY, MESSAGE_ENTRY, textOf, type EventEntryData, type MessageEntryData } from "./transcript.ts";
 
 /** What the skills need from the soloagent runtime. Kept narrow so skills stay testable. */
@@ -42,9 +43,15 @@ export interface SkillHost {
   delegated(conversationId: number, agentId: string): void;
   /** Swap stored-image markers back to image blocks before each model request (Files & images). */
   expandFiles?(messages: readonly import("@earendil-works/pi-ai").Message[]): Promise<readonly import("@earendil-works/pi-ai").Message[]>;
+  /** Whether `web_fetch` may reach loopback and private network addresses. Default false. */
+  allowPrivateUrls?: () => boolean;
+  /** Running soloagent version, for User-Agent headers. */
+  version?: string;
 }
 
 const MAX_FETCH_CHARS = 24_000;
+const MAX_FETCH_RAW_BYTES = 5 * 1024 * 1024;
+const MAX_SEARCH_RAW_BYTES = 2 * 1024 * 1024;
 
 export function createSkills(host: SkillHost) {
   /** Always selected: identity, date, roster, and the outbound delivery hook. */
@@ -147,16 +154,31 @@ export function createSkills(host: SkillHost) {
         parameters: obj({ url: str(), max_chars: opt(int({ description: `Default ${MAX_FETCH_CHARS}` })) }),
         replay: "safe",
         execute: async (args) => {
-          const response = await fetch(args.url, {
-            headers: { "user-agent": "soloagent/0.1 (+https://soloagent.dev)", accept: "text/html,application/json,text/plain,*/*" },
-            signal: AbortSignal.timeout(20_000),
-            redirect: "follow",
-          });
-          const type = response.headers.get("content-type") ?? "";
-          const raw = await response.text();
+          const ua = `soloagent/${host.version ?? "0.2"} (+https://soloagent.dev)`;
+          let response;
+          try {
+            response = await safeFetch(args.url, {
+              headers: { "user-agent": ua, accept: "text/html,application/json,text/plain,*/*" },
+              timeoutMs: 20_000,
+              maxBytes: MAX_FETCH_RAW_BYTES,
+              maxRedirects: 5,
+              truncate: true,
+              allowPrivate: host.allowPrivateUrls?.() ?? false,
+            });
+          } catch (error) {
+            const msg = error instanceof DownloadError ? error.message : "the request failed";
+            return { output: [{ type: "text", text: `Could not fetch URL: ${msg}` }], isError: true };
+          }
+          const type = response.contentType;
+          const raw = new TextDecoder("utf-8").decode(response.bytes);
           const text = type.includes("html") ? htmlToText(raw) : raw;
-          const limit = args.max_chars ?? MAX_FETCH_CHARS;
-          const body = text.length > limit ? `${text.slice(0, limit)}\n\n[truncated ${text.length - limit} chars]` : text;
+          const limit = Math.max(1, Math.min(200_000, args.max_chars ?? MAX_FETCH_CHARS));
+          const body =
+            text.length > limit
+              ? `${text.slice(0, limit)}\n\n[truncated ${text.length - limit} chars]`
+              : response.truncated
+                ? `${text}\n\n[truncated response body]`
+                : text;
           return {
             output: [{ type: "text", text: `HTTP ${response.status} ${type}\n\n${body}` }],
             isError: !response.ok,
@@ -169,17 +191,27 @@ export function createSkills(host: SkillHost) {
         parameters: obj({ query: str() }),
         replay: "safe",
         execute: async (args) => {
-          const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(args.query)}`, {
-            headers: { "user-agent": "Mozilla/5.0 (compatible; soloagent/0.1; +https://soloagent.dev)" },
-            signal: AbortSignal.timeout(15_000),
+          const ua = `Mozilla/5.0 (compatible; soloagent/${host.version ?? "0.2"}; +https://soloagent.dev)`;
+          const response = await safeFetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(args.query)}`, {
+            headers: { "user-agent": ua },
+            timeoutMs: 15_000,
+            maxBytes: MAX_SEARCH_RAW_BYTES,
+            maxRedirects: 3,
+            truncate: true,
           });
-          const html = await response.text();
+          const html = new TextDecoder("utf-8").decode(response.bytes);
           const results: string[] = [];
           const pattern = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
           for (const match of html.matchAll(pattern)) {
             let url = decodeEntities(match[1]!);
             const uddg = /[?&]uddg=([^&]+)/.exec(url);
-            if (uddg) url = decodeURIComponent(uddg[1]!);
+            if (uddg) {
+              try {
+                url = decodeURIComponent(uddg[1]!);
+              } catch {
+                // keep the raw href when percent-encoding is malformed
+              }
+            }
             results.push(`${results.length + 1}. ${stripTags(match[2]!)}\n   ${url}\n   ${stripTags(match[3]!)}`);
             if (results.length >= 8) break;
           }
@@ -352,7 +384,14 @@ function decodeEntities(text: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#x27;|&#39;/g, "'")
-    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)));
+    .replace(/&#x([0-9a-fA-F]+);/g, (raw, hex: string) => {
+      const cp = parseInt(hex, 16);
+      return Number.isFinite(cp) && cp >= 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : raw;
+    })
+    .replace(/&#(\d+);/g, (raw, code: string) => {
+      const cp = Number(code);
+      return Number.isFinite(cp) && cp >= 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : raw;
+    });
 }
 
 export { textOf };

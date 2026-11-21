@@ -39,7 +39,7 @@ class MarkdownCache {
   constructor(thinking = false) {
     this.thinking = thinking;
   }
-  render(text: string, width: number): string[] {
+  render(text: string, width: number): readonly string[] {
     if (!this.#md) {
       this.#md = this.thinking
         ? new Markdown(text, 0, 0, thinkingMarkdownTheme, { color: c.dim, italic: true })
@@ -518,7 +518,7 @@ export class Conversation extends Container {
     return block;
   }
 
-  override render(width: number): string[] {
+  override render(width: number): readonly string[] {
     // One column of breathing room on the right.
     const lines = super.render(Math.max(1, width - 1));
     return lines.length ? lines : [""];

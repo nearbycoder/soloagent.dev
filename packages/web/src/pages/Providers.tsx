@@ -8,7 +8,7 @@ import { ProviderMark } from "../components/brand.tsx";
 import { Modal } from "../components/overlay.tsx";
 import { Badge, Button, Card, CopyButton, CopyField, Input, Page, PageHeader, SectionHeader, Segmented, Select, Skeleton, Spinner } from "../components/ui.tsx";
 import { cn } from "../lib/cn.ts";
-import { clockTime, num, pluralize } from "../lib/format.ts";
+import { clockTime, num, pluralize, safeHttpUrl } from "../lib/format.ts";
 import { confirm, toast } from "../lib/toast.ts";
 
 const SUBSCRIPTION_HINT: Record<string, string> = {
@@ -435,11 +435,18 @@ export function LoginFlowModal({ flowId, onClose }: { flowId: string; onClose: (
                   <span className="shrink-0 tabular-nums text-faint">{clockTime(line.at)}</span>
                   <span className="min-w-0 break-words text-muted">
                     {line.message}
-                    {line.links?.map((link) => (
-                      <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="ml-1.5 text-fg underline decoration-border-strong underline-offset-2 hover:decoration-fg">
-                        {link.label ?? link.url}
-                      </a>
-                    ))}
+                    {line.links?.map((link) => {
+                      const href = safeHttpUrl(link.url);
+                      return href ? (
+                        <a key={link.url} href={href} target="_blank" rel="noreferrer" className="ml-1.5 text-fg underline decoration-border-strong underline-offset-2 hover:decoration-fg">
+                          {link.label ?? link.url}
+                        </a>
+                      ) : (
+                        <span key={link.url} className="ml-1.5 text-fg">
+                          {link.label ?? link.url}
+                        </span>
+                      );
+                    })}
                   </span>
                 </li>
               ))}
@@ -471,20 +478,32 @@ function FlowResult({ tone, title, body }: { tone: "success" | "danger" | "neutr
 
 function FlowSteps({ flow }: { flow: LoginFlowState }) {
   const nothingYet = !flow.authUrl && !flow.deviceCode && !flow.prompt;
+  const authHref = safeHttpUrl(flow.authUrl?.url);
+  const deviceHref = safeHttpUrl(flow.deviceCode?.verificationUri);
+  const deviceHost = (() => {
+    if (!deviceHref) return flow.deviceCode?.verificationUri ?? "";
+    try {
+      return new URL(deviceHref).host;
+    } catch {
+      return deviceHref;
+    }
+  })();
   return (
     <>
       {flow.authUrl && (
         <div className="flex flex-col gap-3">
           <StepLabel n={1}>Open the sign-in page and approve access</StepLabel>
-          <a
-            href={flow.authUrl.url}
-            target="_blank"
-            rel="noreferrer"
-            className="flex h-11 items-center justify-center gap-2 rounded-lg bg-inverse text-[14px] font-medium text-inverse-fg shadow-[0_1px_2px_rgb(0_0_0/0.2),inset_0_1px_0_rgb(255_255_255/0.12)] transition-colors hover:bg-inverse-hover"
-          >
-            Open sign-in page
-            <ExternalLink className="size-4" />
-          </a>
+          {authHref && (
+            <a
+              href={authHref}
+              target="_blank"
+              rel="noreferrer"
+              className="flex h-11 items-center justify-center gap-2 rounded-lg bg-inverse text-[14px] font-medium text-inverse-fg shadow-[0_1px_2px_rgb(0_0_0/0.2),inset_0_1px_0_rgb(255_255_255/0.12)] transition-colors hover:bg-inverse-hover"
+            >
+              Open sign-in page
+              <ExternalLink className="size-4" />
+            </a>
+          )}
           <CopyField value={flow.authUrl.url} />
           {flow.authUrl.instructions && <p className="text-[12.5px] leading-relaxed text-subtle">{flow.authUrl.instructions}</p>}
         </div>
@@ -498,15 +517,17 @@ function FlowSteps({ flow }: { flow: LoginFlowState }) {
             <span className="relative select-all font-mono text-[30px] font-semibold tracking-[0.2em] text-fg">{flow.deviceCode.userCode}</span>
             <CopyButton text={flow.deviceCode.userCode} label="Copy code" className="relative" />
           </div>
-          <a
-            href={flow.deviceCode.verificationUri}
-            target="_blank"
-            rel="noreferrer"
-            className="flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-control text-[13.5px] font-medium text-fg shadow-xs transition-colors hover:border-border-strong hover:bg-control-hover"
-          >
-            Open <span className="font-mono text-[12.5px]">{new URL(flow.deviceCode.verificationUri, location.href).host}</span>
-            <ArrowUpRight className="size-4" />
-          </a>
+          {deviceHref && (
+            <a
+              href={deviceHref}
+              target="_blank"
+              rel="noreferrer"
+              className="flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-control text-[13.5px] font-medium text-fg shadow-xs transition-colors hover:border-border-strong hover:bg-control-hover"
+            >
+              Open <span className="font-mono text-[12.5px]">{deviceHost}</span>
+              <ArrowUpRight className="size-4" />
+            </a>
+          )}
         </div>
       )}
 

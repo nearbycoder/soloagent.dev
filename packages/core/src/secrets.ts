@@ -19,10 +19,15 @@ export class Sealer {
   }
 
   open(sealed: string): string {
-    const [version, iv, tag, body] = sealed.split(".");
+    const parts = sealed.split(".");
+    if (parts.length !== 4) throw new Error("Unrecognized sealed value");
+    const [version, iv, tag, body] = parts;
     if (version !== "v1" || !iv || !tag || body === undefined) throw new Error("Unrecognized sealed value");
-    const decipher = createDecipheriv("aes-256-gcm", this.#key, Buffer.from(iv, "base64url"));
-    decipher.setAuthTag(Buffer.from(tag, "base64url"));
+    const ivBuf = Buffer.from(iv, "base64url");
+    const tagBuf = Buffer.from(tag, "base64url");
+    if (ivBuf.length !== 12 || tagBuf.length !== 16) throw new Error("Unrecognized sealed value");
+    const decipher = createDecipheriv("aes-256-gcm", this.#key, ivBuf, { authTagLength: 16 });
+    decipher.setAuthTag(tagBuf);
     return Buffer.concat([decipher.update(Buffer.from(body, "base64url")), decipher.final()]).toString("utf8");
   }
 }

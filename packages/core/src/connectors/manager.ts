@@ -33,6 +33,7 @@ export class ConnectorManager {
   #events: ConnectorEvents;
   #drivers = new Map<string, ConnectorDriver>();
   #status = new Map<string, { status: ConnectorStatus; detail?: string; identity?: string }>();
+  #secretKeys = new Map<string, { raw: string | null; keys: Set<string> }>();
 
   constructor(db: Db, sealer: Sealer, events: ConnectorEvents) {
     this.#db = db;
@@ -123,6 +124,7 @@ export class ConnectorManager {
     await this.#stop(id);
     this.#db.run("DELETE FROM connectors WHERE id = ?", id);
     this.#status.delete(id);
+    this.#secretKeys.delete(id);
     this.#events.changed(connector, true);
   }
 
@@ -229,12 +231,21 @@ export class ConnectorManager {
     return this.#db.get<Row>("SELECT * FROM connectors WHERE id = ?", id);
   }
 
+  #presentSecretKeys(row: Row): Set<string> {
+    const cached = this.#secretKeys.get(row.id);
+    if (cached && cached.raw === row.secrets) return cached.keys;
+    const secrets = this.#secrets(row);
+    const keys = new Set(Object.keys(secrets).filter((k) => Boolean(secrets[k])));
+    this.#secretKeys.set(row.id, { raw: row.secrets, keys });
+    return keys;
+  }
+
   #public(row: Row): Connector {
     const data = JSON.parse(row.data) as Data;
     const info = kindInfo(row.kind);
-    const secrets = this.#secrets(row);
+    const secretKeys = this.#presentSecretKeys(row);
     const config: Record<string, string> = { ...data.config };
-    for (const field of info?.fields ?? []) if (field.secret && secrets[field.key]) config[field.key] = SECRET_MASK;
+    for (const field of info?.fields ?? []) if (field.secret && secretKeys.has(field.key)) config[field.key] = SECRET_MASK;
     const status = this.#status.get(row.id) ?? { status: "stopped" as const };
     return {
       id: row.id,

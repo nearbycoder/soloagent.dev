@@ -26,7 +26,7 @@ export function toSlack(markdown: string): string {
 
 /** Markdown to the HTML subset Telegram accepts. */
 export function toTelegramHtml(markdown: string): string {
-  const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   return markdown
     .split(/(```[\s\S]*?```|`[^`\n]+`)/g)
     .map((part, index) => {

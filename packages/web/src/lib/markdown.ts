@@ -68,12 +68,17 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
 
 const cache = new Map<string, string>();
 
+const SANITIZE_CONFIG = {
+  ADD_ATTR: ["target", "data-copy-code"],
+  FORBID_TAGS: ["style", "form", "input", "textarea", "select", "iframe", "object", "embed", "meta", "link", "base"],
+};
+
 /** Markdown → sanitized HTML, with highlighted code blocks that carry a copy button. */
 export function renderMarkdown(source: string, options: { cache?: boolean } = {}): string {
   const useCache = options.cache !== false;
   const hit = useCache ? cache.get(source) : undefined;
   if (hit !== undefined) return hit;
-  const html = DOMPurify.sanitize(marked.parse(source, { async: false }) as string, { ADD_ATTR: ["target", "data-copy-code"] });
+  const html = DOMPurify.sanitize(marked.parse(source, { async: false }) as string, SANITIZE_CONFIG);
   if (useCache && source.length < 20_000) {
     cache.set(source, html);
     if (cache.size > 400) cache.delete(cache.keys().next().value!);

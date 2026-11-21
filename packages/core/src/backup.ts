@@ -286,27 +286,41 @@ export async function extractVerified(archive: string | AsyncIterable<Buffer>, d
     // surfaces through the tar reader
   });
 
+  const rootDir = resolve(dir);
   const hashes = new Map<string, string>();
   const links: { path: string; linkname: string }[] = [];
   const kept = new Map<string, string>();
+  const MAX_META_BYTES = 16 * 1024 * 1024;
   try {
     for await (const entry of readTar(gunzip)) {
       const rel = safeRelative(entry.name);
-      const path = join(dir, ...rel.split("/"));
+      const path = join(rootDir, ...rel.split("/"));
       if (entry.type === "directory") {
         await mkdir(path, { recursive: true });
       } else if (entry.type === "symlink") {
+        if (!entry.linkname || entry.linkname.includes("\0") || entry.linkname.startsWith("/") || /^[a-zA-Z]:/.test(entry.linkname)) {
+          throw new TarError(`Unsafe symlink target in archive: ${entry.name}`);
+        }
+        const resolved = resolve(dirname(path), entry.linkname);
+        if (resolved !== rootDir && !resolved.startsWith(`${rootDir}/`) && !resolved.startsWith(`${rootDir}\\`)) {
+          throw new TarError(`Unsafe symlink target in archive: ${entry.name}`);
+        }
         links.push({ path, linkname: entry.linkname });
       } else if (entry.type === "file") {
         await mkdir(dirname(path), { recursive: true });
         const hash = createHash("sha256");
         const keep = rel === MANIFEST || rel === CHECKSUMS;
         const chunks: Buffer[] = [];
+        let keptBytes = 0;
         await pipeline(
           (async function* () {
             for await (const chunk of entry.body) {
               hash.update(chunk);
-              if (keep) chunks.push(chunk);
+              if (keep) {
+                keptBytes += chunk.length;
+                if (keptBytes > MAX_META_BYTES) throw new TarError(`Metadata file ${rel} exceeds size limit`);
+                chunks.push(chunk);
+              }
               yield chunk;
             }
           })(),
@@ -353,12 +367,15 @@ export async function extractVerified(archive: string | AsyncIterable<Buffer>, d
   }
 
   for (const name of manifest.databases ?? []) {
-    const path = join(dir, name);
-    if (!existsSync(path)) throw new Error(`Corrupt archive: database ${name} is missing`);
+    if (typeof name !== "string") throw new Error("Corrupt archive: invalid database entry in manifest");
+    const safe = safeRelative(name);
+    if (safe.includes("/")) throw new TarError(`Unsafe database path in manifest: ${name}`);
+    const path = join(rootDir, safe);
+    if (!existsSync(path)) throw new Error(`Corrupt archive: database ${safe} is missing`);
     const db = new DatabaseSync(path);
     try {
       const rows = db.prepare("PRAGMA integrity_check").all() as { integrity_check: string }[];
-      if (rows[0]?.integrity_check !== "ok") throw new Error(`Database ${name} failed its integrity check: ${rows.map((r) => r.integrity_check).join("; ")}`);
+      if (rows[0]?.integrity_check !== "ok") throw new Error(`Database ${safe} failed its integrity check: ${rows.map((r) => r.integrity_check).join("; ")}`);
     } finally {
       db.close();
     }

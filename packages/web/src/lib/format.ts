@@ -112,3 +112,14 @@ export function plainPreview(text: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+/** Return the URL only when it parses as http: or https:, blocking javascript:/data: href injection. */
+export function safeHttpUrl(raw: string | undefined | null): string | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = new URL(raw);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.href : undefined;
+  } catch {
+    return undefined;
+  }
+}

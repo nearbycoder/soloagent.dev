@@ -131,7 +131,12 @@ export function toLive(docs: Readonly<Record<string, unknown>>): LiveState {
     partial: message
       ? { text: textOf(message.content), thinking: thinkingOf(message.content), toolCalls: toolCallsOf(message.content) }
       : undefined,
-    tools: (live.tools ?? []).map((slot) => ({ callId: slot.callId, name: slot.name, status: slot.status, output: slot.output?.slice(-4000) })),
+    tools: (live.tools ?? []).map((slot) => ({
+      callId: slot.callId,
+      name: slot.name,
+      status: slot.status === "done" || slot.status === "pending" ? slot.status : "running",
+      output: slot.output?.slice(-4000),
+    })),
     retry: live.generation?.retry,
     failure: live.run === undefined && live.runFailure ? { reason: live.runFailure.reason, detail: live.runFailure.detail } : undefined,
   };

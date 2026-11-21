@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ArrowUpCircle, X } from "lucide-react";
 import { useApp } from "../api/store.ts";
+import { safeHttpUrl } from "../lib/format.ts";
 import { linkHandler } from "../lib/router.ts";
 
 const DISMISS_KEY = "solo.update.dismissed";
@@ -43,15 +44,17 @@ export function UpdateNotice({ collapsed, onNavigate }: { collapsed?: boolean; o
     setDismissed(latest);
   };
 
+  const releaseUrl = safeHttpUrl(update.url);
+
   return (
     <div className="mx-3 mb-2.5 flex items-start gap-2 rounded-xl border border-accent-line/25 bg-accent-soft px-3 py-2.5 text-[12px] shadow-[0_0_24px_-12px_var(--accent-glow)]">
       <ArrowUpCircle className="mt-px size-3.5 shrink-0 text-accent-text" />
       <div className="min-w-0 flex-1 leading-snug">
         <p className="font-medium text-fg">v{latest} available</p>
         <p className="mt-0.5 text-subtle">
-          {update.url && (
+          {releaseUrl && (
             <>
-              <a href={update.url} target="_blank" rel="noreferrer" className="text-accent-text hover:underline">
+              <a href={releaseUrl} target="_blank" rel="noreferrer" className="text-accent-text hover:underline">
                 Release notes
               </a>
               {" · "}

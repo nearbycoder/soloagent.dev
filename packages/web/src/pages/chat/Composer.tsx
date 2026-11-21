@@ -44,21 +44,29 @@ export function Composer({
   const [text, setText] = useState(() => drafts.get(draftKey) ?? "");
   const [sending, setSending] = useState(false);
   const [files, setFiles] = useState<Pending[]>([]);
+  const filesRef = useRef(files);
+  filesRef.current = files;
   const [dragging, setDragging] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
+
+  useEffect(
+    () => () => {
+      for (const f of filesRef.current) if (f.preview) URL.revokeObjectURL(f.preview);
+    },
+    [],
+  );
 
   const addFiles = (list: Iterable<File>) => {
     const incoming = [...list];
     if (incoming.length === 0) return;
     const tooBig = incoming.filter((f) => f.size > MAX_FILE_BYTES);
     if (tooBig.length) toast.error(new Error(`${tooBig.map((f) => f.name).join(", ")}: files can be up to ${fileSize(MAX_FILE_BYTES)}.`), "File too large");
-    setFiles((current) => {
-      const room = MAX_FILES - current.length;
-      const accepted = incoming.filter((f) => f.size <= MAX_FILE_BYTES);
-      if (accepted.length > room) toast.info(`Up to ${MAX_FILES} files per message`);
-      return [...current, ...accepted.slice(0, Math.max(0, room)).map((file) => ({ id: ++pendingId, file, preview: PREVIEWABLE.has(file.type) ? URL.createObjectURL(file) : undefined }))];
-    });
+    const accepted = incoming.filter((f) => f.size <= MAX_FILE_BYTES);
+    const room = Math.max(0, MAX_FILES - filesRef.current.length);
+    if (accepted.length > room) toast.info(`Up to ${MAX_FILES} files per message`);
+    const next = accepted.slice(0, room).map((file) => ({ id: ++pendingId, file, preview: PREVIEWABLE.has(file.type) ? URL.createObjectURL(file) : undefined }));
+    if (next.length) setFiles((current) => [...current, ...next]);
   };
   const removeFile = (id: number) =>
     setFiles((current) => {

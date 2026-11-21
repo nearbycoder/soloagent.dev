@@ -177,6 +177,7 @@ export async function* readTar(source: AsyncIterable<Buffer | Uint8Array | strin
     const padding = (BLOCK - (size % BLOCK)) % BLOCK;
 
     if (type === "x" || type === "g" || type === "L" || type === "K") {
+      if (size > 1024 * 1024) throw new TarError("Corrupt archive: extended header exceeds 1 MiB");
       const body = await bytes.take(size);
       await bytes.take(padding);
       if (type === "x") pax = { ...pax, ...parsePax(body) };
@@ -228,10 +229,14 @@ function readNumber(buf: Buffer, offset: number, length: number): number {
   if (buf[offset]! & 0x80) {
     let v = 0n;
     for (let i = offset + 1; i < offset + length; i++) v = (v << 8n) | BigInt(buf[i]!);
+    if (v > BigInt(Number.MAX_SAFE_INTEGER)) throw new TarError("Corrupt archive: numeric field overflow");
     return Number(v);
   }
   const text = buf.toString("ascii", offset, offset + length).replace(/[\0 ]+$/g, "").trim();
-  return text ? parseInt(text, 8) : 0;
+  if (!text) return 0;
+  const n = parseInt(text, 8);
+  if (!Number.isFinite(n) || n < 0) throw new TarError("Corrupt archive: invalid numeric field");
+  return n;
 }
 
 function cString(buf: Buffer, offset: number, length: number): string {

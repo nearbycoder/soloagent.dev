@@ -1,4 +1,4 @@
-import { memo, useState, type ReactNode } from "react";
+import { memo, useMemo, useState, type ReactNode } from "react";
 import {
   Brain,
   Check,
@@ -30,7 +30,7 @@ import { ImageViewer } from "../../components/ImageViewer.tsx";
 import { CopyButton } from "../../components/ui.tsx";
 import { cn } from "../../lib/cn.ts";
 import { fileSize, fileUrl, PREVIEWABLE } from "../../lib/files.ts";
-import { clockTime, cost, duration, fullDate, initials, relativeTime, tokens } from "../../lib/format.ts";
+import { clockTime, cost, duration, fullDate, initials, relativeTime, safeHttpUrl, tokens } from "../../lib/format.ts";
 
 export type AssistantMessage = Extract<Message, { kind: "assistant" }>;
 export type ToolMessage = Extract<Message, { kind: "tool" }>;
@@ -122,14 +122,15 @@ export const UserBubble = memo(function UserBubble({ message, first }: { message
       </div>
     );
   }
+  const avatarSrc = safeHttpUrl(message.author.avatarUrl);
   // Someone on Slack/Discord/Telegram/a webhook: left-aligned with their name and platform. People are round;
   // agents are tiles.
   return (
     <div className={cn("group/msg flex gap-3.5", first ? "mt-7" : "mt-2")}>
       <div className="w-8 shrink-0">
         {first &&
-          (message.author.avatarUrl ? (
-            <img src={message.author.avatarUrl} alt="" className="size-8 rounded-full object-cover ring-1 ring-border" />
+          (avatarSrc ? (
+            <img src={avatarSrc} alt="" className="size-8 rounded-full object-cover ring-1 ring-border" />
           ) : (
             <span className="grid size-8 place-items-center rounded-full bg-gradient-to-b from-surface-3 to-surface-2 text-[11px] font-semibold text-muted ring-1 ring-border-strong">
               {initials(message.author.name)}
@@ -305,13 +306,22 @@ type Block =
 const isStep = (block: Block) => block.type === "thinking" || block.type === "tool" || block.type === "event" || block.type === "working";
 
 /** The live part of a run: what's streaming right now, and tools still pending. Empty when nothing shows. */
-export function liveBlocks(live: LiveState, shownCalls: ReadonlySet<string>, thinkingMs?: number): Block[] {
+export function liveBlocks(
+  live: LiveState,
+  shownCalls: ReadonlySet<string>,
+  thinkingMs?: number,
+  liveToolsByCall?: ReadonlyMap<string, LiveTool>,
+  approvalsByCall?: ReadonlyMap<string, Approval>,
+): Block[] {
   const partial = live.partial;
   const hasContent = !!partial && (!!partial.text || !!partial.thinking || partial.toolCalls.length > 0);
-  const pendingTools = live.tools.filter((t) => t.status !== "done" && !shownCalls.has(t.callId) && !partial?.toolCalls.some((c) => c.id === t.callId));
+  const partialIds = partial?.toolCalls.length ? new Set(partial.toolCalls.map((c) => c.id)) : undefined;
+  const pendingTools = live.tools.filter((t) => t.status !== "done" && !shownCalls.has(t.callId) && !partialIds?.has(t.callId));
   if (!live.busy && !hasContent) return [];
   // Paused on an approval: its tool step says so; no "working" step.
   if (!hasContent && pendingTools.length === 0 && live.approvals?.length) return [];
+  const toolsMap = liveToolsByCall ?? new Map(live.tools.map((t) => [t.callId, t]));
+  const approvalsMap = approvalsByCall ?? new Map((live.approvals ?? []).map((a) => [a.callId, a]));
   const blocks: Block[] = [];
   if (partial?.thinking) blocks.push({ type: "thinking", key: "live:thinking", text: partial.thinking, live: !partial.text && partial.toolCalls.length === 0, ms: thinkingMs });
   if (partial?.text) blocks.push({ type: "text", key: "live:text", text: partial.text, live: true });
@@ -320,15 +330,15 @@ export function liveBlocks(live: LiveState, shownCalls: ReadonlySet<string>, thi
       type: "tool",
       key: `live:${call.id}`,
       call,
-      liveTool: live.tools.find((t) => t.callId === call.id),
-      approval: live.approvals?.find((a) => a.callId === call.id),
+      liveTool: toolsMap.get(call.id),
+      approval: approvalsMap.get(call.id),
       busy: true,
       streaming: true,
     });
   }
   if (!partial) {
     for (const tool of pendingTools) {
-      const approval = live.approvals?.find((a) => a.callId === tool.callId);
+      const approval = approvalsMap.get(tool.callId);
       blocks.push({ type: "tool", key: `live:${tool.callId}`, call: { id: tool.callId, name: tool.name, args: approval?.args }, liveTool: tool, approval, busy: true });
     }
   }
@@ -380,6 +390,8 @@ export const RunView = memo(function RunView({
   onRetry?: () => void;
   tail?: RunTail;
 }) {
+  const liveToolsByCall = live.tools.length ? new Map(live.tools.map((t) => [t.callId, t])) : undefined;
+  const approvalsByCall = live.approvals?.length ? new Map(live.approvals.map((a) => [a.callId, a])) : undefined;
   const blocks: Block[] = [];
   for (const item of items) {
     if (item.kind === "assistant") {
@@ -391,8 +403,8 @@ export const RunView = memo(function RunView({
           key: call.id,
           call,
           result: results.get(call.id),
-          liveTool: live.tools.find((t) => t.callId === call.id),
-          approval: live.approvals?.find((a) => a.callId === call.id),
+          liveTool: liveToolsByCall?.get(call.id),
+          approval: approvalsByCall?.get(call.id),
           busy: live.busy,
         });
       }
@@ -405,7 +417,7 @@ export const RunView = memo(function RunView({
       blocks.push({ type: "event", key: item.id, message: item });
     }
   }
-  if (tail) blocks.push(...liveBlocks(live, tail.shownCalls, tail.thinkingMs));
+  if (tail) blocks.push(...liveBlocks(live, tail.shownCalls, tail.thinkingMs, liveToolsByCall, approvalsByCall));
   if (blocks.length === 0 && !head) return null;
   if (blocks.length === 0 && items.length === 0) return null;
 
@@ -706,7 +718,7 @@ function ToolStep({ block, rail }: { block: Extract<Block, { type: "tool" }>; ra
   const output = result?.text ?? liveTool?.output;
   const Icon = toolIcon(call.name);
   const summary = argSummary(call.args).replace(/\s+/g, " ");
-  const args = prettyArgs(call.args);
+  const args = useMemo(() => (open ? prettyArgs(call.args) : ""), [open, call.args]);
 
   return (
     <TraceRow rail={rail} node={<StepNode tone={NODE_FOR[status]} />} glow={status === "running"}>

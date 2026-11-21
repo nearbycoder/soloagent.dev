@@ -6,6 +6,8 @@ All notable changes to soloagent are documented here. The format follows [Keep a
 
 ### Changed
 
+- Updated all workspace dependencies and GitHub Actions workflows to their latest releases (including `@earendil-works/*` `1.6.0`, `hono`, `vite`, `lucide-react`, `marked`, `dompurify`, `ws`, `discord.js`, and `@playwright/test`).
+- Performance: tuned SQLite pragmas (`busy_timeout`, `temp_store = MEMORY`, 16 MB page cache), added prepared-statement caching and composite indexes for admissions, activity, threads, and schedules, cached connector/MCP secret metadata to avoid repeated AES-GCM decryption, batched per-agent usage lookups, pre-serialized broadcast WebSocket events across clients, and code-split the dashboard `Shell` and `Chat` chunks so initial loads skip markdown/syntax-highlighting bundles.
 - A redesigned dashboard. Graphite surfaces, hairline borders, self-hosted Geist and Geist Mono (no font requests to Google), and one signal color: lime now means an agent is doing something, so the eye goes where the agents are. Every page was rebuilt on the new system, in dark and light, down to phone width.
 - Agents show what they're doing everywhere: a lime arc orbits the avatar of an agent that's working, and an amber marker flags one that's waiting on a person. The sidebar lists every agent with its live state.
 - Chat shows each run as a trace: reasoning and tool calls are steps on a rail, with live status, expandable input and output, and the run's tokens and cost on hover. Threads are grouped by day and can be filtered to the ones working or waiting. The composer shows when the agent is working or paused on an approval.
@@ -27,6 +29,12 @@ All notable changes to soloagent are documented here. The format follows [Keep a
 - The "connected" toast could appear twice for one sign-in.
 - Number and time fields meant to be narrow stretched to the full width of their form.
 - The chat composer now takes focus once a thread has loaded.
+
+### Security
+
+- Closed IPv6 SSRF bypasses (including hex-encoded IPv4-mapped `::ffff:7f00:1`, NAT64, 6to4, Teredo, and expanded loopback/link-local ranges) and enforced the same SSRF and size protections across `web_fetch`, `web_search`, and webhook `callback_url` deliveries (plus `redirect: "manual"` on webhook callbacks so secrets are never forwarded on redirects).
+- Hardened HTTP and WebSocket servers with standard security headers (`nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, HTML CSP, `Cache-Control: no-store` on `/api/*`), per-route request body limits, brute-force throttling on admin-token sign-in, constant-time SHA-256 token/webhook secret comparison, `publicOrigin` header validation, CSWSH `Origin` checks on cookie-authenticated WebSockets, and a 64 KiB WebSocket payload limit with dead-socket heartbeats.
+- Hardened AES-GCM decryption tag/IV length validation, backup archive extraction (rejecting escaping symlinks and database path traversal), prototype-pollution guards in agent import, Windows browser launch escaping in the CLI, and DOMPurify forbidden-tag / `http(s):` external link checks in the dashboard.
 
 ## [0.2.1] - 2026-11-03
 

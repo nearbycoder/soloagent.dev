@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { defineExtension, type Extension, hook, ToolTask } from "@earendil-works/pi-durable";
 import type { AgentSkill, Approval, ApprovalPolicy, ApprovalSettings, ApprovalStatus } from "@soloagent/client";
 import { type Db, newId } from "./db.ts";
@@ -267,7 +267,11 @@ export class ApprovalStore {
       const cleanup = () => {
         if (timer) clearTimeout(timer);
         signal?.removeEventListener("abort", onAbort);
-        this.#waiters.get(id)?.delete(wake);
+        const waiters = this.#waiters.get(id);
+        if (waiters) {
+          waiters.delete(wake);
+          if (waiters.size === 0) this.#waiters.delete(id);
+        }
       };
       const wake = (approval: Approval) => {
         cleanup();

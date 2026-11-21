@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { Context as HonoContext, MiddlewareHandler } from "hono";
 import { getCookie } from "hono/cookie";
 import type { SoloAgent } from "@soloagent/core";
@@ -14,11 +14,13 @@ export type AuthEnv = { Variables: { actor: Actor } };
 
 export const COOKIE = "solo_session";
 
+function sha256(value: string): Buffer {
+  return createHash("sha256").update(value).digest();
+}
+
 export function tokenMatches(expected: string, given: string | undefined): boolean {
-  if (!given) return false;
-  const a = Buffer.from(expected);
-  const b = Buffer.from(given);
-  return a.length === b.length && timingSafeEqual(a, b);
+  if (!given || !expected) return false;
+  return timingSafeEqual(sha256(expected), sha256(given));
 }
 
 /** A bearer token or the session cookie. Query-string tokens are accepted only on the WebSocket upgrade. */
@@ -59,22 +61,25 @@ export const adminOnly: MiddlewareHandler<AuthEnv> = async (c, next) => {
   await next();
 };
 
-/** Failed password sign-ins per name, so a guessing script slows to a crawl. */
+/** Failed password or token sign-ins per key, so a guessing script slows to a crawl. */
 export class LoginThrottle {
   #failures = new Map<string, { count: number; first: number }>();
   readonly max: number;
   readonly windowMs: number;
+  readonly maxEntries: number;
 
-  constructor(max = 10, windowMs = 15 * 60_000) {
+  constructor(max = 10, windowMs = 15 * 60_000, maxEntries = 10_000) {
     this.max = max;
     this.windowMs = windowMs;
+    this.maxEntries = maxEntries;
   }
 
   blocked(key: string): boolean {
-    const entry = this.#failures.get(key.toLowerCase());
+    const k = key.toLowerCase();
+    const entry = this.#failures.get(k);
     if (!entry) return false;
     if (Date.now() - entry.first > this.windowMs) {
-      this.#failures.delete(key.toLowerCase());
+      this.#failures.delete(k);
       return false;
     }
     return entry.count >= this.max;
@@ -82,12 +87,29 @@ export class LoginThrottle {
 
   fail(key: string) {
     const k = key.toLowerCase();
+    const now = Date.now();
     const entry = this.#failures.get(k);
-    if (!entry || Date.now() - entry.first > this.windowMs) this.#failures.set(k, { count: 1, first: Date.now() });
-    else entry.count++;
+    if (!entry || now - entry.first > this.windowMs) {
+      this.#prune(now);
+      this.#failures.set(k, { count: 1, first: now });
+    } else {
+      entry.count++;
+    }
   }
 
   clear(key: string) {
     this.#failures.delete(key.toLowerCase());
+  }
+
+  #prune(now: number) {
+    if (this.#failures.size < this.maxEntries) return;
+    for (const [k, entry] of this.#failures) {
+      if (now - entry.first > this.windowMs) this.#failures.delete(k);
+    }
+    while (this.#failures.size >= this.maxEntries) {
+      const oldest = this.#failures.keys().next().value;
+      if (oldest === undefined) break;
+      this.#failures.delete(oldest);
+    }
   }
 }
